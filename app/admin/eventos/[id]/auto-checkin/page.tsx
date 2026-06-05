@@ -17,11 +17,9 @@ export default function AutoCheckInPage() {
   const [scannerInput, setScannerInput] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
   
-  // ==========================================
-  // COMPUERTAS LÓGICAS (ANTI-BUCLES Y ANTI-BLOQUEOS)
-  // ==========================================
+  // COMPUERTAS LÓGICAS (CÁMARA SIEMPRE ACTIVA)
   const isProcessingRef = useRef(false); 
-  const cooldownRef = useRef<Set<string>>(new Set()); // Memoria para ignorar códigos repetidos
+  const cooldownRef = useRef<Set<string>>(new Set()); 
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [status, setStatus] = useState<'waiting' | 'processing' | 'success' | 'error'>('waiting');
@@ -50,7 +48,6 @@ export default function AutoCheckInPage() {
     }
   }
 
-  // Mantiene el foco en el láser físico
   useEffect(() => {
     const focusInterval = setInterval(() => {
       if (scannerRef.current && status === 'waiting' && !isCameraOpen) {
@@ -60,9 +57,7 @@ export default function AutoCheckInPage() {
     return () => clearInterval(focusInterval);
   }, [status, isCameraOpen]);
 
-  // ==========================================
-  // MOTOR DE CÁMARA ININTERRUMPIDO
-  // ==========================================
+  // INICIO DE LA CÁMARA (NUNCA SE APAGA)
   useEffect(() => {
     if (!isCameraOpen) return;
     
@@ -72,7 +67,6 @@ export default function AutoCheckInPage() {
     const startCamera = async () => {
       const { Html5Qrcode } = await import('html5-qrcode');
       
-      // Esperamos 500ms para asegurar que el contenedor vacío ya existe en la pantalla
       setTimeout(async () => {
         if (!isMounted) return;
 
@@ -85,26 +79,20 @@ export default function AutoCheckInPage() {
             (decodedText: string) => {
               const cleanDoc = decodedText.trim();
               
-              // 1. COMPUERTA: Si hay pantalla verde/roja, ignorar la cámara
               if (isProcessingRef.current) return;
-              
-              // 2. ENFRIAMIENTO: Si es el mismo código que acabamos de leer, lo ignoramos
               if (cooldownRef.current.has(cleanDoc)) return;
 
-              // 3. PASÓ LOS FILTROS: Cerramos la compuerta y guardamos en memoria
               isProcessingRef.current = true;
               cooldownRef.current.add(cleanDoc);
 
-              // A los 6 segundos se borra de la memoria (por si necesita volver a escanearlo)
               setTimeout(() => {
                 cooldownRef.current.delete(cleanDoc);
               }, 6000);
 
-              // 4. Procesamos la información
               processDoc(cleanDoc);
             },
             (errorMessage: string) => {
-              // Silenciar cuando no hay un código en el video
+              // Silenciar
             }
           );
         } catch (err: any) {
@@ -117,7 +105,6 @@ export default function AutoCheckInPage() {
 
     startCamera();
 
-    // Cuando el usuario le da a la 'X' para cerrar la cámara, la detenemos limpiamente
     return () => {
       isMounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
@@ -126,9 +113,6 @@ export default function AutoCheckInPage() {
     };
   }, [isCameraOpen]);
 
-  // ==========================================
-  // PROCESAMIENTO (Aplica tanto a cámara como a láser)
-  // ==========================================
   const processDoc = async (cleanDoc: string) => {
     setStatus('processing');
 
@@ -157,7 +141,6 @@ export default function AutoCheckInPage() {
       setWelcomeName(firstName);
       setStatus('success');
 
-      // A los 3 segundos quitamos la pantalla verde y ABRIMOS LA COMPUERTA
       setTimeout(() => {
         setStatus('waiting');
         setWelcomeName('');
@@ -169,10 +152,8 @@ export default function AutoCheckInPage() {
       setErrorMsg(err.message);
       setStatus('error');
       
-      // Si dio error, le quitamos el enfriamiento para que lo vuelva a intentar si quiere
       cooldownRef.current.delete(cleanDoc);
       
-      // A los 4 segundos quitamos la pantalla roja y ABRIMOS LA COMPUERTA
       setTimeout(() => {
         setStatus('waiting');
         setErrorMsg('');
@@ -182,7 +163,6 @@ export default function AutoCheckInPage() {
     }
   };
 
-  // Láser Físico
   const handleLaserScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const doc = scannerInput.trim();
@@ -210,11 +190,8 @@ export default function AutoCheckInPage() {
 
   return (
     <div 
-      className="min-h-screen w-full flex items-center justify-center overflow-hidden cursor-none m-0 p-0 absolute inset-0 z-50"
-      style={{ 
-        backgroundColor: '#050505',
-        backgroundImage: `radial-gradient(circle at center, ${event.primary_color}20 0%, transparent 70%)` 
-      }}
+      className="min-h-screen w-full flex items-center justify-center overflow-hidden cursor-none m-0 p-0 fixed inset-0 z-50 bg-[#050505]"
+      style={{ backgroundImage: `radial-gradient(circle at center, ${event.primary_color}20 0%, transparent 70%)` }}
     >
       <input 
         ref={scannerRef}
@@ -229,47 +206,90 @@ export default function AutoCheckInPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* LA CÁMARA (NUNCA SE APAGA, SE QUEDA ATRÁS DE LAS DEMÁS PANTALLAS) */}
+        {/* ==================================================== */}
+        {/* VISTA DE CÁMARA SIEMPRE ACTIVA EN MÓVIL/TABLET       */}
+        {/* ==================================================== */}
         {isCameraOpen && (
           <motion.div 
             key="camera-view"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black flex flex-col items-center justify-center p-4 md:p-6"
+            className="fixed inset-0 z-40 bg-[#050505] flex flex-col p-4 md:p-6"
           >
-            <button 
-              onClick={() => setIsCameraOpen(false)} 
-              className="absolute top-6 right-6 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors cursor-pointer z-50"
-              style={{ cursor: 'pointer' }}
-            >
-              <X className="h-8 w-8"/>
-            </button>
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 md:mb-8 flex items-center gap-3">
-              <Camera className="h-6 w-6 md:h-8 md:w-8 text-primary"/> Apunta el Código QR
-            </h2>
-            
-            <div className="w-full max-w-lg bg-black border-2 border-white/10 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-center justify-center min-h-75 md:min-h-100 relative">
-              
-              {/* Spinner decorativo por si la cámara tarda 1 segundo en encender */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                 <Loader2 className="h-10 w-10 text-white animate-spin opacity-50" />
-              </div>
-              
-              {/* Contenedor oficial y vacío para la librería */}
-              <div id="kiosco-camera-reader" className="w-full h-full relative z-10 bg-transparent rounded-2xl overflow-hidden"></div>
-              
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
+                <Camera className="h-6 w-6 text-primary"/> Escaneo en Progreso
+              </h2>
+              <button 
+                onClick={() => setIsCameraOpen(false)} 
+                className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="h-6 w-6"/>
+              </button>
             </div>
-            <p className="text-gray-400 mt-6 text-center text-sm md:text-base">
-              La cámara está activa en tiempo real.
-            </p>
+            
+            <div className={`w-full max-w-2xl mx-auto bg-black border-4 rounded-4xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex-1 min-h-[40vh] max-h-[50vh] relative transition-colors duration-300 ${status === 'success' ? 'border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.3)]' : status === 'error' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.3)]' : 'border-white/10'}`}>
+              <div id="kiosco-camera-reader" className="w-full h-full bg-black"></div>
+            </div>
+
+            <div className="w-full max-w-2xl mx-auto mt-6 h-40 flex items-center justify-center">
+              <AnimatePresence mode="wait">
+                {status === 'waiting' && (
+                  <motion.div 
+                    key="msg-waiting"
+                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <QrCode className="h-10 w-10 text-gray-400 mb-2 animate-pulse" />
+                    <p className="text-gray-300 text-lg md:text-xl font-medium">Enfoca el código QR en la cámara</p>
+                  </motion.div>
+                )}
+
+                {status === 'processing' && (
+                  <motion.div 
+                    key="msg-processing"
+                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <Loader2 className="h-12 w-12 text-primary animate-spin mb-3" />
+                    <p className="text-white text-xl font-bold">Verificando...</p>
+                  </motion.div>
+                )}
+
+                {status === 'success' && (
+                  <motion.div 
+                    key="msg-success"
+                    initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                    className="w-full bg-green-500/20 border border-green-500/50 rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-lg"
+                  >
+                    <CheckCircle2 className="h-12 w-12 text-green-400 mb-2" />
+                    <h2 className="text-2xl md:text-3xl font-black text-white">¡Adelante, {welcomeName}!</h2>
+                  </motion.div>
+                )}
+
+                {status === 'error' && (
+                  <motion.div 
+                    key="msg-error"
+                    initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                    className="w-full bg-red-600/20 border border-red-600/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-lg"
+                  >
+                    <AlertCircle className="h-10 w-10 text-red-400 mb-2" />
+                    <h2 className="text-xl md:text-2xl font-black text-white mb-1">Acceso Denegado</h2>
+                    <p className="text-sm md:text-base text-red-200 font-medium">{errorMsg}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.div>
         )}
 
-        {/* PANTALLA PRINCIPAL (LÁSER FÍSICO) */}
-        {status === 'waiting' && !isCameraOpen && (
+        {/* ==================================================== */}
+        {/* VISTAS DEL LÁSER FÍSICO (Cuando la cámara está off)  */}
+        {/* ==================================================== */}
+        {!isCameraOpen && status === 'waiting' && (
           <motion.div 
-            key="waiting"
+            key="laser-waiting"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, y: -50 }}
@@ -281,7 +301,7 @@ export default function AutoCheckInPage() {
               <div className="h-16 md:h-20 mb-8 md:mb-10"></div>
             )}
             
-            <div className="bg-white/5 border border-white/10 p-8 md:p-12 rounded-4xl md:rounded-[3rem] backdrop-blur-md shadow-2xl relative overflow-hidden max-w-lg w-full mx-auto flex flex-col items-center">
+            <div className="bg-white/5 border border-white/10 p-8 md:p-12 rounded-4xl backdrop-blur-md shadow-2xl relative overflow-hidden max-w-lg w-full mx-auto flex flex-col items-center">
               <div className="absolute inset-0 bg-linear-to-b from-white/5 to-transparent pointer-events-none"></div>
               
               <QrCode className="h-24 w-24 md:h-32 md:w-32 text-gray-300 mx-auto mb-6 md:mb-8 animate-pulse" />
@@ -290,8 +310,7 @@ export default function AutoCheckInPage() {
               
               <button 
                 onClick={() => setIsCameraOpen(true)}
-                style={{ cursor: 'pointer' }}
-                className="bg-primary hover:bg-primary/80 text-white font-bold py-4 md:py-5 px-6 md:px-10 rounded-xl md:rounded-2xl transition-transform active:scale-95 flex items-center justify-center gap-3 w-full text-base md:text-xl shadow-[0_0_30px_rgba(79,70,229,0.3)] z-10"
+                className="bg-primary hover:bg-primary/80 text-white font-bold py-4 md:py-5 px-6 md:px-10 rounded-xl md:rounded-2xl transition-transform active:scale-95 flex items-center justify-center gap-3 w-full text-base md:text-xl shadow-[0_0_30px_rgba(79,70,229,0.3)] z-10 cursor-pointer"
               >
                 <Camera className="h-5 w-5 md:h-6 md:w-6" /> O Escanear con Celular
               </button>
@@ -303,13 +322,10 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLA CARGANDO */}
-        {status === 'processing' && (
+        {!isCameraOpen && status === 'processing' && (
           <motion.div 
-            key="processing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            key="laser-processing"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm"
           >
             <Loader2 className="h-24 w-24 md:h-32 md:w-32 text-accent animate-spin mx-auto" />
@@ -317,46 +333,31 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLA ÉXITO (Z-INDEX 100 PARA TAPAR LA CÁMARA MIENTRAS ESTÁ ACTIVA) */}
-        {status === 'success' && (
+        {!isCameraOpen && status === 'success' && (
           <motion.div 
-            key="success"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.1 }}
+            key="laser-success"
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }}
             className="fixed inset-0 bg-green-500 z-100 flex flex-col items-center justify-center p-6 md:p-10"
           >
-            <motion.div 
-              initial={{ y: 50 }} animate={{ y: 0 }} 
-              className="text-center"
-            >
+            <motion.div initial={{ y: 50 }} animate={{ y: 0 }} className="text-center">
               <CheckCircle2 className="h-32 w-32 md:h-48 md:w-48 text-white mx-auto mb-6 md:mb-8 drop-shadow-lg" />
               <h1 className="text-4xl md:text-7xl font-black text-white tracking-tight drop-shadow-md mb-4 leading-tight">
                 ¡Bienvenido,<br className="md:hidden"/> {welcomeName}!
               </h1>
-              <p className="text-xl md:text-3xl text-green-100 font-bold bg-black/20 inline-block px-6 py-3 md:px-8 md:py-4 rounded-full mt-4">
-                Acceso Autorizado
-              </p>
+              <p className="text-xl md:text-3xl text-green-100 font-bold bg-black/20 inline-block px-6 py-3 md:px-8 md:py-4 rounded-full mt-4">Acceso Autorizado</p>
             </motion.div>
           </motion.div>
         )}
 
-        {/* PANTALLA ERROR */}
-        {status === 'error' && (
+        {!isCameraOpen && status === 'error' && (
           <motion.div 
-            key="error"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
+            key="laser-error"
+            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-red-600 z-100 flex flex-col items-center justify-center p-6 md:p-10 text-center"
           >
             <AlertCircle className="h-32 w-32 md:h-40 md:w-40 text-white mx-auto mb-6 md:mb-8 drop-shadow-lg" />
-            <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-md mb-4 md:mb-6">
-              Acceso Denegado
-            </h1>
-            <p className="text-lg md:text-2xl text-red-100 font-bold max-w-2xl mx-auto bg-black/20 p-4 md:p-6 rounded-2xl">
-              {errorMsg}
-            </p>
+            <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-md mb-4 md:mb-6">Acceso Denegado</h1>
+            <p className="text-lg md:text-2xl text-red-100 font-bold max-w-2xl mx-auto bg-black/20 p-4 md:p-6 rounded-2xl">{errorMsg}</p>
           </motion.div>
         )}
 
