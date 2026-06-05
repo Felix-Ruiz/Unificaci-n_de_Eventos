@@ -13,15 +13,13 @@ export default function AutoCheckInPage() {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // ESTADOS DEL ESCÁNER FÍSICO
+  // ESTADOS DEL ESCÁNER FÍSICO (Láser)
   const [scannerInput, setScannerInput] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
   
-  // ==========================================
-  // REFS MAESTROS PARA CONTROL DE CÁMARA (ANTI-BUCLES)
-  // ==========================================
-  const isProcessingRef = useRef(false); // Muro de contención general
-  const lastReadDocRef = useRef<string | null>(null); // Memoria para ignorar el MISMO código recién leído
+  // REFS MAESTROS
+  const isProcessingRef = useRef(false); 
+  const scannerInstanceRef = useRef<any>(null);
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [status, setStatus] = useState<'waiting' | 'processing' | 'success' | 'error'>('waiting');
@@ -50,7 +48,7 @@ export default function AutoCheckInPage() {
     }
   }
 
-  // Mantiene el foco en el input invisible del láser físico
+  // Mantiene el foco en el láser físico si la cámara no está abierta
   useEffect(() => {
     const focusInterval = setInterval(() => {
       if (scannerRef.current && status === 'waiting' && !isCameraOpen) {
@@ -61,77 +59,75 @@ export default function AutoCheckInPage() {
   }, [status, isCameraOpen]);
 
   // ==========================================
-  // LÓGICA DE LA CÁMARA CONTINUA SIN PAUSAS (EVITA EL FRAME FANTASMA)
+  // MOTOR DE CÁMARA (NUEVA ARQUITECTURA ANTI-CONGELAMIENTO)
   // ==========================================
   useEffect(() => {
     if (!isCameraOpen) return;
     
-    let html5QrCode: any = null;
     let isMounted = true;
 
-    const initScanner = async () => {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      
-      setTimeout(() => {
-        if (!isMounted) return;
+    // Usamos un pequeño retraso para asegurar que el div exista después de la animación
+    const timer = setTimeout(async () => {
+      if (!isMounted) return;
 
-        try {
-          html5QrCode = new Html5Qrcode("auto-checkin-qr");
-          
-          html5QrCode.start(
-            { facingMode: "environment" }, 
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText: string) => {
-              const cleanDoc = decodedText.trim();
-              
-              // 1. MURO DE CONTENCIÓN: Si estamos procesando, la cámara habla pero el sistema no escucha
-              if (isProcessingRef.current) return;
-              
-              // 2. MEMORIA ANTI-DUPLICADOS: Si es el MISMO código de hace unos segundos, lo ignoramos
-              if (cleanDoc === lastReadDocRef.current) return;
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        const html5QrCode = new Html5Qrcode("auto-checkin-qr");
+        scannerInstanceRef.current = html5QrCode;
+        
+        html5QrCode.start(
+          { facingMode: "environment" }, 
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText: string) => {
+            const cleanDoc = decodedText.trim();
+            
+            // 1. Si ya estamos procesando, ignoramos más lecturas
+            if (isProcessingRef.current) return;
+            isProcessingRef.current = true;
 
-              // 3. Levantar el muro inmediatamente
-              isProcessingRef.current = true;
-              lastReadDocRef.current = cleanDoc;
-
-              // Limpiar la memoria de ESTE código a los 6 segundos (por si la persona necesita volver a entrar después)
-              setTimeout(() => {
-                if (lastReadDocRef.current === cleanDoc) {
-                  lastReadDocRef.current = null;
-                }
-              }, 6000);
-
-              // 4. Iniciar el procesamiento visual y de base de datos
-              processDoc(cleanDoc);
-            },
-            (errorMessage: string) => {
-              // Silenciar alertas por frames donde no hay QR visible
+            // 2. APAGAMOS LA CÁMARA INMEDIATAMENTE para destruir la imagen y liberar la memoria
+            if (scannerInstanceRef.current) {
+              scannerInstanceRef.current.stop().then(() => {
+                scannerInstanceRef.current.clear();
+                scannerInstanceRef.current = null;
+                setIsCameraOpen(false); // Oculta el componente visual de la cámara
+                
+                // 3. Pasamos al procesamiento (indicando que viene de la cámara)
+                processDoc(cleanDoc, true);
+              }).catch((err: any) => {
+                console.error(err);
+                setIsCameraOpen(false);
+                processDoc(cleanDoc, true);
+              });
             }
-          ).catch((err: any) => {
-            console.error("Error iniciando cámara", err);
-            alert("No se pudo iniciar la cámara. Verifica los permisos del navegador.");
-            setIsCameraOpen(false);
-          });
-        } catch (e) {
-          console.error(e);
-        }
-      }, 400); // Retraso necesario para las animaciones del modal
-    };
+          },
+          (errorMessage: string) => {
+            // Silencia errores cuando no detecta un QR en el fotograma actual
+          }
+        ).catch((err: any) => {
+          console.error("Error iniciando cámara", err);
+          alert("No se pudo iniciar la cámara. Verifica los permisos del navegador.");
+          setIsCameraOpen(false);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }, 300); 
 
-    initScanner();
-
-    // Destruir la cámara limpiamente al cerrarla con la X
+    // Limpieza al cerrar la cámara con la X (Desmontaje)
     return () => {
       isMounted = false;
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-          html5QrCode.clear();
+      clearTimeout(timer);
+      if (scannerInstanceRef.current && scannerInstanceRef.current.isScanning) {
+        scannerInstanceRef.current.stop().then(() => {
+          scannerInstanceRef.current.clear();
         }).catch(console.error);
       }
     };
   }, [isCameraOpen]);
 
-  const processDoc = async (cleanDoc: string) => {
+  // Función principal de procesamiento de asistencia
+  const processDoc = async (cleanDoc: string, isFromCamera: boolean = false) => {
     if (!cleanDoc) {
       isProcessingRef.current = false;
       return;
@@ -164,48 +160,51 @@ export default function AutoCheckInPage() {
       setWelcomeName(firstName);
       setStatus('success');
 
-      // A los 3 segundos quitamos la pantalla verde y bajamos el muro de contención
+      // Después de 3 segundos, quitamos la pantalla verde
       setTimeout(() => {
         setStatus('waiting');
         setWelcomeName('');
-        isProcessingRef.current = false; // Bajar el muro para permitir el SIGUIENTE QR
-        if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
+        isProcessingRef.current = false; // Liberamos el sistema
+        
+        // ¡LA MAGIA AQUÍ! Si el escaneo vino de la cámara, la VOLVEMOS A ENCENDER SOLA
+        if (isFromCamera) {
+          setIsCameraOpen(true);
+        } else if (scannerRef.current) {
+          scannerRef.current.focus();
+        }
       }, 3000);
 
     } catch (err: any) {
       setErrorMsg(err.message);
       setStatus('error');
       
-      // Si el código dio error, borramos la memoria para que el asistente pueda volver a intentarlo de inmediato si quiere
-      lastReadDocRef.current = null;
-      
-      // A los 4 segundos quitamos la pantalla roja y bajamos el muro de contención
+      // Esperamos 4 segundos para que lean el error
       setTimeout(() => {
         setStatus('waiting');
         setErrorMsg('');
-        isProcessingRef.current = false; // Bajar el muro
-        if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
+        isProcessingRef.current = false; // Liberamos el sistema
+        
+        // VOLVEMOS A ENCENDER LA CÁMARA SOLA INCLUSO SI HUBO ERROR
+        if (isFromCamera) {
+          setIsCameraOpen(true);
+        } else if (scannerRef.current) {
+          scannerRef.current.focus();
+        }
       }, 4000);
     }
   };
 
-  // Manejo del Láser Físico (Input)
+  // Manejo del Escáner Láser Físico (Pistola USB)
   const handleLaserScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const doc = scannerInput.trim();
       setScannerInput(''); 
       
       if (isProcessingRef.current) return;
-      if (doc === lastReadDocRef.current) return;
-
       isProcessingRef.current = true;
-      lastReadDocRef.current = doc;
       
-      setTimeout(() => {
-        if (lastReadDocRef.current === doc) lastReadDocRef.current = null;
-      }, 6000);
-
-      await processDoc(doc);
+      // false = no vino de la cámara
+      await processDoc(doc, false);
     }
   };
 
@@ -219,7 +218,7 @@ export default function AutoCheckInPage() {
 
   return (
     <div 
-      className="min-h-screen w-full flex items-center justify-center overflow-hidden relative cursor-none m-0 p-0 inset-0 z-50"
+      className="min-h-screen w-full flex items-center justify-center overflow-hidden cursor-none m-0 p-0 absolute inset-0 z-50"
       style={{ 
         backgroundColor: '#050505',
         backgroundImage: `radial-gradient(circle at center, ${event.primary_color}20 0%, transparent 70%)` 
@@ -238,7 +237,7 @@ export default function AutoCheckInPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* LA CÁMARA ESTÁ EN Z-INDEX 40 (SE QUEDA ENCENDIDA PERO SE OCULTA DETRÁS DEL ÉXITO/ERROR) */}
+        {/* VISTA DE LA CÁMARA */}
         {isCameraOpen && (
           <motion.div 
             key="camera-view"
@@ -264,11 +263,12 @@ export default function AutoCheckInPage() {
               </div>
             </div>
             <p className="text-gray-400 mt-6 text-center text-sm md:text-base">
-              La cámara está activa. Pasa al siguiente asistente.
+              La cámara está lista. Escanea el código del asistente.
             </p>
           </motion.div>
         )}
 
+        {/* VISTA DE ESPERA */}
         {status === 'waiting' && !isCameraOpen && (
           <motion.div 
             key="waiting"
@@ -305,6 +305,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
+        {/* PANTALLA DE PROCESAMIENTO */}
         {status === 'processing' && (
           <motion.div 
             key="processing"
@@ -318,7 +319,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLA DE ÉXITO ESTÁ EN Z-INDEX 100: Tapa completamente la cámara que sigue corriendo atrás */}
+        {/* PANTALLA DE ÉXITO */}
         {status === 'success' && (
           <motion.div 
             key="success"
@@ -342,7 +343,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLA DE ERROR ESTÁ EN Z-INDEX 100: Tapa completamente la cámara */}
+        {/* PANTALLA DE ERROR */}
         {status === 'error' && (
           <motion.div 
             key="error"
