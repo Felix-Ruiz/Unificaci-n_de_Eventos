@@ -18,10 +18,10 @@ export default function AutoCheckInPage() {
   const scannerRef = useRef<HTMLInputElement>(null);
   
   // ==========================================
-  // REFS MAESTROS PARA CONTROL DE LECTURAS
+  // REFS MAESTROS PARA CONTROL DE CÁMARA (ANTI-BUCLES)
   // ==========================================
-  const isProcessingRef = useRef(false); // Bloquea cualquier lectura mientras procesa
-  const lastReadDocRef = useRef<string | null>(null); // Memoria para ignorar el mismo QR
+  const isProcessingRef = useRef(false); // Muro de contención general
+  const lastReadDocRef = useRef<string | null>(null); // Memoria para ignorar el MISMO código recién leído
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [status, setStatus] = useState<'waiting' | 'processing' | 'success' | 'error'>('waiting');
@@ -60,7 +60,9 @@ export default function AutoCheckInPage() {
     return () => clearInterval(focusInterval);
   }, [status, isCameraOpen]);
 
-  // LÓGICA DE LA CÁMARA CONTINUA
+  // ==========================================
+  // LÓGICA DE LA CÁMARA CONTINUA SIN PAUSAS (EVITA EL FRAME FANTASMA)
+  // ==========================================
   useEffect(() => {
     if (!isCameraOpen) return;
     
@@ -78,49 +80,47 @@ export default function AutoCheckInPage() {
           
           html5QrCode.start(
             { facingMode: "environment" }, 
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 }
-            },
+            { fps: 10, qrbox: { width: 250, height: 250 } },
             (decodedText: string) => {
               const cleanDoc = decodedText.trim();
               
-              // 1. Si el sistema está ocupado procesando, ignora la lectura
+              // 1. MURO DE CONTENCIÓN: Si estamos procesando, la cámara habla pero el sistema no escucha
               if (isProcessingRef.current) return;
               
-              // 2. Si es el MISMO QR que acabamos de leer hace un momento, IGNORAR (Evita el bucle infinito)
+              // 2. MEMORIA ANTI-DUPLICADOS: Si es el MISMO código de hace unos segundos, lo ignoramos
               if (cleanDoc === lastReadDocRef.current) return;
 
-              // 3. Si pasó los filtros, bloqueamos el sistema y lo guardamos en memoria
+              // 3. Levantar el muro inmediatamente
               isProcessingRef.current = true;
               lastReadDocRef.current = cleanDoc;
 
-              // Liberar la memoria de este código después de 8 segundos (por si el asistente necesita volver a escanearlo más tarde)
+              // Limpiar la memoria de ESTE código a los 6 segundos (por si la persona necesita volver a entrar después)
               setTimeout(() => {
                 if (lastReadDocRef.current === cleanDoc) {
                   lastReadDocRef.current = null;
                 }
-              }, 8000);
+              }, 6000);
 
+              // 4. Iniciar el procesamiento visual y de base de datos
               processDoc(cleanDoc);
             },
             (errorMessage: string) => {
-              // Silenciar errores de cuadros de video sin QR
+              // Silenciar alertas por frames donde no hay QR visible
             }
           ).catch((err: any) => {
             console.error("Error iniciando cámara", err);
-            alert("No se pudo iniciar la cámara.");
+            alert("No se pudo iniciar la cámara. Verifica los permisos del navegador.");
             setIsCameraOpen(false);
           });
         } catch (e) {
           console.error(e);
         }
-      }, 400); // Retraso necesario para las animaciones
+      }, 400); // Retraso necesario para las animaciones del modal
     };
 
     initScanner();
 
-    // Limpieza al cerrar la cámara
+    // Destruir la cámara limpiamente al cerrarla con la X
     return () => {
       isMounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
@@ -164,11 +164,11 @@ export default function AutoCheckInPage() {
       setWelcomeName(firstName);
       setStatus('success');
 
-      // Después de 3 segundos, quita la pantalla verde y vuelve a abrir la cámara para el SIGUIENTE
+      // A los 3 segundos quitamos la pantalla verde y bajamos el muro de contención
       setTimeout(() => {
         setStatus('waiting');
         setWelcomeName('');
-        isProcessingRef.current = false; // DESBLOQUEA EL SISTEMA PARA EL SIGUIENTE
+        isProcessingRef.current = false; // Bajar el muro para permitir el SIGUIENTE QR
         if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
       }, 3000);
 
@@ -176,19 +176,20 @@ export default function AutoCheckInPage() {
       setErrorMsg(err.message);
       setStatus('error');
       
-      // Si hay un error, borramos la memoria para que pueda intentarlo de nuevo INMEDIATAMENTE
+      // Si el código dio error, borramos la memoria para que el asistente pueda volver a intentarlo de inmediato si quiere
       lastReadDocRef.current = null;
       
+      // A los 4 segundos quitamos la pantalla roja y bajamos el muro de contención
       setTimeout(() => {
         setStatus('waiting');
         setErrorMsg('');
-        isProcessingRef.current = false; // DESBLOQUEA EL SISTEMA
+        isProcessingRef.current = false; // Bajar el muro
         if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
       }, 4000);
     }
   };
 
-  // Manejo del Láser Físico
+  // Manejo del Láser Físico (Input)
   const handleLaserScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const doc = scannerInput.trim();
@@ -202,7 +203,7 @@ export default function AutoCheckInPage() {
       
       setTimeout(() => {
         if (lastReadDocRef.current === doc) lastReadDocRef.current = null;
-      }, 8000);
+      }, 6000);
 
       await processDoc(doc);
     }
@@ -237,7 +238,7 @@ export default function AutoCheckInPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* LA CÁMARA ESTÁ EN Z-INDEX INFERIOR PARA QUE EL MENSAJE DE ÉXITO LA TAPE */}
+        {/* LA CÁMARA ESTÁ EN Z-INDEX 40 (SE QUEDA ENCENDIDA PERO SE OCULTA DETRÁS DEL ÉXITO/ERROR) */}
         {isCameraOpen && (
           <motion.div 
             key="camera-view"
@@ -317,7 +318,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* MENSAJE DE ÉXITO EN Z-INDEX 100 PARA TAPAR LA CÁMARA */}
+        {/* PANTALLA DE ÉXITO ESTÁ EN Z-INDEX 100: Tapa completamente la cámara que sigue corriendo atrás */}
         {status === 'success' && (
           <motion.div 
             key="success"
@@ -341,7 +342,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* MENSAJE DE ERROR EN Z-INDEX 100 PARA TAPAR LA CÁMARA */}
+        {/* PANTALLA DE ERROR ESTÁ EN Z-INDEX 100: Tapa completamente la cámara */}
         {status === 'error' && (
           <motion.div 
             key="error"
