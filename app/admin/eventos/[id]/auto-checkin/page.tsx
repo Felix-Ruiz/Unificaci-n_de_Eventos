@@ -27,6 +27,55 @@ export default function AutoCheckInPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [nameFieldId, setNameFieldId] = useState<string>('');
 
+  // ==========================================
+  // GENERADOR DE SONIDOS (SIN MP3 EXTERNOS)
+  // ==========================================
+  const playSound = (type: 'success' | 'error') => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (type === 'success') {
+        // Sonido de Éxito: Doble Bip Agudo Feliz
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.1);
+
+        setTimeout(() => {
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(1200, ctx.currentTime);
+          gain2.gain.setValueAtTime(0.5, ctx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+          osc2.start(ctx.currentTime);
+          osc2.stop(ctx.currentTime + 0.1);
+        }, 150);
+      } else {
+        // Sonido de Error: Buzz Grave de Alerta
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch (e) {
+      console.error("Audio no soportado en este navegador", e);
+    }
+  };
+
   useEffect(() => {
     if (!eventId) return;
     loadEventData();
@@ -75,7 +124,14 @@ export default function AutoCheckInPage() {
           
           await html5QrCode.start(
             { facingMode: "environment" }, 
-            { fps: 10, qrbox: { width: 250, height: 250 } },
+            { 
+              fps: 10, 
+              // MEJORA 1: Cuadro dinámico y ancho (70% de la pantalla)
+              qrbox: (videoWidth: number, videoHeight: number) => {
+                const size = Math.min(videoWidth, videoHeight) * 0.7;
+                return { width: size, height: size };
+              }
+            },
             (decodedText: string) => {
               const cleanDoc = decodedText.trim();
               
@@ -91,9 +147,7 @@ export default function AutoCheckInPage() {
 
               processDoc(cleanDoc);
             },
-            (errorMessage: string) => {
-              // Silenciar
-            }
+            (errorMessage: string) => { /* Silenciar */ }
           );
         } catch (err: any) {
           console.error("Error iniciando cámara", err);
@@ -113,6 +167,7 @@ export default function AutoCheckInPage() {
     };
   }, [isCameraOpen]);
 
+  // PROCESAMIENTO
   const processDoc = async (cleanDoc: string) => {
     setStatus('processing');
 
@@ -128,18 +183,23 @@ export default function AutoCheckInPage() {
         throw new Error("Credencial no encontrada o no registrada para este evento.");
       }
 
-      if (!reg.attended) {
-        await supabase
-          .from('registrations')
-          .update({ attended: true })
-          .eq('id', reg.id);
+      // MEJORA 2: Bloqueo estricto de duplicados
+      if (reg.attended) {
+        throw new Error("⛔ ¡ALERTA! Esta credencial ya fue utilizada para ingresar.");
       }
+
+      // Si pasa la validación, lo marcamos como adentro
+      await supabase
+        .from('registrations')
+        .update({ attended: true })
+        .eq('id', reg.id);
 
       const name = nameFieldId && reg.form_data[nameFieldId] ? reg.form_data[nameFieldId] : 'Invitado';
       const firstName = name.split(' ')[0];
       
       setWelcomeName(firstName);
       setStatus('success');
+      playSound('success'); // MEJORA 3: Sonido Feliz
 
       setTimeout(() => {
         setStatus('waiting');
@@ -151,6 +211,7 @@ export default function AutoCheckInPage() {
     } catch (err: any) {
       setErrorMsg(err.message);
       setStatus('error');
+      playSound('error'); // MEJORA 3: Sonido Error/Alerta
       
       cooldownRef.current.delete(cleanDoc);
       
@@ -206,9 +267,7 @@ export default function AutoCheckInPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* ==================================================== */}
-        {/* VISTA DE CÁMARA SIEMPRE ACTIVA EN MÓVIL/TABLET       */}
-        {/* ==================================================== */}
+        {/* VISTA DE CÁMARA SIEMPRE ACTIVA */}
         {isCameraOpen && (
           <motion.div 
             key="camera-view"
@@ -284,9 +343,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* ==================================================== */}
-        {/* VISTAS DEL LÁSER FÍSICO (Cuando la cámara está off)  */}
-        {/* ==================================================== */}
+        {/* VISTA PRINCIPAL (LÁSER FÍSICO) - Solo si la cámara está apagada */}
         {!isCameraOpen && status === 'waiting' && (
           <motion.div 
             key="laser-waiting"
@@ -322,6 +379,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
+        {/* PANTALLAS DE PROCESO PARA LÁSER FÍSICO */}
         {!isCameraOpen && status === 'processing' && (
           <motion.div 
             key="laser-processing"
