@@ -13,12 +13,15 @@ export default function AutoCheckInPage() {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // ESTADOS DEL ESCÁNER
+  // ESTADOS DEL ESCÁNER FÍSICO
   const [scannerInput, setScannerInput] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
   
-  // REF CLAVE: Previene lecturas duplicadas mientras procesa un QR
-  const isProcessingRef = useRef(false);
+  // ==========================================
+  // REFS MAESTROS PARA CONTROL DE LECTURAS
+  // ==========================================
+  const isProcessingRef = useRef(false); // Bloquea cualquier lectura mientras procesa
+  const lastReadDocRef = useRef<string | null>(null); // Memoria para ignorar el mismo QR
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [status, setStatus] = useState<'waiting' | 'processing' | 'success' | 'error'>('waiting');
@@ -47,7 +50,7 @@ export default function AutoCheckInPage() {
     }
   }
 
-  // Mantiene el foco en el láser físico si no estamos usando la cámara
+  // Mantiene el foco en el input invisible del láser físico
   useEffect(() => {
     const focusInterval = setInterval(() => {
       if (scannerRef.current && status === 'waiting' && !isCameraOpen) {
@@ -57,7 +60,7 @@ export default function AutoCheckInPage() {
     return () => clearInterval(focusInterval);
   }, [status, isCameraOpen]);
 
-  // LÓGICA DE CÁMARA CONTINUA E INFINITA
+  // LÓGICA DE LA CÁMARA CONTINUA
   useEffect(() => {
     if (!isCameraOpen) return;
     
@@ -67,7 +70,6 @@ export default function AutoCheckInPage() {
     const initScanner = async () => {
       const { Html5Qrcode } = await import('html5-qrcode');
       
-      // Damos 400ms para que Framer Motion termine de animar la ventana modal
       setTimeout(() => {
         if (!isMounted) return;
 
@@ -81,29 +83,44 @@ export default function AutoCheckInPage() {
               qrbox: { width: 250, height: 250 }
             },
             (decodedText: string) => {
-              // Si ya estamos procesando un código, IGNORAMOS la lectura
+              const cleanDoc = decodedText.trim();
+              
+              // 1. Si el sistema está ocupado procesando, ignora la lectura
               if (isProcessingRef.current) return;
               
-              // Bloqueamos nuevas lecturas inmediatamente
+              // 2. Si es el MISMO QR que acabamos de leer hace un momento, IGNORAR (Evita el bucle infinito)
+              if (cleanDoc === lastReadDocRef.current) return;
+
+              // 3. Si pasó los filtros, bloqueamos el sistema y lo guardamos en memoria
               isProcessingRef.current = true;
-              processDoc(decodedText);
+              lastReadDocRef.current = cleanDoc;
+
+              // Liberar la memoria de este código después de 8 segundos (por si el asistente necesita volver a escanearlo más tarde)
+              setTimeout(() => {
+                if (lastReadDocRef.current === cleanDoc) {
+                  lastReadDocRef.current = null;
+                }
+              }, 8000);
+
+              processDoc(cleanDoc);
             },
             (errorMessage: string) => {
-              // Silenciar alertas de lectura vacía
+              // Silenciar errores de cuadros de video sin QR
             }
           ).catch((err: any) => {
             console.error("Error iniciando cámara", err);
-            alert("No se pudo iniciar la cámara. Verifica los permisos del navegador.");
+            alert("No se pudo iniciar la cámara.");
             setIsCameraOpen(false);
           });
         } catch (e) {
           console.error(e);
         }
-      }, 400);
+      }, 400); // Retraso necesario para las animaciones
     };
 
     initScanner();
 
+    // Limpieza al cerrar la cámara
     return () => {
       isMounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
@@ -112,10 +129,9 @@ export default function AutoCheckInPage() {
         }).catch(console.error);
       }
     };
-  }, [isCameraOpen]); // Solo se reinicia si cerramos y abrimos la cámara manualmente
+  }, [isCameraOpen]);
 
-  const processDoc = async (doc: string) => {
-    const cleanDoc = doc.trim();
+  const processDoc = async (cleanDoc: string) => {
     if (!cleanDoc) {
       isProcessingRef.current = false;
       return;
@@ -148,11 +164,11 @@ export default function AutoCheckInPage() {
       setWelcomeName(firstName);
       setStatus('success');
 
-      // Esperar 3 segundos viendo la pantalla verde, luego volver a la cámara automáticamente
+      // Después de 3 segundos, quita la pantalla verde y vuelve a abrir la cámara para el SIGUIENTE
       setTimeout(() => {
         setStatus('waiting');
         setWelcomeName('');
-        isProcessingRef.current = false; // DESBLOQUEA LA CÁMARA PARA EL SIGUIENTE
+        isProcessingRef.current = false; // DESBLOQUEA EL SISTEMA PARA EL SIGUIENTE
         if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
       }, 3000);
 
@@ -160,23 +176,34 @@ export default function AutoCheckInPage() {
       setErrorMsg(err.message);
       setStatus('error');
       
-      // Esperar 4 segundos viendo la pantalla roja, luego volver a la cámara
+      // Si hay un error, borramos la memoria para que pueda intentarlo de nuevo INMEDIATAMENTE
+      lastReadDocRef.current = null;
+      
       setTimeout(() => {
         setStatus('waiting');
         setErrorMsg('');
-        isProcessingRef.current = false; // DESBLOQUEA LA CÁMARA PARA EL SIGUIENTE
+        isProcessingRef.current = false; // DESBLOQUEA EL SISTEMA
         if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
       }, 4000);
     }
   };
 
+  // Manejo del Láser Físico
   const handleLaserScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      if (isProcessingRef.current) return;
-      isProcessingRef.current = true;
-      
-      const doc = scannerInput;
+      const doc = scannerInput.trim();
       setScannerInput(''); 
+      
+      if (isProcessingRef.current) return;
+      if (doc === lastReadDocRef.current) return;
+
+      isProcessingRef.current = true;
+      lastReadDocRef.current = doc;
+      
+      setTimeout(() => {
+        if (lastReadDocRef.current === doc) lastReadDocRef.current = null;
+      }, 8000);
+
       await processDoc(doc);
     }
   };
@@ -210,7 +237,7 @@ export default function AutoCheckInPage() {
 
       <AnimatePresence mode="wait">
         
-        {/* LA CÁMARA ESTÁ EN UN Z-INDEX INFERIOR (40) PARA QUE EL ÉXITO/ERROR LA TAPE */}
+        {/* LA CÁMARA ESTÁ EN Z-INDEX INFERIOR PARA QUE EL MENSAJE DE ÉXITO LA TAPE */}
         {isCameraOpen && (
           <motion.div 
             key="camera-view"
@@ -231,12 +258,12 @@ export default function AutoCheckInPage() {
             </h2>
             
             <div className="w-full max-w-lg bg-black border-2 border-white/10 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-center justify-center min-h-75 md:min-h-100">
-              <div id="auto-checkin-qr" className="w-full h-full object-cover flex items-center justify-center">
+              <div id="auto-checkin-qr" className="w-full h-full object-cover flex items-center justify-center bg-black">
                 <Loader2 className="h-10 w-10 text-white animate-spin" />
               </div>
             </div>
             <p className="text-gray-400 mt-6 text-center text-sm md:text-base">
-              La cámara está lista. Escanea el código del asistente.
+              La cámara está activa. Pasa al siguiente asistente.
             </p>
           </motion.div>
         )}
@@ -290,7 +317,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLA DE ÉXITO TIENE Z-INDEX ALTO (100) PARA TAPAR LA CÁMARA */}
+        {/* MENSAJE DE ÉXITO EN Z-INDEX 100 PARA TAPAR LA CÁMARA */}
         {status === 'success' && (
           <motion.div 
             key="success"
@@ -314,7 +341,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLA DE ERROR TIENE Z-INDEX ALTO (100) PARA TAPAR LA CÁMARA */}
+        {/* MENSAJE DE ERROR EN Z-INDEX 100 PARA TAPAR LA CÁMARA */}
         {status === 'error' && (
           <motion.div 
             key="error"
