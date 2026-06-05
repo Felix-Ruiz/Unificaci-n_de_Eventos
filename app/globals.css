@@ -1,26 +1,182 @@
 @import "tailwindcss";
 
+@theme {
+  --color-background: var(--bg-main);
+  --color-surface: var(--bg-surface);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --shadow-4d-static: var(--shadow-4d);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ========================================================
+     TEMA OSCURO NEÓN (Por defecto)
+     ======================================================== */
+  --bg-main: #050505;
+  --bg-surface: #121212;
+  --primary: #6d28d9;
+  --accent: #00f6ff;
+  --shadow-4d: 4px 4px 0px 0px rgba(0, 246, 255, 0.8);
+  --glow-opacity: 1;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body[data-theme="light"] {
+  /* ========================================================
+     TEMA CLARO PREMIUM (Ultra Pulido)
+     ======================================================== */
+  --bg-main: #f8fafc; /* Gris Slate 50 ultra limpio */
+  --bg-surface: #ffffff; 
+  --primary: #4f46e5; /* Indigo Corporativo */
+  --accent: #0ea5e9; /* Azul Cielo */
+  --shadow-4d: 4px 4px 0px 0px rgba(15, 23, 42, 0.9);
+  --glow-opacity: 0.15;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-main);
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Scrollbar adaptativo */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ========================================================
+   EL TRADUCTOR MAESTRO v3 - CORRECCIÓN TOTAL DE LEGIBILIDAD
+   (Detecta dinámicamente cualquier clase oscura y la invierte)
+   ======================================================== */
+
+/* 1. TEXTOS UNIVERSALES */
+body[data-theme="light"] { color: #0f172a !important; }
+body[data-theme="light"] .text-white { color: #0f172a !important; }
+
+/* Excepción vital: Los textos dentro de botones de color deben seguir siendo blancos */
+body[data-theme="light"] button .text-white,
+body[data-theme="light"] .bg-primary .text-white,
+body[data-theme="light"] .bg-accent .text-white { color: #ffffff !important; }
+
+/* Conversión de grises oscuros a grises legibles sobre blanco */
+body[data-theme="light"] [class*="text-gray-300"] { color: #334155 !important; }
+body[data-theme="light"] [class*="text-gray-400"] { color: #475569 !important; }
+body[data-theme="light"] [class*="text-gray-500"] { color: #64748b !important; }
+
+/* Hovers e interacciones de texto en menú y formularios */
+body[data-theme="light"] [class*="hover:text-white"]:hover { color: var(--primary) !important; }
+body[data-theme="light"] .group:focus-within [class*="text-gray-"] { color: var(--primary) !important; }
+
+/* 2. SUPERFICIES Y TARJETAS (Efecto Glassmorphism Premium) */
+body[data-theme="light"] .bg-surface {
+  background-color: #ffffff !important;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+body[data-theme="light"] [class*="bg-surface/"] {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+/* 3. ATRAPAR FONDOS OSCUROS ANÓMALOS (bg-black/40, hover:bg-black/60, etc) */
+body[data-theme="light"] [class*="bg-black/"] {
+  background-color: #f1f5f9 !important; /* Gris muy suave */
+  color: #0f172a !important;
+}
+body[data-theme="light"] [class*="hover:bg-black/"]:hover {
+  background-color: #e2e8f0 !important; /* Gris interactivo al pasar el mouse */
+}
+
+/* 4. ATRAPAR FONDOS BLANCOS TRANSLÚCIDOS (Invisibles en modo claro) */
+body[data-theme="light"] [class*="bg-white/"] {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+body[data-theme="light"] [class*="hover:bg-white/"]:hover {
+  background-color: #e2e8f0 !important;
+  color: var(--primary) !important;
+}
+/* Proteger los botones de advertencia, éxito o primarios para que no se vuelvan grises */
+body[data-theme="light"] button[class*="bg-primary"],
+body[data-theme="light"] button[class*="bg-accent"],
+body[data-theme="light"] button[class*="bg-red-"],
+body[data-theme="light"] button[class*="bg-green-"],
+body[data-theme="light"] button[class*="bg-yellow-"] {
+  color: inherit !important;
+}
+
+/* 5. FORMULARIOS IMPENETRABLES (Forzar Inputs perfectos) */
+body[data-theme="light"] input,
+body[data-theme="light"] select,
+body[data-theme="light"] textarea {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+body[data-theme="light"] input:focus,
+body[data-theme="light"] select:focus,
+body[data-theme="light"] textarea:focus {
+  background-color: #ffffff !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2) !important;
+}
+body[data-theme="light"] input::placeholder { color: #94a3b8 !important; }
+body[data-theme="light"] option { background-color: #ffffff !important; color: #0f172a !important; }
+
+/* 6. BORDES Y LÍNEAS DIVISORIAS */
+body[data-theme="light"] [class*="border-white/"],
+body[data-theme="light"] [class*="border-gray-"] {
+  border-color: #e2e8f0 !important;
+}
+body[data-theme="light"] [class*="divide-white/"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+/* 7. TABLAS DE DATOS */
+body[data-theme="light"] thead[class*="bg-black/"] {
+  background-color: #f8fafc !important; /* Cabecera muy limpia */
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+body[data-theme="light"] th { 
+  color: #475569 !important; 
+  font-weight: 600 !important; 
+}
+body[data-theme="light"] tbody tr:hover { 
+  background-color: #f1f5f9 !important; 
+}
+
+/* 8. DESTELLOS MEJORADOS (Efecto Glass/Blur Premium) */
+body[data-theme="light"] .blur-\[120px\],
+body[data-theme="light"] .blur-xl,
+body[data-theme="light"] .blur-\[150px\],
+body[data-theme="light"] .blur-\[80px\] {
+  opacity: var(--glow-opacity) !important;
+  mix-blend-mode: multiply !important;
+}
+
+/* 9. Proteger las tarjetas de previsualización en la configuración */
+body[data-theme="light"] [class*="bg-[#050505]"],
+body[data-theme="light"] [class*="bg-[#050505]"] * {
+  color: #ffffff !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* ========================================================
+   SEGURO CONTRA FONDOS NEGROS ATASCADOS (CORE LAYOUT)
+   ======================================================== */
+.admin-wrapper {
+  background-color: var(--bg-main);
+}
+
+html[data-theme="light"],
+body[data-theme="light"],
+body[data-theme="light"] .admin-wrapper {
+  background-color: #f8fafc !important;
+}
+
+/* Si tienes alguna etiqueta main o body con clase oscura directa en Next.js, esto lo aniquila */
+body[data-theme="light"] .bg-\[\#050505\],
+body[data-theme="light"] .bg-black {
+  background-color: #f8fafc !important;
 }
