@@ -263,7 +263,7 @@ export default function AutoCheckInPage() {
               </div>
             </div>
             <p className="text-gray-400 mt-6 text-center text-sm md:text-base">
-              La cámara está lista. Escanea el código del asistente.
+              La cámara está lista. Escanea el código del asistente..
             </p>
           </motion.div>
         )}
