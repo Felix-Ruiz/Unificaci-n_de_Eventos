@@ -13,8 +13,12 @@ export default function AutoCheckInPage() {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
+  // ESTADOS DEL ESCÁNER
   const [scannerInput, setScannerInput] = useState('');
   const scannerRef = useRef<HTMLInputElement>(null);
+  
+  // REF CLAVE: Previene lecturas duplicadas mientras procesa un QR
+  const isProcessingRef = useRef(false);
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [status, setStatus] = useState<'waiting' | 'processing' | 'success' | 'error'>('waiting');
@@ -43,6 +47,7 @@ export default function AutoCheckInPage() {
     }
   }
 
+  // Mantiene el foco en el láser físico si no estamos usando la cámara
   useEffect(() => {
     const focusInterval = setInterval(() => {
       if (scannerRef.current && status === 'waiting' && !isCameraOpen) {
@@ -52,34 +57,36 @@ export default function AutoCheckInPage() {
     return () => clearInterval(focusInterval);
   }, [status, isCameraOpen]);
 
-  // CÁMARA MEJORADA USANDO LA VERSIÓN "CORE" (Sin cuadros blancos)
+  // LÓGICA DE CÁMARA CONTINUA E INFINITA
   useEffect(() => {
     if (!isCameraOpen) return;
     
     let html5QrCode: any = null;
+    let isMounted = true;
 
     const initScanner = async () => {
       const { Html5Qrcode } = await import('html5-qrcode');
       
       // Damos 400ms para que Framer Motion termine de animar la ventana modal
       setTimeout(() => {
+        if (!isMounted) return;
+
         try {
           html5QrCode = new Html5Qrcode("auto-checkin-qr");
           
           html5QrCode.start(
-            { facingMode: "environment" }, // Fuerza el uso de la cámara trasera si es un celular
+            { facingMode: "environment" }, 
             {
               fps: 10,
               qrbox: { width: 250, height: 250 }
             },
             (decodedText: string) => {
-              // Éxito al escanear
-              if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                  setIsCameraOpen(false);
-                  processDoc(decodedText);
-                }).catch(console.error);
-              }
+              // Si ya estamos procesando un código, IGNORAMOS la lectura
+              if (isProcessingRef.current) return;
+              
+              // Bloqueamos nuevas lecturas inmediatamente
+              isProcessingRef.current = true;
+              processDoc(decodedText);
             },
             (errorMessage: string) => {
               // Silenciar alertas de lectura vacía
@@ -98,15 +105,21 @@ export default function AutoCheckInPage() {
     initScanner();
 
     return () => {
+      isMounted = false;
       if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(console.error);
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+        }).catch(console.error);
       }
     };
-  }, [isCameraOpen]);
+  }, [isCameraOpen]); // Solo se reinicia si cerramos y abrimos la cámara manualmente
 
   const processDoc = async (doc: string) => {
     const cleanDoc = doc.trim();
-    if (!cleanDoc) return;
+    if (!cleanDoc) {
+      isProcessingRef.current = false;
+      return;
+    }
     
     setStatus('processing');
 
@@ -135,26 +148,33 @@ export default function AutoCheckInPage() {
       setWelcomeName(firstName);
       setStatus('success');
 
+      // Esperar 3 segundos viendo la pantalla verde, luego volver a la cámara automáticamente
       setTimeout(() => {
         setStatus('waiting');
         setWelcomeName('');
-        if (scannerRef.current) scannerRef.current.focus();
+        isProcessingRef.current = false; // DESBLOQUEA LA CÁMARA PARA EL SIGUIENTE
+        if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
       }, 3000);
 
     } catch (err: any) {
       setErrorMsg(err.message);
       setStatus('error');
       
+      // Esperar 4 segundos viendo la pantalla roja, luego volver a la cámara
       setTimeout(() => {
         setStatus('waiting');
         setErrorMsg('');
-        if (scannerRef.current) scannerRef.current.focus();
+        isProcessingRef.current = false; // DESBLOQUEA LA CÁMARA PARA EL SIGUIENTE
+        if (!isCameraOpen && scannerRef.current) scannerRef.current.focus();
       }, 4000);
     }
   };
 
   const handleLaserScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      
       const doc = scannerInput;
       setScannerInput(''); 
       await processDoc(doc);
@@ -190,13 +210,14 @@ export default function AutoCheckInPage() {
 
       <AnimatePresence mode="wait">
         
+        {/* LA CÁMARA ESTÁ EN UN Z-INDEX INFERIOR (40) PARA QUE EL ÉXITO/ERROR LA TAPE */}
         {isCameraOpen && (
           <motion.div 
             key="camera-view"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-4 md:p-6"
+            className="fixed inset-0 z-40 bg-black flex flex-col items-center justify-center p-4 md:p-6"
           >
             <button 
               onClick={() => setIsCameraOpen(false)} 
@@ -209,13 +230,14 @@ export default function AutoCheckInPage() {
               <Camera className="h-6 w-6 md:h-8 md:w-8 text-primary"/> Apunta el Código QR
             </h2>
             
-            {/* CONTENEDOR DE LA CÁMARA ARREGLADO */}
             <div className="w-full max-w-lg bg-black border-2 border-white/10 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-center justify-center min-h-75 md:min-h-100">
               <div id="auto-checkin-qr" className="w-full h-full object-cover flex items-center justify-center">
                 <Loader2 className="h-10 w-10 text-white animate-spin" />
               </div>
             </div>
-            <p className="text-gray-400 mt-6 text-center text-sm md:text-base">Acerca la credencial al recuadro para leer el código.</p>
+            <p className="text-gray-400 mt-6 text-center text-sm md:text-base">
+              La cámara está lista. Escanea el código del asistente.
+            </p>
           </motion.div>
         )}
 
@@ -261,20 +283,21 @@ export default function AutoCheckInPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="text-center"
+            className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm"
           >
             <Loader2 className="h-24 w-24 md:h-32 md:w-32 text-accent animate-spin mx-auto" />
             <h2 className="text-2xl md:text-3xl font-bold text-white mt-8">Verificando Credencial...</h2>
           </motion.div>
         )}
 
+        {/* PANTALLA DE ÉXITO TIENE Z-INDEX ALTO (100) PARA TAPAR LA CÁMARA */}
         {status === 'success' && (
           <motion.div 
             key="success"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.1 }}
-            className="fixed inset-0 bg-green-500 z-50 flex flex-col items-center justify-center p-6 md:p-10"
+            className="fixed inset-0 bg-green-500 z-100 flex flex-col items-center justify-center p-6 md:p-10"
           >
             <motion.div 
               initial={{ y: 50 }} animate={{ y: 0 }} 
@@ -291,13 +314,14 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
+        {/* PANTALLA DE ERROR TIENE Z-INDEX ALTO (100) PARA TAPAR LA CÁMARA */}
         {status === 'error' && (
           <motion.div 
             key="error"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-red-600 z-50 flex flex-col items-center justify-center p-6 md:p-10 text-center"
+            className="fixed inset-0 bg-red-600 z-100 flex flex-col items-center justify-center p-6 md:p-10 text-center"
           >
             <AlertCircle className="h-32 w-32 md:h-40 md:w-40 text-white mx-auto mb-6 md:mb-8 drop-shadow-lg" />
             <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight drop-shadow-md mb-4 md:mb-6">
