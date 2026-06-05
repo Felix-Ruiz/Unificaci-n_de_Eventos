@@ -126,11 +126,8 @@ export default function AutoCheckInPage() {
             { facingMode: "environment" }, 
             { 
               fps: 10, 
-              // MEJORA 1: Cuadro dinámico y ancho (70% de la pantalla)
-              qrbox: (videoWidth: number, videoHeight: number) => {
-                const size = Math.min(videoWidth, videoHeight) * 0.7;
-                return { width: size, height: size };
-              }
+              // CORRECCIÓN: Cuadrado perfecto y fijo de 250px. Elimina el efecto de rectángulo angosto.
+              qrbox: 250 
             },
             (decodedText: string) => {
               const cleanDoc = decodedText.trim();
@@ -183,7 +180,7 @@ export default function AutoCheckInPage() {
         throw new Error("Credencial no encontrada o no registrada para este evento.");
       }
 
-      // MEJORA 2: Bloqueo estricto de duplicados
+      // BLOQUEO ESTRICTO DE DUPLICADOS (Seguridad)
       if (reg.attended) {
         throw new Error("⛔ ¡ALERTA! Esta credencial ya fue utilizada para ingresar.");
       }
@@ -199,7 +196,7 @@ export default function AutoCheckInPage() {
       
       setWelcomeName(firstName);
       setStatus('success');
-      playSound('success'); // MEJORA 3: Sonido Feliz
+      playSound('success'); // SONIDO FELIZ DE INGRESO
 
       setTimeout(() => {
         setStatus('waiting');
@@ -211,7 +208,7 @@ export default function AutoCheckInPage() {
     } catch (err: any) {
       setErrorMsg(err.message);
       setStatus('error');
-      playSound('error'); // MEJORA 3: Sonido Error/Alerta
+      playSound('error'); // SONIDO GRAVE DE ALERTA O DUPLICADO
       
       cooldownRef.current.delete(cleanDoc);
       
@@ -289,6 +286,10 @@ export default function AutoCheckInPage() {
             </div>
             
             <div className={`w-full max-w-2xl mx-auto bg-black border-4 rounded-4xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex-1 min-h-[40vh] max-h-[50vh] relative transition-colors duration-300 ${status === 'success' ? 'border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.3)]' : status === 'error' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.3)]' : 'border-white/10'}`}>
+              {/* Añadimos estilos en línea globales para forzar el ajuste del video y evitar que se aplaste */}
+              <style dangerouslySetInnerHTML={{__html: `
+                #kiosco-camera-reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
+              `}} />
               <div id="kiosco-camera-reader" className="w-full h-full bg-black"></div>
             </div>
 
@@ -379,7 +380,6 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
-        {/* PANTALLAS DE PROCESO PARA LÁSER FÍSICO */}
         {!isCameraOpen && status === 'processing' && (
           <motion.div 
             key="laser-processing"

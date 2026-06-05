@@ -19,12 +19,14 @@ import {
   CheckCircle2, 
   UploadCloud,
   List,
-  MonitorPlay
+  MonitorPlay,
+  X
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function EventoDetalleAdmin() {
   const params = useParams();
@@ -48,6 +50,12 @@ export default function EventoDetalleAdmin() {
   const [baseUrl, setBaseUrl] = useState('');
   
   const excelUploadRef = useRef<HTMLInputElement>(null);
+
+  // ==========================================
+  // ESTADOS PARA EXPORTACIÓN INTELIGENTE (EXCEL)
+  // ==========================================
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
   useEffect(() => {
     if (!eventId) return;
@@ -87,6 +95,62 @@ export default function EventoDetalleAdmin() {
       setLoading(false);
     }
   }
+
+  // ==========================================
+  // FUNCIONES DE EXPORTACIÓN INTELIGENTE
+  // ==========================================
+  const openExportModal = () => {
+    if (registrations.length === 0) return alert("No hay registros para exportar.");
+    // Por defecto, marcamos todas las columnas (los IDs de los campos + la fecha)
+    const allColIds = ['fecha', ...fields.map(f => f.id)];
+    setSelectedColumns(allColIds);
+    setShowExportModal(true);
+  };
+
+  const toggleColumn = (colId: string) => {
+    setSelectedColumns(prev => 
+      prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId]
+    );
+  };
+
+  const selectAllColumns = () => {
+    setSelectedColumns(['fecha', ...fields.map(f => f.id)]);
+  };
+
+  const deselectAllColumns = () => {
+    setSelectedColumns([]);
+  };
+
+  const confirmExport = () => {
+    if (selectedColumns.length === 0) {
+      return alert("Debes seleccionar al menos una columna para descargar el archivo.");
+    }
+
+    const excelData = registrations.map((reg: any) => {
+      const row: any = {};
+      
+      // Añadir los campos que el usuario seleccionó
+      fields.forEach((f: any) => { 
+        if (selectedColumns.includes(f.id)) {
+          row[f.field_name] = reg.form_data[f.id] || '-'; 
+        }
+      });
+
+      // Añadir la fecha si fue seleccionada
+      if (selectedColumns.includes('fecha')) {
+        row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
+      }
+
+      return row;
+    });
+    
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inscritos");
+    XLSX.writeFile(wb, `${event.name.replace(/\s+/g, '_')}_Inscritos.xlsx`);
+    
+    setShowExportModal(false);
+  };
 
   const handleImportMasivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -207,24 +271,6 @@ export default function EventoDetalleAdmin() {
     }
   };
 
-  const exportToExcel = () => {
-    if (registrations.length === 0) return alert("No hay registros para exportar.");
-    
-    const excelData = registrations.map((reg: any) => {
-      const row: any = {};
-      fields.forEach((f: any) => { 
-        row[f.field_name] = reg.form_data[f.id] || '-'; 
-      });
-      row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
-      return row;
-    });
-    
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Inscritos");
-    XLSX.writeFile(wb, `${event.name.replace(/\s+/g, '_')}_Inscritos.xlsx`);
-  };
-
   const copyToClipboard = (text: string, type: 'link' | 'iframe') => {
     navigator.clipboard.writeText(text);
     if (type === 'link') { 
@@ -278,8 +324,93 @@ export default function EventoDetalleAdmin() {
   const topCities = getTopStats('ciudad');
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20">
+    <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
       
+      {/* MODAL EXPORTAR EXCEL INTELIGENTE */}
+      <AnimatePresence>
+        {showExportModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} 
+              className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Download className="h-5 w-5 text-accent"/> Configurar Reporte
+                </h2>
+                <button 
+                  onClick={() => setShowExportModal(false)} 
+                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5"
+                >
+                  <X className="h-6 w-6"/>
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
+                <p className="text-sm text-gray-400 mb-2">Selecciona las columnas que deseas incluir en el archivo Excel:</p>
+                
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    onClick={selectAllColumns} 
+                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30"
+                  >
+                    Seleccionar Todas
+                  </button>
+                  <button 
+                    onClick={deselectAllColumns} 
+                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10"
+                  >
+                    Desmarcar Todas
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {/* Fila Fecha (Dato automático) */}
+                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                    <div className="flex items-center h-5">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedColumns.includes('fecha')} 
+                        onChange={() => toggleColumn('fecha')} 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      />
+                    </div>
+                    <span className="text-sm font-medium text-gray-200">Fecha de Registro</span>
+                  </label>
+
+                  {/* Filas Dinámicas del Formulario */}
+                  {fields.map(f => (
+                    <label key={f.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                      <div className="flex items-center h-5">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedColumns.includes(f.id)} 
+                          onChange={() => toggleColumn(f.id)} 
+                          className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-200">{f.field_name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-white/5 bg-surface">
+                <button 
+                  onClick={confirmExport} 
+                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2"
+                >
+                  <Download className="h-5 w-5"/> Generar y Descargar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="mb-6 flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -294,7 +425,6 @@ export default function EventoDetalleAdmin() {
         </div>
         
         <div className="flex items-center gap-3">
-          {/* AQUI ESTÁ LA RUTA CORREGIDA Y EL NOMBRE NUEVO */}
           <Link href={`/admin/eventos/${event.id}/auto-checkin`} target="_blank">
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-primary text-white shadow-4d-static hover:bg-primary/90 transition-transform active:translate-y-1 active:shadow-none">
               <MonitorPlay className="h-4 w-4" /> 
@@ -442,8 +572,9 @@ export default function EventoDetalleAdmin() {
                       </button>
                     </Link>
                     
+                    {/* BOTÓN CON LA NUEVA LÓGICA DE EXPORTACIÓN */}
                     <button 
-                      onClick={exportToExcel} 
+                      onClick={openExportModal} 
                       className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm"
                     >
                       <Download className="h-4 w-4" /> 

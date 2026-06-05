@@ -45,6 +45,10 @@ export default function CheckInEventPage() {
   const [manualFormData, setManualFormData] = useState<Record<string, string>>({});
   const [isAddingManual, setIsAddingManual] = useState(false);
 
+  // ESTADOS PARA EXPORTACIÓN INTELIGENTE (EXCEL)
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+
   useEffect(() => {
     if (!eventId) return;
 
@@ -77,43 +81,49 @@ export default function CheckInEventPage() {
     };
   }, [eventId]);
 
-  // LÓGICA DE LA CÁMARA QR
+  // LÓGICA DE LA CÁMARA QR (Versión Core)
   useEffect(() => {
     if (!isCameraOpen) return;
     
-    let scanner: any = null;
+    let isMounted = true;
+    let html5QrCode: any = null;
 
     const initScanner = async () => {
-      const { Html5QrcodeScanner } = await import('html5-qrcode');
+      const { Html5Qrcode } = await import('html5-qrcode');
       
-      setTimeout(() => {
-        const element = document.getElementById("qr-reader-puerta");
-        if (element) {
-          scanner = new Html5QrcodeScanner(
-            "qr-reader-puerta",
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            false
-          );
-          
-          scanner.render(
+      setTimeout(async () => {
+        if (!isMounted) return;
+        try {
+          html5QrCode = new Html5Qrcode("qr-reader-puerta");
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
             (decodedText: string) => {
-              scanner.clear();
-              setIsCameraOpen(false);
-              processScannedDoc(decodedText);
+              if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                  setIsCameraOpen(false);
+                  processScannedDoc(decodedText);
+                }).catch(console.error);
+              }
             },
-            (error: any) => {
-              // Errores de lectura de frame (se ignoran)
+            (errorMessage: string) => { 
+              // Silenciar errores de lectura
             }
           );
+        } catch (e) {
+          console.error(e);
+          alert("No se pudo iniciar la cámara.");
+          setIsCameraOpen(false);
         }
-      }, 300);
+      }, 400);
     };
 
     initScanner();
 
     return () => {
-      if (scanner) {
-        scanner.clear().catch(console.error);
+      isMounted = false;
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
       }
     };
   }, [isCameraOpen]);
@@ -270,14 +280,54 @@ export default function CheckInEventPage() {
     }
   };
 
-  const exportAttendanceToExcel = () => {
+  // FUNCIONES DE EXPORTACIÓN INTELIGENTE
+  const openExportModal = () => {
     if (registrations.length === 0) return alert("No hay registros para exportar.");
-    
+    const allColIds = ['doc', 'asistencia', 'fecha', ...fields.map(f => f.id)];
+    setSelectedColumns(allColIds);
+    setShowExportModal(true);
+  };
+
+  const toggleColumn = (colId: string) => {
+    setSelectedColumns(prev => 
+      prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId]
+    );
+  };
+
+  const selectAllColumns = () => {
+    setSelectedColumns(['doc', 'asistencia', 'fecha', ...fields.map(f => f.id)]);
+  };
+
+  const deselectAllColumns = () => {
+    setSelectedColumns([]);
+  };
+
+  const confirmExport = () => {
+    if (selectedColumns.length === 0) {
+      return alert("Selecciona al menos una columna.");
+    }
+
     const excelData = filteredRegistrations.map((reg: any, idx: number) => {
-      const row: any = { 'N°': idx + 1, 'Documento': reg.historic_user_doc };
-      fields.forEach((f: any) => { row[f.field_name] = reg.form_data[f.id] || '-'; });
-      row['Asistió'] = reg.attended ? 'SÍ' : 'NO';
-      row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
+      const row: any = { 'N°': idx + 1 };
+      
+      if (selectedColumns.includes('doc')) {
+        row['Documento'] = reg.historic_user_doc;
+      }
+      
+      fields.forEach((f: any) => { 
+        if (selectedColumns.includes(f.id)) {
+          row[f.field_name] = reg.form_data[f.id] || '-'; 
+        }
+      });
+      
+      if (selectedColumns.includes('asistencia')) {
+        row['Asistió'] = reg.attended ? 'SÍ' : 'NO';
+      }
+      
+      if (selectedColumns.includes('fecha')) {
+        row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
+      }
+      
       return row;
     });
     
@@ -285,6 +335,8 @@ export default function CheckInEventPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte Asistencia");
     XLSX.writeFile(workbook, `Asistencia_${event.name.replace(/\s+/g, '_')}.xlsx`);
+    
+    setShowExportModal(false);
   };
 
   const filteredRegistrations = useMemo(() => {
@@ -317,6 +369,117 @@ export default function CheckInEventPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
       
+      {/* MODAL DE EXPORTACIÓN INTELIGENTE */}
+      <AnimatePresence>
+        {showExportModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.9, y: 20 }} 
+              className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Download className="h-5 w-5 text-accent"/> Configurar Reporte
+                </h2>
+                <button 
+                  onClick={() => setShowExportModal(false)} 
+                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5"
+                >
+                  <X className="h-6 w-6"/>
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
+                <p className="text-sm text-gray-400 mb-2">Selecciona las columnas que deseas incluir en el archivo Excel:</p>
+                
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    onClick={selectAllColumns} 
+                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30"
+                  >
+                    Seleccionar Todas
+                  </button>
+                  <button 
+                    onClick={deselectAllColumns} 
+                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10"
+                  >
+                    Desmarcar Todas
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                    <div className="flex items-center h-5">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedColumns.includes('doc')} 
+                        onChange={() => toggleColumn('doc')} 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                      />
+                    </div>
+                    <span className="text-sm font-medium text-gray-200">Documento / Cédula</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                    <div className="flex items-center h-5">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedColumns.includes('asistencia')} 
+                        onChange={() => toggleColumn('asistencia')} 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-accent">Estado de Asistencia (SÍ / NO)</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                    <div className="flex items-center h-5">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedColumns.includes('fecha')} 
+                        onChange={() => toggleColumn('fecha')} 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                      />
+                    </div>
+                    <span className="text-sm font-medium text-gray-200">Fecha de Registro</span>
+                  </label>
+
+                  {fields.map(f => (
+                    <label key={f.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                      <div className="flex items-center h-5">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedColumns.includes(f.id)} 
+                          onChange={() => toggleColumn(f.id)} 
+                          className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-200">{f.field_name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-white/5 bg-surface">
+                <button 
+                  onClick={confirmExport} 
+                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2"
+                >
+                  <Download className="h-5 w-5"/> Descargar Reporte de Asistencia
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL DE CÁMARA */}
       <AnimatePresence>
         {isCameraOpen && (
@@ -344,8 +507,8 @@ export default function CheckInEventPage() {
                 Apunta al Código QR
               </h2>
               
-              <div className="w-full bg-white rounded-2xl overflow-hidden shadow-inner">
-                <div id="qr-reader-puerta" className="w-full"></div>
+              <div className="w-full bg-black border-2 border-white/10 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center min-h-75">
+                <div id="qr-reader-puerta" className="w-full h-full object-cover"></div>
               </div>
               
               <p className="text-sm text-gray-400 mt-6 text-center">
@@ -489,7 +652,6 @@ export default function CheckInEventPage() {
         </div>
         
         <div className="flex gap-2">
-          {/* AQUI ESTÁ LA RUTA CORREGIDA */}
           <Link href={`/admin/eventos/${eventId}/auto-checkin`} target="_blank">
             <button className="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 text-sm shadow-4d-static transition-transform active:translate-y-1 active:shadow-none">
               <MonitorPlay className="h-4 w-4" /> 
@@ -504,8 +666,10 @@ export default function CheckInEventPage() {
             <UserPlus className="h-4 w-4" /> 
             Añadir Manual
           </button>
+          
+          {/* BOTÓN CON NUEVA LÓGICA DE EXPORTACIÓN */}
           <button 
-            onClick={exportAttendanceToExcel} 
+            onClick={openExportModal} 
             className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm"
           >
             <Download className="h-4 w-4" /> 
