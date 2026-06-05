@@ -41,7 +41,6 @@ export default function AutoCheckInPage() {
       gain.connect(ctx.destination);
 
       if (type === 'success') {
-        // Sonido de Éxito: Doble Bip Agudo Feliz
         osc.type = 'sine';
         osc.frequency.setValueAtTime(800, ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
@@ -63,7 +62,6 @@ export default function AutoCheckInPage() {
           osc2.stop(ctx.currentTime + 0.1);
         }, 150);
       } else {
-        // Sonido de Error: Buzz Grave de Alerta
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(150, ctx.currentTime);
         gain.gain.setValueAtTime(0.5, ctx.currentTime);
@@ -126,8 +124,13 @@ export default function AutoCheckInPage() {
             { facingMode: "environment" }, 
             { 
               fps: 10, 
-              // CORRECCIÓN: Cuadrado perfecto y fijo de 250px. Elimina el efecto de rectángulo angosto.
-              qrbox: 250 
+              // Tipos 'number' asignados explícitamente para cumplir con TypeScript estricto
+              qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+                const minEdgePercentage = 0.7;
+                const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+                return { width: qrboxSize, height: qrboxSize };
+              }
             },
             (decodedText: string) => {
               const cleanDoc = decodedText.trim();
@@ -285,12 +288,8 @@ export default function AutoCheckInPage() {
               </button>
             </div>
             
-            <div className={`w-full max-w-2xl mx-auto bg-black border-4 rounded-4xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex-1 min-h-[40vh] max-h-[50vh] relative transition-colors duration-300 ${status === 'success' ? 'border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.3)]' : status === 'error' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.3)]' : 'border-white/10'}`}>
-              {/* Añadimos estilos en línea globales para forzar el ajuste del video y evitar que se aplaste */}
-              <style dangerouslySetInnerHTML={{__html: `
-                #kiosco-camera-reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
-              `}} />
-              <div id="kiosco-camera-reader" className="w-full h-full bg-black"></div>
+            <div className={`w-full max-w-2xl mx-auto bg-black border-4 rounded-4xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex-1 min-h-[40vh] max-h-[50vh] relative transition-colors duration-300 flex items-center justify-center ${status === 'success' ? 'border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.3)]' : status === 'error' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.3)]' : 'border-white/10'}`}>
+              <div id="kiosco-camera-reader" className="w-full h-full bg-black rounded-3xl overflow-hidden"></div>
             </div>
 
             <div className="w-full max-w-2xl mx-auto mt-6 h-40 flex items-center justify-center">
@@ -380,6 +379,7 @@ export default function AutoCheckInPage() {
           </motion.div>
         )}
 
+        {/* PANTALLAS DE PROCESO PARA LÁSER FÍSICO */}
         {!isCameraOpen && status === 'processing' && (
           <motion.div 
             key="laser-processing"
