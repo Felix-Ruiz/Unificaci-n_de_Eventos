@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   Loader2,
   AlertCircle,
-  Info
+  Info,
+  Mail // <-- Ícono de Mail añadido para las notificaciones
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -54,7 +55,7 @@ export default function NuevoEventoPage() {
   
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
-  const [sendNotifications, setSendNotifications] = useState(true);
+  const [sendNotifications, setSendNotifications] = useState(true); // <-- Estado de Notificaciones
   
   // ESTADOS DE URLS Y PRIVACIDAD
   const [eventSlug, setEventSlug] = useState('');
@@ -324,7 +325,7 @@ export default function NuevoEventoPage() {
                 <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -340,7 +341,7 @@ export default function NuevoEventoPage() {
         <button 
           onClick={handleSaveEvent}
           disabled={isSaving}
-          className={`bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-all shadow-4d-static active:translate-y-1 active:shadow-none ${
+          className={`bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-all shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer ${
             isSaving ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
@@ -495,6 +496,35 @@ export default function NuevoEventoPage() {
             </div>
           </div>
 
+          {/* ========================================== */}
+          {/* NUEVO PANEL: COMUNICACIONES AUTOMÁTICAS    */}
+          {/* ========================================== */}
+          <div className="bg-surface border border-white/5 p-6 rounded-2xl">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-500" /> 
+              Comunicaciones
+            </h2>
+            <div className="flex items-center justify-between bg-black/30 p-4 rounded-xl border border-gray-800">
+              <div>
+                  <h3 className="text-sm font-bold text-white">Enviar Ticket por Correo</h3>
+                  <p className="text-xs text-gray-400">Envía un código QR automático al inscribirse.</p>
+              </div>
+              <button 
+                type="button" 
+                role="switch"
+                aria-checked={sendNotifications}
+                onClick={() => setSendNotifications(!sendNotifications)} 
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  sendNotifications ? 'bg-blue-500' : 'bg-gray-700'
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                  sendNotifications ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
+          </div>
+
           <div className="bg-surface border border-white/5 p-6 rounded-2xl">
             <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-green-500" /> 
@@ -508,6 +538,8 @@ export default function NuevoEventoPage() {
                 </div>
                 <button 
                   type="button" 
+                  role="switch"
+                  aria-checked={requireHabeasData}
                   onClick={() => setRequireHabeasData(!requireHabeasData)} 
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                     requireHabeasData ? 'bg-green-500' : 'bg-gray-700'
@@ -619,7 +651,7 @@ export default function NuevoEventoPage() {
                           <select 
                             value={field.type} 
                             onChange={(e) => updateField(field.id, 'type', e.target.value)} 
-                            className="w-full bg-black/50 border border-gray-700 text-sm text-gray-300 rounded-lg p-2 focus:outline-none focus:border-accent"
+                            className="w-full bg-black/50 border border-gray-700 text-sm text-gray-300 rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer"
                           >
                             <option value="text">Texto Corto</option>
                             <option value="textarea">Párrafo Largo</option>
@@ -637,6 +669,8 @@ export default function NuevoEventoPage() {
                           <span className="text-xs text-gray-400 font-medium">Obligatorio</span>
                           <button 
                             type="button" 
+                            role="switch"
+                            aria-checked={field.isRequired}
                             onClick={() => updateField(field.id, 'isRequired', !field.isRequired)} 
                             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.isRequired ? 'bg-primary' : 'bg-gray-700'}`}
                           >
@@ -648,7 +682,7 @@ export default function NuevoEventoPage() {
                           <button 
                             type="button" 
                             onClick={() => updateField(field.id, '_ui_showLogic', !field._ui_showLogic)} 
-                            className={`p-2 rounded-lg transition-colors ${field.logic ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${field.logic ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
                             title="Configurar Lógica Condicional"
                           >
                             <GitBranch className="h-4 w-4" />
@@ -657,7 +691,7 @@ export default function NuevoEventoPage() {
                           <button 
                             type="button" 
                             onClick={() => handleRemoveField(field.id)} 
-                            className="text-gray-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-500/10"
+                            className="text-gray-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-500/10 cursor-pointer"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -672,7 +706,7 @@ export default function NuevoEventoPage() {
                               <GitBranch className="h-4 w-4" /> Lógica Condicional
                             </h4>
                             {field.logic && (
-                                <button type="button" onClick={() => clearFieldLogic(field.id)} className="text-xs text-red-400 hover:text-red-300">Quitar Lógica</button>
+                                <button type="button" onClick={() => clearFieldLogic(field.id)} className="text-xs text-red-400 hover:text-red-300 cursor-pointer">Quitar Lógica</button>
                             )}
                           </div>
                           
@@ -682,7 +716,7 @@ export default function NuevoEventoPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <label className="text-xs text-gray-400">Acción:</label>
-                                <select value={field.logic?.action || 'show'} onChange={(e) => updateFieldLogic(field.id, 'action', e.target.value)} className="w-full bg-black/50 border border-gray-700 text-sm text-white rounded-lg p-2 focus:border-primary outline-none">
+                                <select value={field.logic?.action || 'show'} onChange={(e) => updateFieldLogic(field.id, 'action', e.target.value)} className="w-full bg-black/50 border border-gray-700 text-sm text-white rounded-lg p-2 focus:border-primary outline-none cursor-pointer">
                                   <option value="show">Mostrar la pregunta si...</option>
                                   <option value="hide">Ocultar la pregunta si...</option>
                                   <option value="require">Hacer Obligatoria si...</option>
@@ -690,7 +724,7 @@ export default function NuevoEventoPage() {
                               </div>
                               <div>
                                 <label className="text-xs text-gray-400">Depende de la pregunta:</label>
-                                <select value={field.logic?.dependsOnId || ''} onChange={(e) => updateFieldLogic(field.id, 'dependsOnId', e.target.value)} className="w-full bg-black/50 border border-gray-700 text-sm text-white rounded-lg p-2 focus:border-primary outline-none">
+                                <select value={field.logic?.dependsOnId || ''} onChange={(e) => updateFieldLogic(field.id, 'dependsOnId', e.target.value)} className="w-full bg-black/50 border border-gray-700 text-sm text-white rounded-lg p-2 focus:border-primary outline-none cursor-pointer">
                                   <option value="">Seleccionar...</option>
                                   {availableParentQuestions.map(p => (
                                     <option key={p.id} value={p.id}>{p.label}</option>
@@ -699,7 +733,7 @@ export default function NuevoEventoPage() {
                               </div>
                               <div>
                                 <label className="text-xs text-gray-400">Y su respuesta sea igual a:</label>
-                                <select value={field.logic?.dependsOnValue || ''} onChange={(e) => updateFieldLogic(field.id, 'dependsOnValue', e.target.value)} disabled={!field.logic?.dependsOnId} className="w-full bg-black/50 border border-gray-700 text-sm text-white rounded-lg p-2 disabled:opacity-50 focus:border-primary outline-none">
+                                <select value={field.logic?.dependsOnValue || ''} onChange={(e) => updateFieldLogic(field.id, 'dependsOnValue', e.target.value)} disabled={!field.logic?.dependsOnId} className="w-full bg-black/50 border border-gray-700 text-sm text-white rounded-lg p-2 disabled:opacity-50 focus:border-primary outline-none cursor-pointer">
                                   <option value="">Seleccionar respuesta...</option>
                                   {selectedParent?.options.map(opt => (
                                     <option key={opt} value={opt}>{opt}</option>
@@ -737,7 +771,7 @@ export default function NuevoEventoPage() {
                                 <div key={opt} className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-300">
                                   <span>{opt}</span>
                                   {opt !== 'Otra' && (
-                                    <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-500 hover:text-red-400 transition-colors">
+                                    <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-500 hover:text-red-400 transition-colors cursor-pointer">
                                       <X className="h-3 w-3" />
                                     </button>
                                   )}
@@ -756,7 +790,7 @@ export default function NuevoEventoPage() {
               <button 
                 type="button" 
                 onClick={handleAddField} 
-                className="w-full mt-6 border-2 border-dashed border-gray-700 hover:border-accent bg-transparent text-gray-400 hover:text-accent font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                className="w-full mt-6 border-2 border-dashed border-gray-700 hover:border-accent bg-transparent text-gray-400 hover:text-accent font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <Plus className="h-5 w-5" /> 
                 Añadir Pregunta Nueva
