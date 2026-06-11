@@ -82,11 +82,11 @@ export default function Footer() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-4 text-[10px] font-black uppercase tracking-widest text-accent">
-              <button onClick={() => setActiveModal('habeas')} className="hover:text-white transition drop-shadow-sm">
+              <button onClick={() => setActiveModal('habeas')} className="hover:text-white transition drop-shadow-sm cursor-pointer">
                 Política de Datos (Habeas Data)
               </button>
               <span className="text-gray-600 hidden md:inline">|</span>
-              <button onClick={() => setActiveModal('terms')} className="hover:text-white transition drop-shadow-sm">
+              <button onClick={() => setActiveModal('terms')} className="hover:text-white transition drop-shadow-sm cursor-pointer">
                 Términos y Condiciones
               </button>
             </div>
@@ -112,7 +112,7 @@ export default function Footer() {
                   {activeModal === 'terms' && <><ShieldCheck className="h-5 w-5 text-accent"/> Términos y Condiciones</>}
                   {activeModal === 'map' && <><MapPin className="w-5 h-5 text-accent" /> Ubicación Oficial ACOFI</>}
                 </h2>
-                <button onClick={closeModal} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none">×</button>
+                <button onClick={closeModal} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none cursor-pointer">×</button>
               </div>
               
               <div className={`overflow-y-auto custom-scrollbar ${activeModal === 'map' ? 'p-0' : 'p-8 text-gray-700 text-sm leading-relaxed space-y-4'}`}>
@@ -170,7 +170,7 @@ export default function Footer() {
               </div>
 
               <div className="p-4 bg-gray-50 border-t border-gray-200 text-center">
-                <button onClick={closeModal} className="bg-black text-white px-8 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-gray-800 transition-colors">
+                <button onClick={closeModal} className="bg-black text-white px-8 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer">
                   Aceptar y Cerrar
                 </button>
               </div>

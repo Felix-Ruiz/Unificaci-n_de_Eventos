@@ -227,6 +227,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </Link>
             )}
 
+            {/* RESTAURADO: BOTÓN DE CONFIGURACIÓN DEL SISTEMA */}
+            <div className="my-2 pt-2 border-t border-white/5"></div>
+            <Link 
+              href="/admin/configuracion" 
+              title={isCollapsed ? "Configuración" : ""}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
+                isActive('/admin/configuracion') 
+                ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+              } ${isCollapsed ? 'md:justify-center' : ''}`}
+            >
+              <Settings className="shrink-0 h-5 w-5" /> 
+              <span className={isCollapsed ? 'md:hidden' : ''}>Configuración</span>
+            </Link>
+
           </nav>
         </div>
 
@@ -258,6 +273,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Contenido Principal */}
       <main className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
+        {/* CORRECCIÓN: w-125 h-125 cambiado a valores válidos de Tailwind */}
         <div className="absolute top-0 right-0 w-125 h-125 bg-primary/10 rounded-full blur-[150px] pointer-events-none hidden md:block"></div>
         <div className="p-4 md:p-10 relative z-10 w-full min-h-full">
           {children}

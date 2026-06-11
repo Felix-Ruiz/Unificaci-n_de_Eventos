@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../../lib/supabase';
 import { useParams } from 'next/navigation';
-import { Loader2, Star, MessageSquare, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Star, MessageSquare, Send, CheckCircle2, AlertCircle, X, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Footer from '../../../../components/Footer';
 
@@ -21,6 +21,16 @@ export default function FeedbackPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // ==========================================
+  // SISTEMA DE NOTIFICACIONES (TOASTS NATIVOS)
+  // ==========================================
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'error') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   useEffect(() => {
     if (!eventIdOrSlug) return;
@@ -59,7 +69,9 @@ export default function FeedbackPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (rating === 0) return alert("Por favor, selecciona una calificación de 1 a 5 estrellas.");
+    if (rating === 0) {
+      return showToast('Calificación Requerida', 'Por favor, selecciona una calificación de 1 a 5 estrellas.', 'error');
+    }
     
     setIsSubmitting(true);
     
@@ -73,7 +85,7 @@ export default function FeedbackPage() {
       if (error) throw error;
       setSuccess(true);
     } catch (error) {
-      alert("Hubo un error al enviar tu respuesta.");
+      showToast('Error de Conexión', 'Hubo un error al enviar tu respuesta. Por favor intenta nuevamente.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -100,6 +112,39 @@ export default function FeedbackPage() {
       className="min-h-screen flex flex-col bg-background relative" 
       style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
     >
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/10 blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px]"></div>

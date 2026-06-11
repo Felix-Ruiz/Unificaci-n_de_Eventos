@@ -16,7 +16,7 @@ export default function GafetesPage() {
   const [fields, setFields] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // NUEVOS ESTADOS PARA BÚSQUEDA Y SELECCIÓN
+  // ESTADOS PARA BÚSQUEDA Y SELECCIÓN
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -45,19 +45,17 @@ export default function GafetesPage() {
       .from('registrations')
       .select('*')
       .eq('event_id', eventId)
-      .order('created_at', { ascending: false }); // Los más recientes primero (ideal para los VIP que acabas de subir)
+      .order('created_at', { ascending: false }); 
     
     setRegistrations(regsData || []);
     setLoading(false);
   }
 
-  // Función inteligente para encontrar campos independientemente de su nombre exacto
   const getFieldValue = (reg: any, keyword: string) => {
     const field = fields.find((f: any) => f.field_name?.toLowerCase().includes(keyword));
     return field ? reg.form_data[field.id] : '';
   };
 
-  // Filtrar por búsqueda
   const filteredRegistrations = useMemo(() => {
     if (!searchTerm) return registrations;
     return registrations.filter((reg: any) => {
@@ -68,7 +66,6 @@ export default function GafetesPage() {
     });
   }, [registrations, searchTerm, fields]);
 
-  // Si hay seleccionados, solo preparamos esos para imprimir. Si no hay seleccionados, imprimimos los filtrados.
   const itemsToPrint = selectedIds.size > 0 
     ? filteredRegistrations.filter(reg => selectedIds.has(reg.id))
     : filteredRegistrations;
@@ -116,7 +113,7 @@ export default function GafetesPage() {
         
         <div className="flex items-center gap-4 w-full md:w-auto">
           <Link href={`/admin/eventos/${eventId}`}>
-            <button className="p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
+            <button className="p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
               <ArrowLeft className="h-5 w-5" />
             </button>
           </Link>
@@ -142,7 +139,7 @@ export default function GafetesPage() {
 
           <button 
             onClick={selectAllFiltered}
-            className="text-sm font-bold text-gray-400 hover:text-white whitespace-nowrap flex items-center gap-2 px-3"
+            className="text-sm font-bold text-gray-400 hover:text-white whitespace-nowrap flex items-center gap-2 px-3 cursor-pointer"
           >
             <Filter className="h-4 w-4"/>
             {selectedIds.size > 0 ? 'Limpiar Selección' : 'Seleccionar Vistos'}
@@ -150,7 +147,7 @@ export default function GafetesPage() {
 
           <button 
             onClick={() => window.print()} 
-            className="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none whitespace-nowrap"
+            className="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none whitespace-nowrap cursor-pointer"
           >
             <Printer className="h-5 w-5" /> Imprimir ({itemsToPrint.length})
           </button>
@@ -183,20 +180,16 @@ export default function GafetesPage() {
                        ${isSelected ? 'ring-4 ring-primary border-transparent' : 'border-gray-200 hover:border-primary/50'}
                      `}
                    >
-                      {/* Checkbox visual para el modo web */}
                       <div className="print:hidden absolute top-3 right-3 z-10 bg-white rounded-md shadow-sm">
                         {isSelected ? <CheckSquare className="h-6 w-6 text-primary"/> : <Square className="h-6 w-6 text-gray-300"/>}
                       </div>
 
-                      {/* Banda Superior de Color Corporativo */}
                       <div 
                         className="h-5 w-full shrink-0 print:bg-black" 
                         style={{ backgroundColor: event.primary_color || '#4f46e5', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
                       ></div>
                       
                       <div className="p-6 flex flex-col items-center flex-1 text-center">
-                        
-                        {/* Logo */}
                         <div className="h-16 w-full flex items-center justify-center mb-6">
                           {event.logo_url ? (
                             <img src={event.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
@@ -205,21 +198,18 @@ export default function GafetesPage() {
                           )}
                         </div>
                         
-                        {/* Textos del Asistente */}
                         <h2 className="text-2xl font-black text-gray-900 leading-tight mb-2 uppercase wrap-break-word w-full line-clamp-2">
                           {name}
                         </h2>
                         {cargo && <p className="text-md font-bold text-gray-600 mb-1 line-clamp-1">{cargo}</p>}
                         {inst && <p className="text-sm font-medium text-gray-500 mb-6 line-clamp-2">{inst}</p>}
                         
-                        {/* Código QR para el Check-In Láser */}
                         <div className="mt-auto mb-2 p-3 bg-white rounded-xl border-2 border-gray-100 shadow-sm inline-block">
                            <QRCodeSVG value={reg.historic_user_doc} size={110} level="H" />
                         </div>
                         <p className="text-[10px] text-gray-400 font-mono tracking-widest">{reg.historic_user_doc}</p>
                       </div>
                       
-                      {/* Pie de Página */}
                       <div 
                         className="py-3 text-center shrink-0"
                         style={{ backgroundColor: '#111827', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}

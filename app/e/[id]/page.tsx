@@ -12,12 +12,13 @@ import {
   Clock, 
   Users, 
   CalendarDays,
-  ShieldCheck
+  ShieldCheck,
+  Info,
+  X
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useParams } from 'next/navigation';
 
-// Importamos el Footer reutilizable
 import Footer from '../../../components/Footer';
 
 export default function FormularioPublico() {
@@ -31,14 +32,11 @@ export default function FormularioPublico() {
   
   const [formData, setFormData] = useState<Record<string, string>>({});
   
-  // SEGURIDAD 1: Honeypot (Trampa invisible para bots tontos)
   const [honeypot, setHoneypot] = useState('');
   
-  // SEGURIDAD 2: Cloudflare Turnstile (Referencia explícita)
   const [turnstileToken, setTurnstileToken] = useState('');
   const turnstileRef = useRef<HTMLDivElement>(null);
   
-  // Estado para la validación del Habeas Data
   const [acceptHabeas, setAcceptHabeas] = useState(false);
 
   const [isVerifying, setIsVerifying] = useState(false);
@@ -46,17 +44,25 @@ export default function FormularioPublico() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // ==========================================
+  // SISTEMA DE NOTIFICACIONES (TOASTS NATIVOS)
+  // ==========================================
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'error') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
   const isKiosk = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === 'true';
 
-  // INYECCIÓN EXPLÍCITA DE CLOUDFLARE TURNSTILE (Soluciona el problema de visibilidad)
   useEffect(() => {
     if (!loadingInit && status === 'open' && !isKiosk && turnstileRef.current) {
       const renderTurnstile = () => {
         if ((window as any).turnstile) {
           try {
-            // Renderiza el widget explícitamente en el div referenciado
             (window as any).turnstile.render(turnstileRef.current, {
-              sitekey: '1x00000000000000000000AA', // Llave de prueba (Siempre aprueba)
+              sitekey: '1x00000000000000000000AA', 
               callback: (token: string) => setTurnstileToken(token),
               theme: 'dark'
             });
@@ -228,7 +234,6 @@ export default function FormularioPublico() {
     } catch { return false; }
   };
 
-  // SEGURIDAD 3: Verificar Rate Limiting (Límite de envíos por dispositivo)
   const checkRateLimit = () => {
     const history = JSON.parse(localStorage.getItem('acofi_spam_guard') || '[]');
     const now = Date.now();
@@ -249,27 +254,23 @@ export default function FormularioPublico() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // TRAMPA 1: Honeypot
     if (honeypot) { 
       setSuccess(true); 
       return; 
     }
 
-    // TRAMPA 2: Rate Limiting Local
     if (!checkRateLimit()) {
-      alert("Has superado el límite de intentos permitidos. Por favor, intenta de nuevo en 10 minutos.");
+      showToast('Límite Excedido', 'Has superado el límite de intentos permitidos. Por favor, intenta de nuevo en 10 minutos.', 'error');
       return;
     }
 
-    // TRAMPA 3: Validar Cloudflare Turnstile
     if (!turnstileToken && !isKiosk) {
-      alert("Por favor, espera a que se complete la verificación de seguridad antes de continuar.");
+      showToast('Verificación Requerida', 'Por favor, espera a que cargue y marca la casilla de seguridad Cloudflare (No soy un robot) antes de continuar.', 'error');
       return;
     }
 
-    // Validación Habeas Data
     if (event.require_habeas_data && !acceptHabeas) {
-      alert("Debes leer y aceptar la Política de Tratamiento de Datos Personales para continuar.");
+      showToast('Aceptación de Políticas', 'Debes leer y marcar la casilla aceptando la Política de Tratamiento de Datos Personales para continuar.', 'error');
       return;
     }
     
@@ -333,10 +334,9 @@ export default function FormularioPublico() {
           form_data: finalFormData 
         }]);
 
-      // --- LLAMADA AL BACKEND DE CORREOS (BREVO) ---
-      if (email) {
+      if (email && event.send_notifications) {
         try {
-          await fetch('/api/send-ticket', {
+          const res = await fetch('/api/send-ticket', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -346,11 +346,15 @@ export default function FormularioPublico() {
               documento: documento
             })
           });
-        } catch (emailErr) {
-          console.error("Fallo silencioso al enviar correo:", emailErr);
+          
+          if (!res.ok) {
+            const errData = await res.json();
+            showToast('Aviso de Correo', `Registro exitoso, pero falló el envío de correo. Brevo: ${JSON.stringify(errData)}`, 'info');
+          }
+        } catch (emailErr: any) {
+          showToast('Aviso de Correo', `El servidor de correos no respondió: ${emailErr.message}`, 'info');
         }
       }
-      // ----------------------------------------------
 
       updateRateLimit();
       setSuccess(true);
@@ -360,7 +364,7 @@ export default function FormularioPublico() {
       }
       
     } catch (error: any) { 
-      alert("Error en el servidor al enviar el registro."); 
+      showToast('Error del Servidor', 'Ocurrió un problema al enviar tu registro. Intenta nuevamente.', 'error');
     } finally { 
       setIsSubmitting(false); 
       if ((window as any).turnstile && turnstileRef.current) {
@@ -453,7 +457,7 @@ export default function FormularioPublico() {
           ) : (
             <button 
               onClick={() => window.location.reload()} 
-              className="text-primary hover:text-accent font-medium transition-colors"
+              className="text-primary hover:text-accent font-medium transition-colors cursor-pointer"
             >
               Realizar otro registro
             </button>
@@ -468,6 +472,39 @@ export default function FormularioPublico() {
       className="min-h-screen bg-background py-16 flex flex-col justify-between relative overflow-hidden" 
       style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
     >
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/10 blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px]"></div>
@@ -805,7 +842,7 @@ export default function FormularioPublico() {
                           if (event.habeas_data_url) {
                             window.open(event.habeas_data_url, '_blank');
                           } else {
-                            alert("Por favor, lee las Políticas desde el botón en el pie de página.");
+                            showToast('Información de Privacidad', 'Nuestras políticas de privacidad se encuentran disponibles en los enlaces del pie de página.', 'info');
                           }
                         }}
                         className="text-accent font-bold hover:underline"
@@ -825,8 +862,7 @@ export default function FormularioPublico() {
                   <p className="text-xs text-gray-500 mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" /> Verificación de Seguridad
                   </p>
-                  {/* Este es el div donde se inyectará el widget explícitamente */}
-                  <div ref={turnstileRef}></div>
+                  <div ref={turnstileRef} className="min-h-16.25 flex items-center justify-center"></div>
                 </div>
               )}
 

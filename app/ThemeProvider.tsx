@@ -11,25 +11,23 @@ const ThemeContext = createContext<{
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const savedTheme = localStorage.getItem("acofi-theme") as Theme | null;
     const initialTheme = savedTheme || "dark";
     
     setThemeState(initialTheme);
-    // Aplicamos el atributo directamente al body para asegurar la prioridad en CSS
+    // Aplicamos el atributo directamente al HTML y al Body para asegurar la prioridad en CSS y Tailwind
+    document.documentElement.setAttribute("data-theme", initialTheme);
     document.body.setAttribute("data-theme", initialTheme);
   }, []);
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
     localStorage.setItem("acofi-theme", newTheme);
+    document.documentElement.setAttribute("data-theme", newTheme);
     document.body.setAttribute("data-theme", newTheme);
   };
-
-  if (!mounted) return <div className="min-h-screen bg-[#050505]" />;
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

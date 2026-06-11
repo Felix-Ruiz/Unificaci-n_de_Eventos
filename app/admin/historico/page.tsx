@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Search, Edit, FileSpreadsheet, Loader2, X, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Edit, FileSpreadsheet, Loader2, X, Trash2, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
 
@@ -32,6 +32,17 @@ export default function HistoricoPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalUsers, setTotalUsers] = useState(0);
+
+  // ==========================================
+  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
+  // ==========================================
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id: string } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'info') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   // Efecto principal para la paginación y búsqueda
   useEffect(() => {
@@ -87,7 +98,7 @@ export default function HistoricoPage() {
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
         if (data.length === 0) {
-          alert("El archivo Excel no tiene registros.");
+          showToast('Archivo Vacío', 'El archivo Excel no tiene registros.', 'error');
           setUploading(false);
           return;
         }
@@ -112,7 +123,7 @@ export default function HistoricoPage() {
         }).filter(u => u.documento_identidad);
 
         if (mappedUsers.length === 0) {
-          alert("No se encontraron registros válidos con Documento de Identidad.");
+          showToast('Sin Documentos', 'No se encontraron registros válidos con Documento de Identidad.', 'error');
           setUploading(false);
           return;
         }
@@ -140,10 +151,11 @@ export default function HistoricoPage() {
           await new Promise(resolve => setTimeout(resolve, 150));
         }
 
+        showToast('Carga Exitosa', 'El histórico ha sido actualizado correctamente.', 'success');
         await fetchUsers();
       } catch (error: any) {
         console.error("Error procesando Excel:", error);
-        alert(`Hubo un error procesando el archivo: ${error.message || 'Error desconocido'}`);
+        showToast('Error de Procesamiento', `Hubo un error procesando el archivo: ${error.message || 'Error desconocido'}`, 'error');
       } finally {
         setUploading(false);
         setUploadProgress(0);
@@ -163,25 +175,34 @@ export default function HistoricoPage() {
       .eq('documento_identidad', editingUser.documento_identidad);
 
     if (!error) {
-      await fetchUsers(); // Refrescamos la página actual
+      showToast('Usuario Actualizado', 'El perfil fue modificado con éxito.', 'success');
+      await fetchUsers(); 
       setEditingUser(null);
     } else {
-      alert("Error al actualizar el usuario");
+      showToast('Error de Actualización', 'Hubo un problema al actualizar el usuario.', 'error');
     }
   };
 
-  const handleDeleteUser = async (documento_identidad: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar este usuario histórico? Esta acción no se puede deshacer.")) {
+  const handleDeleteClick = (documento_identidad: string) => {
+    setConfirmModal({ isOpen: true, id: documento_identidad });
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmModal) return;
+
+    try {
       const { error } = await supabase
         .from('historic_users')
         .delete()
-        .eq('documento_identidad', documento_identidad);
+        .eq('documento_identidad', confirmModal.id);
 
-      if (!error) {
-        await fetchUsers();
-      } else {
-        alert("Hubo un error al intentar eliminar el usuario.");
-      }
+      if (error) throw error;
+      showToast('Usuario Eliminado', 'El registro fue borrado de la base histórica.', 'success');
+      await fetchUsers();
+    } catch (error) {
+      showToast('Error al Eliminar', 'Hubo un error al intentar eliminar el usuario.', 'error');
+    } finally {
+      setConfirmModal(null);
     }
   };
 
@@ -189,8 +210,72 @@ export default function HistoricoPage() {
   const totalPages = Math.ceil(totalUsers / itemsPerPage);
 
   return (
-    <div className="space-y-8 relative">
-      <header className="flex justify-between items-end">
+    <div className="space-y-8 relative pb-20">
+      
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* MODAL 4D DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <AnimatePresence>
+        {confirmModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              <h2 className="text-2xl font-bold text-white mb-3">Eliminar Registro</h2>
+              <p className="text-gray-300 mb-8">
+                ¿Estás seguro de que deseas eliminar a este usuario histórico? Esta acción es irreversible.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
+                <button 
+                  onClick={confirmDelete} 
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
+                >
+                  Eliminar Usuario
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Base Histórica de Usuarios</h1>
           <p className="text-gray-400">Gestiona y localiza a los participantes de eventos anteriores.</p>
@@ -238,7 +323,7 @@ export default function HistoricoPage() {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="bg-black/50 border border-gray-700 text-white rounded-lg p-2 focus:outline-none focus:border-accent"
+            className="bg-black/50 border border-gray-700 text-white rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer"
           >
             <option value={20}>20 registros</option>
             <option value={50}>50 registros</option>
@@ -285,35 +370,35 @@ export default function HistoricoPage() {
                   >
                     <td className="px-6 py-4 font-mono text-accent whitespace-nowrap">{user.documento_identidad}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-white truncate max-w-250px" title={`${user.nombre} ${user.apellido}`}>
+                      <div className="font-medium text-white truncate max-w-62.5" title={`${user.nombre} ${user.apellido}`}>
                         {user.nombre} {user.apellido}
                       </div>
                       <div className="text-xs text-gray-500">{user.genero || '-'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-gray-300 truncate max-w-200px" title={user.email}>{user.email || '-'}</div>
+                      <div className="text-gray-300 truncate max-w-50" title={user.email}>{user.email || '-'}</div>
                       <div className="text-xs text-gray-500 whitespace-nowrap">{user.telefono || '-'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="truncate max-w-200px" title={user.institucion}>{user.institucion || '-'}</div>
-                      <div className="text-xs text-gray-500 truncate max-w-200px" title={user.cargo}>{user.cargo || '-'}</div>
+                      <div className="truncate max-w-50" title={user.institucion}>{user.institucion || '-'}</div>
+                      <div className="text-xs text-gray-500 truncate max-w-50" title={user.cargo}>{user.cargo || '-'}</div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="truncate max-w-150px">{user.ciudad ? `${user.ciudad}, ${user.pais}` : '-'}</div>
+                      <div className="truncate max-w-37.5">{user.ciudad ? `${user.ciudad}, ${user.pais}` : '-'}</div>
                     </td>
                     {/* Botones fijados a la derecha */}
                     <td className="px-6 py-4 text-right sticky right-0 bg-surface z-10 border-l border-white/5 whitespace-nowrap">
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => setEditingUser(user)}
-                          className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors"
+                          className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors cursor-pointer"
                           title="Editar"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button 
-                          onClick={() => handleDeleteUser(user.documento_identidad)}
-                          className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
+                          onClick={() => handleDeleteClick(user.documento_identidad)}
+                          className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors cursor-pointer"
                           title="Eliminar"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -336,14 +421,14 @@ export default function HistoricoPage() {
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1 || loading}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white"
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white cursor-pointer"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages || loading}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white"
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white cursor-pointer"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -352,91 +437,102 @@ export default function HistoricoPage() {
       </div>
 
       {/* Modal de Edición */}
-      {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+      <AnimatePresence>
+        {editingUser && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-surface border border-white/10 rounded-2xl p-8 w-full max-w-3xl shadow-2xl my-8"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
           >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-white">Editar Perfil del Usuario</h3>
-              <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-white bg-white/5 p-2 rounded-lg">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEdit} className="space-y-5">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface border border-white/10 rounded-2xl p-8 w-full max-w-3xl shadow-2xl my-8 relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-primary"></div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Nombre</label>
-                  <input type="text" value={editingUser.nombre} onChange={e => setEditingUser({...editingUser, nombre: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Apellido</label>
-                  <input type="text" value={editingUser.apellido} onChange={e => setEditingUser({...editingUser, apellido: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" required />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Documento de Identidad (Llave Única)</label>
-                  <input type="text" value={editingUser.documento_identidad} disabled className="w-full bg-black/30 border border-gray-800 rounded-lg py-2.5 px-3 text-gray-500 cursor-not-allowed" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Correo Electrónico</label>
-                  <input type="email" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Género</label>
-                  <input type="text" value={editingUser.genero} onChange={e => setEditingUser({...editingUser, genero: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Teléfono</label>
-                  <input type="text" value={editingUser.telefono} onChange={e => setEditingUser({...editingUser, telefono: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Dirección</label>
-                <input type="text" value={editingUser.direccion} onChange={e => setEditingUser({...editingUser, direccion: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Institución</label>
-                  <input type="text" value={editingUser.institucion} onChange={e => setEditingUser({...editingUser, institucion: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Cargo</label>
-                  <input type="text" value={editingUser.cargo} onChange={e => setEditingUser({...editingUser, cargo: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Ciudad</label>
-                  <input type="text" value={editingUser.ciudad} onChange={e => setEditingUser({...editingUser, ciudad: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">País</label>
-                  <input type="text" value={editingUser.pais} onChange={e => setEditingUser({...editingUser, pais: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
-                </div>
-              </div>
-
-              <div className="pt-4">
-                <button type="submit" className="w-full bg-accent text-black font-bold py-4 rounded-lg shadow-4d-static transition-transform active:translate-y-1 active:shadow-none hover:bg-accent/90 text-lg tracking-wide">
-                  Guardar Todos Los Cambios
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-white">Editar Perfil del Usuario</h3>
+                <button onClick={() => setEditingUser(null)} className="text-gray-400 hover:text-white bg-white/5 p-2 rounded-lg cursor-pointer">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSaveEdit} className="space-y-5">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Nombre</label>
+                    <input type="text" value={editingUser.nombre} onChange={e => setEditingUser({...editingUser, nombre: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" required />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Apellido</label>
+                    <input type="text" value={editingUser.apellido} onChange={e => setEditingUser({...editingUser, apellido: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" required />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Documento de Identidad (Llave Única)</label>
+                    <input type="text" value={editingUser.documento_identidad} disabled className="w-full bg-black/30 border border-gray-800 rounded-lg py-2.5 px-3 text-gray-500 cursor-not-allowed" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Correo Electrónico</label>
+                    <input type="email" value={editingUser.email} onChange={e => setEditingUser({...editingUser, email: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Género</label>
+                    <input type="text" value={editingUser.genero} onChange={e => setEditingUser({...editingUser, genero: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Teléfono</label>
+                    <input type="text" value={editingUser.telefono} onChange={e => setEditingUser({...editingUser, telefono: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Dirección</label>
+                  <input type="text" value={editingUser.direccion} onChange={e => setEditingUser({...editingUser, direccion: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Institución</label>
+                    <input type="text" value={editingUser.institucion} onChange={e => setEditingUser({...editingUser, institucion: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Cargo</label>
+                    <input type="text" value={editingUser.cargo} onChange={e => setEditingUser({...editingUser, cargo: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Ciudad</label>
+                    <input type="text" value={editingUser.ciudad} onChange={e => setEditingUser({...editingUser, ciudad: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">País</label>
+                    <input type="text" value={editingUser.pais} onChange={e => setEditingUser({...editingUser, pais: e.target.value})} className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-3 text-white focus:border-accent outline-none" />
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <button type="submit" className="w-full bg-accent text-black font-bold py-4 rounded-lg shadow-4d-static transition-transform active:translate-y-1 active:shadow-none hover:bg-accent/90 text-lg tracking-wide cursor-pointer">
+                    Guardar Todos Los Cambios
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

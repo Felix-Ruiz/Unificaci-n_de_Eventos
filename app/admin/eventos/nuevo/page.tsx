@@ -19,13 +19,14 @@ import {
   AlignLeft,
   Link2,
   ShieldCheck,
-  Loader2 // <-- Importado correctamente
+  Loader2,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// IMPORTACIÓN DEL NUEVO COMPONENTE UI DE FEEDBACK
 import FeedbackAdminPanel from '../../../../components/FeedbackAdminPanel';
 
 interface FormField {
@@ -42,6 +43,14 @@ interface FormField {
 export default function NuevoEventoPage() {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
+  
+  // SISTEMA NATIVO DE NOTIFICACIONES (TOASTS)
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'info') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
   
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
@@ -168,9 +177,9 @@ export default function NuevoEventoPage() {
         }
 
         updateField(id, 'options', uniqueOptions);
-        alert(`Se cargaron ${uniqueOptions.length} opciones exitosamente.`);
+        showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde el archivo Excel.`, 'success');
       } catch (error) {
-        alert("Error leyendo el archivo Excel.");
+        showToast('Error de Formato', 'No se pudo leer el archivo Excel. Revisa el formato e intenta de nuevo.', 'error');
       }
       if (e.target) e.target.value = '';
     };
@@ -195,7 +204,7 @@ export default function NuevoEventoPage() {
   };
 
   const handleSaveEvent = async () => {
-    if (!eventName) return alert("Debes asignarle un nombre al evento.");
+    if (!eventName) return showToast('Campo Requerido', 'Debes asignarle un nombre al evento para poder guardarlo.', 'error');
     
     setIsSaving(true);
 
@@ -250,7 +259,7 @@ export default function NuevoEventoPage() {
           send_notifications: sendNotifications,
           require_habeas_data: requireHabeasData, 
           habeas_data_url: habeasDataUrl || null,
-          send_feedback_survey: sendFeedbackSurvey, // Guardar switch de feedback nativo
+          send_feedback_survey: sendFeedbackSurvey,
           max_capacity: maxCapacity ? parseInt(maxCapacity) : null,
           close_date: closeDate ? new Date(closeDate).toISOString() : null,
           primary_color: primaryColor,
@@ -277,11 +286,11 @@ export default function NuevoEventoPage() {
 
       if (fieldsError) throw fieldsError;
 
-      alert("¡Evento y formulario creados con éxito!");
-      router.push('/admin/dashboard');
+      showToast('¡Éxito!', 'El evento y su formulario fueron creados correctamente.', 'success');
+      setTimeout(() => router.push('/admin/dashboard'), 1500);
 
     } catch (error: any) {
-      alert("Error guardando el evento: " + error.message);
+      showToast('Error del Servidor', error.message || 'No se pudo guardar el evento.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -290,6 +299,39 @@ export default function NuevoEventoPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative pb-20">
       
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Crear Nuevo Evento</h1>

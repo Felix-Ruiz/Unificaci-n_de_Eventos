@@ -20,7 +20,9 @@ import {
   UploadCloud,
   List,
   MonitorPlay,
-  X
+  X,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -56,6 +58,17 @@ export default function EventoDetalleAdmin() {
   // ==========================================
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+
+  // ==========================================
+  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
+  // ==========================================
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'archive' } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'info') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   useEffect(() => {
     if (!eventId) return;
@@ -100,7 +113,7 @@ export default function EventoDetalleAdmin() {
   // FUNCIONES DE EXPORTACIÓN INTELIGENTE
   // ==========================================
   const openExportModal = () => {
-    if (registrations.length === 0) return alert("No hay registros para exportar.");
+    if (registrations.length === 0) return showToast('Reporte Vacío', 'No hay registros para exportar.', 'info');
     // Por defecto, marcamos todas las columnas (los IDs de los campos + la fecha)
     const allColIds = ['fecha', ...fields.map(f => f.id)];
     setSelectedColumns(allColIds);
@@ -123,7 +136,7 @@ export default function EventoDetalleAdmin() {
 
   const confirmExport = () => {
     if (selectedColumns.length === 0) {
-      return alert("Debes seleccionar al menos una columna para descargar el archivo.");
+      return showToast('Selección Requerida', 'Debes seleccionar al menos una columna para descargar el archivo.', 'error');
     }
 
     const excelData = registrations.map((reg: any) => {
@@ -150,6 +163,7 @@ export default function EventoDetalleAdmin() {
     XLSX.writeFile(wb, `${event.name.replace(/\s+/g, '_')}_Inscritos.xlsx`);
     
     setShowExportModal(false);
+    showToast('Descarga Exitosa', 'El reporte Excel ha sido generado y descargado.', 'success');
   };
 
   const handleImportMasivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,11 +231,11 @@ export default function EventoDetalleAdmin() {
           if (!regErr) added++;
         }
         
-        alert(`Se importaron ${added} asistentes exitosamente desde el archivo.`);
+        showToast('Importación Completada', `Se importaron ${added} asistentes exitosamente desde el archivo.`, 'success');
         loadEventData(); 
         
       } catch (error) {
-        alert("Error importando: Verifique que las columnas del Excel se llamen exactamente igual a las preguntas del formulario.");
+        showToast('Error de Formato', 'Verifique que las columnas del Excel se llamen exactamente igual a las preguntas del formulario.', 'error');
       } finally {
         setIsImporting(false);
         if (e.target) e.target.value = '';
@@ -255,19 +269,21 @@ export default function EventoDetalleAdmin() {
       
     if (!error) {
       setEvent({ ...event, is_active: newState });
+      showToast('Estado Actualizado', `El evento ahora está ${newState ? 'Activo' : 'Pausado'}.`, 'success');
     }
   };
 
-  const archiveEvent = async () => {
-    if (window.confirm("¿Estás seguro de archivar este evento?")) {
-      const { error } = await supabase
-        .from('events')
-        .update({ is_deleted: true })
-        .eq('id', event.id);
-        
-      if (!error) {
-        router.push('/admin/dashboard');
-      }
+  const confirmArchiveEvent = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('events').update({ is_deleted: true }).eq('id', event.id);
+      if (error) throw error;
+      router.push('/admin/dashboard');
+    } catch (error: any) {
+      showToast('Error al Archivar', error.message || 'Ha ocurrido un problema al mover el evento a la papelera.', 'error');
+      setLoading(false);
+    } finally {
+      setConfirmModal(null);
     }
   };
 
@@ -300,7 +316,7 @@ export default function EventoDetalleAdmin() {
       .slice(0, 5);
   };
 
-  if (loading) {
+  if (loading && !confirmModal) {
     return (
       <div className="p-10 flex justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -316,7 +332,7 @@ export default function EventoDetalleAdmin() {
     );
   }
 
-  const publicUrl = `${baseUrl}/e/${event.id}`;
+  const publicUrl = `${baseUrl}/e/${event.slug || event.id}`;
   const iframeCode = `<iframe src="${publicUrl}" width="100%" height="800" frameborder="0" style="border-radius: 12px; overflow: hidden; max-width: 800px; margin: auto; display: block;"></iframe>`;
   
   const topRoles = getTopStats('cargo');
@@ -325,6 +341,69 @@ export default function EventoDetalleAdmin() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
+
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* MODAL 4D DE CONFIRMACIÓN DE ARCHIVO */}
+      <AnimatePresence>
+        {confirmModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              <h2 className="text-2xl font-bold text-white mb-3">Archivar Evento</h2>
+              <p className="text-gray-300 mb-8">
+                ¿Estás seguro de enviar "{event.name}" a la papelera? Esta acción desactivará los registros públicos.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium">Cancelar</button>
+                <button 
+                  onClick={confirmArchiveEvent} 
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static"
+                >
+                  Confirmar Acción
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* MODAL EXPORTAR EXCEL INTELIGENTE */}
       <AnimatePresence>
@@ -451,7 +530,7 @@ export default function EventoDetalleAdmin() {
             )}
           </button>
           <button 
-            onClick={archiveEvent} 
+            onClick={() => setConfirmModal({ isOpen: true, type: 'archive' })} 
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all"
           >
             <Trash2 className="h-4 w-4" /> Al Historial

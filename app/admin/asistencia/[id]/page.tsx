@@ -14,7 +14,9 @@ import {
   UserPlus, 
   X,
   Camera,
-  MonitorPlay
+  MonitorPlay,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -49,6 +51,16 @@ export default function CheckInEventPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
+
+  // ==========================================
+  // SISTEMA DE NOTIFICACIONES (TOASTS NATIVOS)
+  // ==========================================
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'error') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   useEffect(() => {
     if (!eventId) return;
@@ -120,7 +132,7 @@ export default function CheckInEventPage() {
           );
         } catch (e) {
           console.error(e);
-          alert("No se pudo iniciar la cámara.");
+          showToast('Cámara No Disponible', 'No se pudo inicializar la cámara del dispositivo móvil.', 'error');
           setIsCameraOpen(false);
         }
       }, 400);
@@ -197,10 +209,13 @@ export default function CheckInEventPage() {
            zone_name: 'Entrada Principal',
            operator_name: 'Panel Administrativo'
        }]);
+       showToast('Ingreso Confirmado', 'Asistencia registrada de manera exitosa.', 'success');
+    } else if (!error && !newState) {
+       showToast('Acceso Revocado', 'Se ha cancelado la asistencia del participante.', 'info');
     }
 
     if (error) { 
-      alert("Error al marcar asistencia."); 
+      showToast('Error del Servidor', 'No se pudo actualizar el estado de asistencia en Supabase.', 'error'); 
       loadData(); 
     }
   };
@@ -215,10 +230,10 @@ export default function CheckInEventPage() {
       if (!reg.attended) {
         await toggleAttendance(reg.id, false);
       } else {
-        alert("Este asistente ya estaba marcado como Adentro.");
+        showToast('Asistencia Duplicada', 'Este participante ya se encuentra marcado como Adentro.', 'info');
       }
     } else {
-      alert(`La cédula/código ${cleanDoc} no está registrada en este evento. Inscríbelo manualmente con el botón +.`);
+      showToast('Sin Registro', `El documento ${cleanDoc} no está inscrito en este evento. Regístralo manualmente.`, 'error');
     }
   };
 
@@ -305,12 +320,13 @@ export default function CheckInEventPage() {
          }]);
       }
 
+      showToast('Registro Manual Exitoso', `Se inscribió y dio acceso a la entrada principal correctamente.`, 'success');
       setShowAddModal(false);
       setManualFormData({});
       loadData();
       
     } catch (error: any) {
-      alert("Error añadiendo: " + error.message);
+      showToast('Error de Registro', error.message || 'No se pudo completar el registro manual.', 'error');
     } finally {
       setIsAddingManual(false);
     }
@@ -318,7 +334,9 @@ export default function CheckInEventPage() {
 
   // FUNCIONES DE EXPORTACIÓN INTELIGENTE
   const openExportModal = () => {
-    if (registrations.length === 0) return alert("No hay registros para exportar.");
+    if (registrations.length === 0) {
+      return showToast('Reporte Vacío', 'No existen inscritos registrados para poder exportar.', 'info');
+    }
     const allColIds = ['doc', 'asistencia', 'fecha', 'zonas', ...fields.map(f => f.id)];
     setSelectedColumns(allColIds);
     setShowExportModal(true);
@@ -340,7 +358,7 @@ export default function CheckInEventPage() {
 
   const confirmExport = () => {
     if (selectedColumns.length === 0) {
-      return alert("Selecciona al menos una columna.");
+      return showToast('Selección Requerida', 'Debes marcar al menos una columna para el reporte Excel.', 'error');
     }
 
     const excelData = filteredRegistrations.map((reg: any, idx: number) => {
@@ -380,6 +398,7 @@ export default function CheckInEventPage() {
     XLSX.writeFile(workbook, `Asistencia_Auditoria_${event.name.replace(/\s+/g, '_')}.xlsx`);
     
     setShowExportModal(false);
+    showToast('Reporte Descargado', 'El archivo Excel de auditoría fue generado correctamente.', 'success');
   };
 
   const filteredRegistrations = useMemo(() => {
@@ -412,6 +431,39 @@ export default function CheckInEventPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
       
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* MODAL DE EXPORTACIÓN INTELIGENTE */}
       <AnimatePresence>
         {showExportModal && (
@@ -433,7 +485,7 @@ export default function CheckInEventPage() {
                 </h2>
                 <button 
                   onClick={() => setShowExportModal(false)} 
-                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5"
+                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
                 >
                   <X className="h-6 w-6"/>
                 </button>
@@ -445,13 +497,13 @@ export default function CheckInEventPage() {
                 <div className="flex gap-2 mb-4">
                   <button 
                     onClick={selectAllColumns} 
-                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30"
+                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30 cursor-pointer"
                   >
                     Seleccionar Todas
                   </button>
                   <button 
                     onClick={deselectAllColumns} 
-                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10"
+                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10 cursor-pointer"
                   >
                     Desmarcar Todas
                   </button>
@@ -482,7 +534,6 @@ export default function CheckInEventPage() {
                     <span className="text-sm font-bold text-accent">Estado de Asistencia (SÍ / NO)</span>
                   </label>
 
-                  {/* NUEVA OPCIÓN: AUDITORÍA DE STAFF */}
                   <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                     <div className="flex items-center h-5">
                       <input 
@@ -526,7 +577,7 @@ export default function CheckInEventPage() {
               <div className="p-6 border-t border-white/5 bg-surface">
                 <button 
                   onClick={confirmExport} 
-                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2"
+                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 cursor-pointer"
                 >
                   <Download className="h-5 w-5"/> Descargar Reporte de Asistencia
                 </button>
@@ -553,7 +604,7 @@ export default function CheckInEventPage() {
             >
               <button 
                 onClick={() => setIsCameraOpen(false)} 
-                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors bg-black/50 rounded-full p-2 z-10"
+                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors bg-black/50 rounded-full p-2 z-10 cursor-pointer"
               >
                 <X className="h-6 w-6"/>
               </button>
@@ -597,7 +648,7 @@ export default function CheckInEventPage() {
                 </h2>
                 <button 
                   onClick={() => setShowAddModal(false)} 
-                  className="text-gray-500 hover:text-white transition-colors p-1"
+                  className="text-gray-500 hover:text-white transition-colors p-1 cursor-pointer"
                 >
                   <X className="h-6 w-6"/>
                 </button>
@@ -620,7 +671,7 @@ export default function CheckInEventPage() {
                               required={field.is_required} 
                               value={currentValue} 
                               onChange={(e) => handleManualFieldChange(field.id, e.target.value)} 
-                              className="w-full bg-black/50 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-accent"
+                              className="w-full bg-black/50 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-accent cursor-pointer"
                             >
                               <option value="" disabled>Seleccionar...</option>
                               {(() => {
@@ -687,7 +738,7 @@ export default function CheckInEventPage() {
                   type="submit" 
                   form="manual-form"
                   disabled={isAddingManual} 
-                  className="w-full bg-accent text-black font-bold py-3 rounded-lg shadow-4d-static active:translate-y-1 transition-transform disabled:opacity-50"
+                  className="w-full bg-accent text-black font-bold py-3 rounded-lg shadow-4d-static active:translate-y-1 transition-transform disabled:opacity-50 cursor-pointer"
                 >
                   {isAddingManual ? "Procesando..." : "Inscribir y Dar Acceso Inmediato"}
                 </button>
@@ -707,9 +758,9 @@ export default function CheckInEventPage() {
           </p>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href={`/admin/eventos/${eventId}/auto-checkin`} target="_blank">
-            <button className="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 text-sm shadow-4d-static transition-transform active:translate-y-1 active:shadow-none">
+            <button className="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 text-sm shadow-4d-static transition-transform active:translate-y-1 active:shadow-none cursor-pointer">
               <MonitorPlay className="h-4 w-4" /> 
               Check-in Automático
             </button>
@@ -717,7 +768,7 @@ export default function CheckInEventPage() {
 
           <button 
             onClick={() => setShowAddModal(true)} 
-            className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary hover:text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary hover:text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm cursor-pointer"
           >
             <UserPlus className="h-4 w-4" /> 
             Añadir Manual
@@ -725,7 +776,7 @@ export default function CheckInEventPage() {
           
           <button 
             onClick={openExportModal} 
-            className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm"
+            className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm cursor-pointer"
           >
             <Download className="h-4 w-4" /> 
             Reporte
@@ -762,7 +813,7 @@ export default function CheckInEventPage() {
 
             <button 
               onClick={() => setIsCameraOpen(true)}
-              className="w-full bg-black/50 border border-white/10 hover:bg-white/10 hover:border-white/30 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
+              className="w-full bg-black/50 border border-white/10 hover:bg-white/10 hover:border-white/30 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Camera className="h-5 w-5" /> Escanear con Cámara
             </button>
@@ -793,7 +844,7 @@ export default function CheckInEventPage() {
       <div className="bg-surface border border-white/5 rounded-2xl overflow-hidden flex flex-col h-full min-h-125">
         
         <div className="p-6 border-b border-white/5 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-xl font-bold text-white">Listado de Acceso</h2>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -815,7 +866,7 @@ export default function CheckInEventPage() {
               <p>No se encontraron asistentes con ese dato.</p>
             </div>
           ) : (
-            <table className="w-full text-left text-sm text-gray-300">
+            <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
               <thead className="bg-black/30 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-6 py-4 font-bold w-16">N°</th>
@@ -836,7 +887,7 @@ export default function CheckInEventPage() {
                     >
                       <td className="px-6 py-4 text-gray-500 font-medium">{idx + 1}</td>
                       <td className="px-6 py-4 font-mono text-gray-400">{reg.historic_user_doc}</td>
-                      <td className="px-6 py-4 font-bold text-white">{name}</td>
+                      <td className="px-6 py-4 font-bold text-white max-w-62.5 truncate" title={name}>{name}</td>
                       <td className="px-6 py-4 text-center">
                         {isAttended ? (
                           <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-500/20">

@@ -57,7 +57,8 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Error de Brevo API:', errorData);
-      throw new Error('Error al enviar el correo a través de Brevo');
+      // MEJORA: Devolvemos el error detallado al frontend en lugar de un error genérico
+      return NextResponse.json({ error: 'Brevo API Error', details: errorData }, { status: response.status });
     }
 
     return NextResponse.json({ success: true, message: 'Correo enviado' });

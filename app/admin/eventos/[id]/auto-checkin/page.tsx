@@ -16,7 +16,8 @@ import {
   Wifi, 
   WifiOff, 
   CloudUpload,
-  UserCheck
+  UserCheck,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,6 +29,14 @@ export default function AutoCheckInPage() {
   const [fields, setFields] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // SISTEMA DE NOTIFICACIONES (TOASTS NATIVOS)
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'error') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
   // ESTADOS DEL MODO SUPERVIVENCIA (OFFLINE)
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSync, setPendingSync] = useState(0);
@@ -58,41 +67,81 @@ export default function AutoCheckInPage() {
     'Taller VIP'
   ]);
 
-  // ==========================================
+  // ESTADO: MODAL PARA NUEVA ZONA
+  const [showNewZoneModal, setShowNewZoneModal] = useState(false);
+  const [newZoneInput, setNewZoneInput] = useState('');
+
   // ESTADO: TRAZABILIDAD DE STAFF
-  // ==========================================
   const [operatorName, setOperatorName] = useState('Mesa Principal');
 
   // ESTADOS: IMPRESIÓN AUTOMÁTICA DE GAFETES
   const [autoPrint, setAutoPrint] = useState(false);
   const [printData, setPrintData] = useState<{ nombre: string; cargo: string; institucion: string } | null>(null);
 
-  // LÓGICA DE COLA OFFLINE (BÓVEDA LOCAL)
-  const getOfflineQueue = () => {
-    if (typeof window === 'undefined') return [];
-    return JSON.parse(localStorage.getItem(`offline_scans_${eventId}`) || '[]');
+  // =========================================================
+  // MOTOR DE ARQUITECTURA OFFLINE: INDEXEDDB NATIVO
+  // =========================================================
+  const initDB = (): Promise<IDBDatabase> => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(`AcofiOffline_${eventId}`, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains('scans')) {
+          request.result.createObjectStore('scans', { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
   };
 
-  const addToOfflineQueue = (scanData: any) => {
-    const queue = getOfflineQueue();
-    queue.push(scanData);
-    localStorage.setItem(`offline_scans_${eventId}`, JSON.stringify(queue));
-    setPendingSync(queue.length);
+  const getOfflineQueue = (): Promise<any[]> => {
+    return new Promise(async (resolve) => {
+      try {
+        const db = await initDB();
+        const transaction = db.transaction('scans', 'readonly');
+        const store = transaction.objectStore('scans');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => resolve([]);
+      } catch { resolve([]); }
+    });
   };
 
-  const clearOfflineQueue = () => {
-    localStorage.removeItem(`offline_scans_${eventId}`);
-    setPendingSync(0);
+  const addToOfflineQueue = async (scanData: any) => {
+    try {
+      const db = await initDB();
+      const transaction = db.transaction('scans', 'readwrite');
+      const store = transaction.objectStore('scans');
+      store.add(scanData);
+      transaction.oncomplete = async () => {
+        const queue = await getOfflineQueue();
+        setPendingSync(queue.length);
+      };
+    } catch (e) {
+      console.error("Error guardando en IndexedDB:", e);
+    }
+  };
+
+  const clearOfflineQueue = (): Promise<void> => {
+    return new Promise(async (resolve) => {
+      try {
+        const db = await initDB();
+        const transaction = db.transaction('scans', 'readwrite');
+        const store = transaction.objectStore('scans');
+        const request = store.clear();
+        request.onsuccess = () => { setPendingSync(0); resolve(); };
+        request.onerror = () => resolve();
+      } catch { resolve(); }
+    });
   };
 
   const syncPendingScans = async () => {
-    const queue = getOfflineQueue();
+    const queue = await getOfflineQueue();
     if (queue.length === 0 || !navigator.onLine) return;
 
     setIsSyncing(true);
     try {
       for (const scan of queue) {
-        // Enviar log multizona junto con el operador que lo escaneó
         await supabase.from('attendance_logs').insert([{
           event_id: eventId,
           registration_id: scan.registration_id,
@@ -105,7 +154,7 @@ export default function AutoCheckInPage() {
           await supabase.from('registrations').update({ attended: true }).eq('id', scan.registration_id);
         }
       }
-      clearOfflineQueue();
+      await clearOfflineQueue();
       await loadEventData(); 
     } catch (error) {
       console.error("Error sincronizando cola offline", error);
@@ -117,7 +166,11 @@ export default function AutoCheckInPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setPendingSync(getOfflineQueue().length);
+    async function checkInitialQueue() {
+      const queue = await getOfflineQueue();
+      setPendingSync(queue.length);
+    }
+    checkInitialQueue();
     setIsOnline(navigator.onLine);
 
     const handleOnline = () => {
@@ -129,7 +182,7 @@ export default function AutoCheckInPage() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    if (navigator.onLine && getOfflineQueue().length > 0) {
+    if (navigator.onLine) {
       syncPendingScans();
     }
 
@@ -216,12 +269,12 @@ export default function AutoCheckInPage() {
 
   useEffect(() => {
     const focusInterval = setInterval(() => {
-      if (scannerRef.current && status === 'waiting' && !isCameraOpen) {
+      if (scannerRef.current && status === 'waiting' && !isCameraOpen && !showNewZoneModal) {
         scannerRef.current.focus();
       }
     }, 1000);
     return () => clearInterval(focusInterval);
-  }, [status, isCameraOpen]);
+  }, [status, isCameraOpen, showNewZoneModal]);
 
   // MOTOR DE CÁMARA
   useEffect(() => {
@@ -261,7 +314,7 @@ export default function AutoCheckInPage() {
           );
         } catch (err: any) {
           console.error("Error cámara", err);
-          alert("No se pudo iniciar la cámara.");
+          showToast('Cámara No Disponible', 'No se pudo acceder a la cámara del dispositivo. Verifica los permisos.', 'error');
           if (isMounted) setIsCameraOpen(false);
         }
       }, 500); 
@@ -279,14 +332,19 @@ export default function AutoCheckInPage() {
 
   const handleZoneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (e.target.value === 'NEW') {
-      const newZone = window.prompt('Escribe el nombre del nuevo punto de control (Ej. Taller B):');
-      if (newZone && newZone.trim()) {
-        setAvailableZones(prev => [...prev, newZone.trim()]);
-        setActiveZone(newZone.trim());
-      }
+      setNewZoneInput('');
+      setShowNewZoneModal(true);
     } else {
       setActiveZone(e.target.value);
     }
+  };
+
+  const confirmNewZone = () => {
+    if (newZoneInput.trim()) {
+      setAvailableZones(prev => [...prev, newZoneInput.trim()]);
+      setActiveZone(newZoneInput.trim());
+    }
+    setShowNewZoneModal(false);
   };
 
   // PROCESAMIENTO HÍBRIDO (CON AUDITORÍA DE STAFF)
@@ -301,13 +359,13 @@ export default function AutoCheckInPage() {
       }
 
       const dbLogs = localCacheRef.current.logs.filter(l => l.registration_id === reg.id && l.zone_name === activeZone);
-      const queuedLogs = getOfflineQueue().filter((l: any) => l.registration_id === reg.id && l.zone_name === activeZone);
+      const offlineQueueList = await getOfflineQueue();
+      const queuedLogs = offlineQueueList.filter((l: any) => l.registration_id === reg.id && l.zone_name === activeZone);
 
       if (dbLogs.length > 0 || queuedLogs.length > 0) {
         throw new Error(`⛔ ¡ALERTA! Esta credencial ya fue registrada en: ${activeZone}`);
       }
 
-      // Payload enriquecido con trazabilidad del operador
       const scanPayload = {
         registration_id: reg.id,
         zone_name: activeZone,
@@ -330,12 +388,12 @@ export default function AutoCheckInPage() {
           localCacheRef.current.logs.push(scanPayload);
           
         } catch (e) {
-          addToOfflineQueue(scanPayload);
+          await addToOfflineQueue(scanPayload);
           localCacheRef.current.logs.push(scanPayload);
           if (activeZone === 'Entrada Principal') reg.attended = true;
         }
       } else {
-        addToOfflineQueue(scanPayload);
+        await addToOfflineQueue(scanPayload);
         localCacheRef.current.logs.push(scanPayload);
         if (activeZone === 'Entrada Principal') reg.attended = true;
       }
@@ -360,7 +418,7 @@ export default function AutoCheckInPage() {
         setTimeout(() => window.print(), 300);
       }
 
-      setTimeout(() => {
+      setTimeout(async () => {
         setStatus('waiting');
         setWelcomeName('');
         setPrintData(null);
@@ -455,9 +513,88 @@ export default function AutoCheckInPage() {
         className="min-h-screen w-full flex items-center justify-center overflow-hidden fixed inset-0 z-50 bg-[#050505] print:hidden"
         style={{ backgroundImage: `radial-gradient(circle at center, ${event.primary_color}20 0%, transparent 70%)` }}
       >
+        {/* CONTENEDOR DE NOTIFICACIONES TOAST */}
+        <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+          <AnimatePresence>
+            {toast && (
+              <motion.div 
+                initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+                animate={{ opacity: 1, x: 0, scale: 1 }} 
+                exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                  toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                  toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                  'bg-blue-500/10 border-blue-500/30'
+                }`}
+              >
+                {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+                {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+                {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+                
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                  <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+                </div>
+                
+                <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* MODAL PARA NUEVO PUNTO DE CONTROL */}
+        <AnimatePresence>
+          {showNewZoneModal && (
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-accent"></div>
+                <h2 className="text-2xl font-bold text-white mb-2">Añadir Nuevo Punto de Control</h2>
+                <p className="text-gray-400 text-sm mb-6">Escribe el nombre de la nueva zona para llevar la trazabilidad (Ej. Taller B, Salón Norte).</p>
+                
+                <input 
+                  type="text" 
+                  autoFocus
+                  value={newZoneInput}
+                  onChange={(e) => setNewZoneInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmNewZone()}
+                  placeholder="Nombre de la zona..."
+                  className="w-full bg-black/50 border border-white/10 text-white rounded-xl py-3 px-4 focus:outline-none focus:border-accent mb-6"
+                />
+                
+                <div className="flex justify-end gap-3">
+                  <button 
+                    onClick={() => {
+                      setShowNewZoneModal(false);
+                      setActiveZone('Entrada Principal');
+                    }} 
+                    className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={confirmNewZone} 
+                    disabled={!newZoneInput.trim()}
+                    className="px-5 py-2.5 rounded-lg text-black bg-accent font-bold transition-transform active:scale-95 shadow-4d-static disabled:opacity-50"
+                  >
+                    Añadir Zona
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <input 
           ref={scannerRef} type="text" value={scannerInput} onChange={(e) => setScannerInput(e.target.value)}
-          onKeyDown={handleLaserScan} autoFocus className="absolute opacity-0 -z-50" autoComplete="off"
+          onKeyDown={handleLaserScan} className="absolute opacity-0 -z-50" autoComplete="off"
         />
 
         {/* BARRA SUPERIOR DE CONTROLES */}
@@ -503,6 +640,7 @@ export default function AutoCheckInPage() {
               </span>
             </div>
             <button 
+              type="button" 
               onClick={() => setAutoPrint(!autoPrint)} 
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${autoPrint ? 'bg-primary' : 'bg-gray-700'}`}
             >
@@ -578,7 +716,7 @@ export default function AutoCheckInPage() {
                 <QrCode className="h-24 w-24 md:h-32 md:w-32 text-gray-300 mx-auto mb-6 md:mb-8 animate-pulse" />
                 <h1 className="text-3xl md:text-5xl font-black text-white mb-3 md:mb-4 tracking-tight">Check-in Automático</h1>
                 <p className="text-lg md:text-2xl text-accent font-bold mb-8 md:mb-12 border-b border-accent/30 pb-2">{activeZone}</p>
-                <button onClick={() => setIsCameraOpen(true)} className="bg-primary hover:bg-primary/80 text-white font-bold py-4 md:py-5 px-6 md:px-10 rounded-xl md:rounded-2xl transition-transform active:scale-95 flex items-center justify-center gap-3 w-full text-base md:text-xl shadow-[0_0_30px_rgba(79,70,229,0.3)] z-10 cursor-pointer">
+                <button type="button" onClick={() => setIsCameraOpen(true)} className="bg-primary hover:bg-primary/80 text-white font-bold py-4 md:py-5 px-6 md:px-10 rounded-xl md:rounded-2xl transition-transform active:scale-95 flex items-center justify-center gap-3 w-full text-base md:text-xl shadow-[0_0_30px_rgba(79,70,229,0.3)] z-10 cursor-pointer">
                   <Camera className="h-5 w-5 md:h-6 md:w-6" /> O Escanear con Celular
                 </button>
               </div>
@@ -597,7 +735,7 @@ export default function AutoCheckInPage() {
           )}
 
           {!isCameraOpen && status === 'success' && (
-            <motion.div key="laser-success" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="fixed inset-0 bg-green-500 z-100 flex flex-col items-center justify-center p-6 md:p-10">
+            <motion.div key="laser-success" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="fixed inset-0 bg-green-50 z-100 flex flex-col items-center justify-center p-6 md:p-10">
               <motion.div initial={{ y: 50 }} animate={{ y: 0 }} className="text-center">
                 <CheckCircle2 className="h-32 w-32 md:h-48 md:w-48 text-white mx-auto mb-6 md:mb-8 drop-shadow-lg" />
                 <h1 className="text-4xl md:text-7xl font-black text-white tracking-tight drop-shadow-md mb-4 leading-tight">¡Bienvenido,<br className="md:hidden"/> {welcomeName}!</h1>

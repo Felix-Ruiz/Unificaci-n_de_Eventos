@@ -2,11 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../../lib/supabase';
-import { Trash2, RefreshCcw, AlertTriangle, Loader2 } from 'lucide-react';
+import { Trash2, RefreshCcw, AlertTriangle, Loader2, AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function HistorialEventosPage() {
   const [archivedEvents, setArchivedEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ==========================================
+  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
+  // ==========================================
+  const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id: string; name: string } | null>(null);
+
+  const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'info') => {
+    setToast({ title, desc, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   useEffect(() => {
     fetchArchivedEvents();
@@ -14,45 +26,124 @@ export default function HistorialEventosPage() {
 
   const fetchArchivedEvents = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .eq('is_deleted', true)
-      .order('created_at', { ascending: false });
-    
-    setArchivedEvents(data || []);
-    setLoading(false);
-  };
-
-  const restoreEvent = async (id: string) => {
-    const { error } = await supabase.from('events').update({ is_deleted: false }).eq('id', id);
-    if (!error) {
-      alert("Evento restaurado al Dashboard.");
-      fetchArchivedEvents();
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('is_deleted', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setArchivedEvents(data || []);
+    } catch (error) {
+      showToast('Error de Carga', 'No se pudo obtener la lista de eventos archivados.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const permanentlyDelete = async (id: string) => {
-    if (window.confirm("ATENCIÓN: Esto borrará el evento y TODAS sus inscripciones permanentemente de la base de datos. ¿Deseas continuar?")) {
-      const { error } = await supabase.from('events').delete().eq('id', id);
-      if (!error) {
-        alert("Evento borrado permanentemente.");
-        fetchArchivedEvents();
-      } else {
-        alert("Error al borrar el evento.");
-      }
+  const restoreEvent = async (id: string, name: string) => {
+    try {
+      const { error } = await supabase.from('events').update({ is_deleted: false }).eq('id', id);
+      if (error) throw error;
+      showToast('Evento Restaurado', `"${name}" ha sido devuelto al panel principal con éxito.`, 'success');
+      fetchArchivedEvents();
+    } catch (error) {
+      showToast('Error', 'Hubo un problema al intentar restaurar el evento.', 'error');
+    }
+  };
+
+  const handleDeleteClick = (id: string, name: string) => {
+    setConfirmModal({ isOpen: true, id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmModal) return;
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', confirmModal.id);
+      if (error) throw error;
+      showToast('Eliminación Definitiva', `El evento "${confirmModal.name}" fue borrado de forma permanente.`, 'success');
+      fetchArchivedEvents();
+    } catch (error) {
+      showToast('Error Crítico', 'No se pudo borrar el evento de la base de datos.', 'error');
+    } finally {
+      setConfirmModal(null);
     }
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="space-y-8 max-w-5xl mx-auto relative pb-20">
+      
+      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
+      {/* ========================================================= */}
+      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toast && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                'bg-blue-500/10 border-blue-500/30'
+              }`}
+            >
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+              </div>
+              
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* MODAL 4D DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <AnimatePresence>
+        {confirmModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-100 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              <h2 className="text-2xl font-bold text-white mb-3">Eliminación Definitiva</h2>
+              <p className="text-gray-300 mb-8">
+                ATENCIÓN: Esto borrará el evento <strong>"{confirmModal.name}"</strong> y TODAS sus inscripciones permanentemente de la base de datos. Esta acción no se puede deshacer. ¿Deseas continuar?
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
+                <button 
+                  onClick={confirmDelete} 
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
+                >
+                  Borrar Permanentemente
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header>
         <h1 className="text-3xl font-bold text-white mb-2">Historial de Eventos (Papelera)</h1>
         <p className="text-gray-400">Eventos archivados. Puedes restaurarlos o eliminarlos permanentemente.</p>
       </header>
 
       <div className="bg-surface border border-white/5 rounded-xl overflow-hidden">
-        {loading ? (
+        {loading && !confirmModal ? (
           <div className="p-10 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : archivedEvents.length === 0 ? (
           <div className="p-10 text-center text-gray-500 flex flex-col items-center">
@@ -72,16 +163,16 @@ export default function HistorialEventosPage() {
                 
                 <div className="flex items-center gap-3">
                   <button 
-                    onClick={() => restoreEvent(evento.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10"
+                    onClick={() => restoreEvent(evento.id, evento.name)}
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10 w-full md:w-auto cursor-pointer"
                   >
                     <RefreshCcw className="h-4 w-4" /> Restaurar
                   </button>
                   <button 
-                    onClick={() => permanentlyDelete(evento.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20"
+                    onClick={() => handleDeleteClick(evento.id, evento.name)}
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20 w-full md:w-auto cursor-pointer"
                   >
-                    <Trash2 className="h-4 w-4" /> Borrar Permanentemente
+                    <Trash2 className="h-4 w-4" /> Borrar
                   </button>
                 </div>
               </div>
