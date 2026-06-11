@@ -17,7 +17,9 @@ import {
   Users, 
   Palette, 
   ImagePlus, 
-  AlignLeft 
+  AlignLeft,
+  Link as LinkIcon,
+  ShieldCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -39,9 +41,13 @@ export default function NuevoEventoPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   const [eventName, setEventName] = useState('');
+  const [eventSlug, setEventSlug] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [sendNotifications, setSendNotifications] = useState(true);
   
+  const [requireHabeasData, setRequireHabeasData] = useState(true);
+  const [habeasDataUrl, setHabeasDataUrl] = useState('');
+
   const [maxCapacity, setMaxCapacity] = useState('');
   const [closeDate, setCloseDate] = useState('');
   
@@ -86,6 +92,16 @@ export default function NuevoEventoPage() {
       reader.onloadend = () => setBannerPreview(reader.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleSlugFormat = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Convierte a minúsculas, reemplaza espacios por guiones y quita caracteres especiales
+    const formatted = e.target.value
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-');
+    setEventSlug(formatted);
   };
 
   const handleAddField = () => {
@@ -167,13 +183,19 @@ export default function NuevoEventoPage() {
   };
 
   const handleSaveEvent = async () => {
-    if (!eventName) {
-      return alert("Debes asignarle un nombre al evento.");
-    }
+    if (!eventName) return alert("Debes asignarle un nombre al evento.");
     
     setIsSaving(true);
 
     try {
+      // Validar si el slug ya existe antes de subir imágenes
+      if (eventSlug) {
+        const { data: existingSlug } = await supabase.from('events').select('id').eq('slug', eventSlug).single();
+        if (existingSlug) {
+          throw new Error("El Alias del evento (URL) ya está en uso. Por favor, elige otro.");
+        }
+      }
+
       let logoUrl = null;
       let bannerUrl = null;
 
@@ -199,10 +221,13 @@ export default function NuevoEventoPage() {
         .from('events')
         .insert([{ 
           name: eventName, 
+          slug: eventSlug || null,
           description: eventDescription,
           logo_url: logoUrl, 
           banner_url: bannerUrl,
           send_notifications: sendNotifications,
+          require_habeas_data: requireHabeasData,
+          habeas_data_url: habeasDataUrl || null,
           max_capacity: maxCapacity ? parseInt(maxCapacity) : null,
           close_date: closeDate ? new Date(closeDate).toISOString() : null,
           primary_color: primaryColor,
@@ -239,7 +264,7 @@ export default function NuevoEventoPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative pb-20">
       
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Crear Nuevo Evento</h1>
           <p className="text-gray-400">Configura la información y diseña el formulario de inscripción.</p>
@@ -247,7 +272,7 @@ export default function NuevoEventoPage() {
         <button 
           onClick={handleSaveEvent}
           disabled={isSaving}
-          className={`bg-primary text-white font-bold py-3 px-8 rounded-lg flex items-center gap-2 transition-transform shadow-4d-static ${
+          className={`bg-primary text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-transform shadow-4d-static ${
             isSaving ? 'opacity-70 cursor-not-allowed' : 'hover:bg-primary/90 active:translate-y-1 active:shadow-none'
           }`}
         >
@@ -286,6 +311,25 @@ export default function NuevoEventoPage() {
 
               <div className="space-y-2 pt-2">
                 <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4"/> Alias del Evento (URL Amigable)
+                </label>
+                <div className="flex bg-black/50 border border-gray-700 rounded-lg overflow-hidden focus-within:border-accent">
+                  <span className="bg-white/5 px-3 py-3 text-gray-500 text-sm border-r border-gray-700 flex items-center whitespace-nowrap">
+                    acofi.org/e/
+                  </span>
+                  <input 
+                    type="text" 
+                    value={eventSlug} 
+                    onChange={handleSlugFormat} 
+                    placeholder="congreso-2026" 
+                    className="w-full bg-transparent py-3 px-4 text-white outline-none" 
+                  />
+                </div>
+                <p className="text-[10px] text-gray-500">Dejar en blanco para generar código automático.</p>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <label className="text-sm text-gray-400 font-medium flex items-center gap-2">
                   <AlignLeft className="h-4 w-4"/> Descripción (Landing Page)
                 </label>
                 <textarea 
@@ -297,7 +341,7 @@ export default function NuevoEventoPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/5">
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400 font-medium">Logo Oficial</label>
                   <div 
@@ -377,38 +421,58 @@ export default function NuevoEventoPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${sendNotifications ? 'bg-accent/20 text-accent' : 'bg-gray-800 text-gray-500'}`}>
-                    <Bell className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Notificaciones</h3>
-                    <p className="text-xs text-gray-400">Correos automáticos</p>
-                  </div>
+            </div>
+          </div>
+
+          <div className="bg-surface border border-white/5 p-6 rounded-2xl">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-green-500" /> 
+              Legal y Privacidad
+            </h2>
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Casilla Habeas Data</h3>
+                  <p className="text-xs text-gray-400">Obligatorio para inscribirse</p>
                 </div>
                 <button 
                   type="button" 
-                  onClick={() => setSendNotifications(!sendNotifications)} 
+                  onClick={() => setRequireHabeasData(!requireHabeasData)} 
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                    sendNotifications ? 'bg-accent' : 'bg-gray-700'
+                    requireHabeasData ? 'bg-green-500' : 'bg-gray-700'
                   }`}
                 >
                   <span 
                     className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-                      sendNotifications ? 'translate-x-5' : 'translate-x-0'
+                      requireHabeasData ? 'translate-x-5' : 'translate-x-0'
                     }`} 
                   />
                 </button>
               </div>
 
+              <AnimatePresence>
+                {requireHabeasData && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                    <div className="space-y-2 mt-2">
+                      <label className="text-xs text-gray-500 font-medium">Enlace de la Política (URL)</label>
+                      <input 
+                        type="url" 
+                        value={habeasDataUrl} 
+                        onChange={(e) => setHabeasDataUrl(e.target.value)} 
+                        placeholder="Ej. https://acofi.edu.co/privacidad" 
+                        className="w-full bg-black/50 border border-gray-700 rounded-lg py-2.5 px-4 text-sm text-white focus:border-accent outline-none" 
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
           <div className="bg-surface border border-white/5 p-6 rounded-2xl">
             <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-yellow-500" /> 
-              Control de Acceso
+              Control de Aforo
             </h2>
             <div className="space-y-5">
               <div className="space-y-2">
@@ -455,7 +519,6 @@ export default function NuevoEventoPage() {
             <div className="space-y-4">
               <AnimatePresence>
                 {fields.map((field, index) => {
-                  // AHORA PERMITIMOS LÓGICA BASADA EN SELECT O RADIO
                   const availableParentQuestions = fields.slice(0, index).filter(f => f.type === 'select' || f.type === 'radio');
                   const selectedParent = field.logic?.dependsOnId ? availableParentQuestions.find(f => f.id === field.logic!.dependsOnId) : null;
 
@@ -609,7 +672,6 @@ export default function NuevoEventoPage() {
                         </motion.div>
                       )}
 
-                      {/* MOSTRAR OPCIONES PARA SELECT, RADIO O CHECKBOX-GROUP */}
                       {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
                         <div className="mt-4 pt-4 border-t border-gray-800 flex flex-col gap-3">
                           

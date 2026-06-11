@@ -16,9 +16,12 @@ import {
 import { supabase } from '../../../lib/supabase';
 import { useParams } from 'next/navigation';
 
+// Importamos el Footer reutilizable
+import Footer from '../../../components/Footer';
+
 export default function FormularioPublico() {
   const params = useParams();
-  const eventId = params?.id as string;
+  const eventIdOrSlug = params?.id as string; // Ahora puede recibir ID o Slug
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [event, setEvent] = useState<any>(null);
@@ -27,6 +30,9 @@ export default function FormularioPublico() {
   
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [honeypot, setHoneypot] = useState('');
+  
+  // Estado para la validación del Habeas Data
+  const [acceptHabeas, setAcceptHabeas] = useState(false);
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [userFound, setUserFound] = useState(false);
@@ -36,15 +42,21 @@ export default function FormularioPublico() {
   const isKiosk = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === 'true';
 
   useEffect(() => {
-    if (!eventId) return;
+    if (!eventIdOrSlug) return;
 
     async function loadEvent() {
       try {
-        const { data: eventData, error: eventError } = await supabase
-          .from('events')
-          .select('*')
-          .eq('id', eventId)
-          .single();
+        // Validación de ID (UUID) o Alias (Slug)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventIdOrSlug);
+        
+        let query = supabase.from('events').select('*');
+        if (isUUID) {
+          query = query.eq('id', eventIdOrSlug);
+        } else {
+          query = query.eq('slug', eventIdOrSlug);
+        }
+
+        const { data: eventData, error: eventError } = await query.single();
           
         if (eventError || eventData.is_deleted) {
           throw new Error("Evento no encontrado");
@@ -52,10 +64,11 @@ export default function FormularioPublico() {
         
         setEvent(eventData);
 
+        // Se usa eventData.id para garantizar que busque correctamente en registros
         const { count } = await supabase
           .from('registrations')
           .select('*', { count: 'exact', head: true })
-          .eq('event_id', eventId);
+          .eq('event_id', eventData.id);
         
         const isFull = eventData.max_capacity && count && count >= eventData.max_capacity;
         const isExpired = eventData.close_date && new Date() > new Date(eventData.close_date);
@@ -71,7 +84,7 @@ export default function FormularioPublico() {
         const { data: fieldsData } = await supabase
           .from('event_fields')
           .select('*')
-          .eq('event_id', eventId)
+          .eq('event_id', eventData.id)
           .order('order_index', { ascending: true });
           
         setFields(fieldsData || []);
@@ -84,7 +97,7 @@ export default function FormularioPublico() {
     }
     
     loadEvent();
-  }, [eventId]);
+  }, [eventIdOrSlug]);
 
   const handleFieldChange = (id: string, value: string) => {
     setFormData(prev => ({ ...prev, [id]: value }));
@@ -216,6 +229,12 @@ export default function FormularioPublico() {
       setSuccess(true); 
       return; 
     }
+
+    // Validación obligatoria del Habeas Data antes de procesar el envío
+    if (event.require_habeas_data && !acceptHabeas) {
+      alert("Debes leer y aceptar la Política de Tratamiento de Datos Personales para continuar.");
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -275,7 +294,7 @@ export default function FormularioPublico() {
       await supabase
         .from('registrations')
         .insert([{ 
-          event_id: event.id, 
+          event_id: event.id, // Referencia segura al ID original aunque el acceso fuera por slug
           historic_user_doc: documento, 
           form_data: finalFormData 
         }]);
@@ -388,7 +407,7 @@ export default function FormularioPublico() {
 
   return (
     <div 
-      className="min-h-screen bg-background py-16 px-4 flex justify-center relative overflow-hidden" 
+      className="min-h-screen bg-background py-16 flex flex-col justify-between relative overflow-hidden" 
       style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
     >
       <div className="fixed inset-0 pointer-events-none">
@@ -396,340 +415,384 @@ export default function FormularioPublico() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px]"></div>
       </div>
       
-      <motion.div 
-        initial={{ y: 30, opacity: 0 }} 
-        animate={{ y: 0, opacity: 1 }} 
-        transition={{ duration: 0.6 }} 
-        className="w-full max-w-3xl bg-surface/60 backdrop-blur-2xl border border-white/10 rounded-4xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 h-max"
-      >
-        <div className="h-1.5 w-full bg-linear-to-r from-primary via-accent to-primary background-animate"></div>
-        
-        {/* BANNER GIGANTE DE PORTADA */}
-        {event.banner_url && (
-          <div className="w-full h-48 md:h-72 overflow-hidden relative bg-black/50">
-            <img 
-              src={event.banner_url} 
-              alt="Banner Evento" 
-              className="w-full h-full object-cover" 
-            />
-            <div className="absolute inset-0 bg-linear-to-t from-surface/90 to-transparent"></div>
-          </div>
-        )}
-        
-        <div className={`p-8 md:p-14 ${event.banner_url ? '-mt-16 relative z-10' : ''}`}>
+      <div className="flex-1 flex justify-center px-4 mb-16">
+        <motion.div 
+          initial={{ y: 30, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }} 
+          transition={{ duration: 0.6 }} 
+          className="w-full max-w-3xl bg-surface/60 backdrop-blur-2xl border border-white/10 rounded-4xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 h-max"
+        >
+          <div className="h-1.5 w-full bg-linear-to-r from-primary via-accent to-primary background-animate"></div>
           
-          <div className="text-center mb-12">
-            {event.logo_url && (
-              <motion.img 
-                initial={{ scale: 0.8, opacity: 0 }} 
-                animate={{ scale: 1, opacity: 1 }} 
-                transition={{ delay: 0.2 }} 
-                src={event.logo_url} 
-                alt={event.name} 
-                className="h-24 mx-auto mb-8 object-contain drop-shadow-2xl" 
+          {/* BANNER GIGANTE DE PORTADA */}
+          {event.banner_url && (
+            <div className="w-full h-48 md:h-72 overflow-hidden relative bg-black/50">
+              <img 
+                src={event.banner_url} 
+                alt="Banner Evento" 
+                className="w-full h-full object-cover" 
               />
-            )}
-            <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{event.name}</h1>
-            <div className="flex items-center justify-center gap-2 mt-3 text-primary/80">
-              <Sparkles className="h-4 w-4" />
-              <p className="text-sm font-medium tracking-widest uppercase">Registro Oficial</p>
-            </div>
-          </div>
-
-          {/* DESCRIPCIÓN DEL EVENTO */}
-          {event.description && (
-            <div className="mb-12 bg-white/5 border border-white/10 p-6 rounded-2xl">
-              <div className="flex items-center gap-2 text-accent mb-3">
-                <CalendarDays className="h-5 w-5"/> 
-                <h3 className="font-bold">Información del Evento</h3>
-              </div>
-              <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
-                {event.description}
-              </p>
+              <div className="absolute inset-0 bg-linear-to-t from-surface/90 to-transparent"></div>
             </div>
           )}
-
-          <form onSubmit={handleSubmit} className="space-y-8">
+          
+          <div className={`p-8 md:p-14 ${event.banner_url ? '-mt-16 relative z-10' : ''}`}>
             
-            {/* HONEYPOT INVISIBLE */}
-            <div className="absolute opacity-0 -z-50 w-0 h-0 overflow-hidden" aria-hidden="true">
-              <input 
-                type="text" 
-                name="b_name" 
-                tabIndex={-1} 
-                autoComplete="off" 
-                value={honeypot} 
-                onChange={e => setHoneypot(e.target.value)} 
-              />
+            <div className="text-center mb-12">
+              {event.logo_url && (
+                <motion.img 
+                  initial={{ scale: 0.8, opacity: 0 }} 
+                  animate={{ scale: 1, opacity: 1 }} 
+                  transition={{ delay: 0.2 }} 
+                  src={event.logo_url} 
+                  alt={event.name} 
+                  className="h-24 mx-auto mb-8 object-contain drop-shadow-2xl" 
+                />
+              )}
+              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{event.name}</h1>
+              <div className="flex items-center justify-center gap-2 mt-3 text-primary/80">
+                <Sparkles className="h-4 w-4" />
+                <p className="text-sm font-medium tracking-widest uppercase">Registro Oficial</p>
+              </div>
             </div>
 
-            <AnimatePresence>
-              {userFound && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0, y: -20 }} 
-                  animate={{ opacity: 1, height: 'auto', y: 0 }} 
-                  exit={{ opacity: 0, height: 0 }} 
-                  className="overflow-hidden"
-                >
-                  <div className="bg-linear-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20 p-5 rounded-2xl flex items-start gap-4 shadow-lg backdrop-blur-md">
-                    <div className="bg-green-500/20 p-2 rounded-full mt-1">
-                      <UserCheck className="h-5 w-5 text-green-400" />
-                    </div>
-                    <div>
-                      <h4 className="text-green-400 font-bold text-lg">¡Bienvenido de vuelta!</h4>
-                      <p className="text-sm text-gray-400 mt-1 leading-relaxed">
-                        Hemos autocompletado tu información basándonos en tu historial. Verifica que todo esté correcto antes de continuar.
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* DESCRIPCIÓN DEL EVENTO */}
+            {event.description && (
+              <div className="mb-12 bg-white/5 border border-white/10 p-6 rounded-2xl">
+                <div className="flex items-center gap-2 text-accent mb-3">
+                  <CalendarDays className="h-5 w-5"/> 
+                  <h3 className="font-bold">Información del Evento</h3>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                  {event.description}
+                </p>
+              </div>
+            )}
 
-            <div className="space-y-6">
-              {fields.map((field, idx) => {
-                
-                // Aplicar lógica de Ocultar/Mostrar
-                if (!shouldShowField(field)) return null;
+            <form onSubmit={handleSubmit} className="space-y-8">
+              
+              {/* HONEYPOT INVISIBLE */}
+              <div className="absolute opacity-0 -z-50 w-0 h-0 overflow-hidden" aria-hidden="true">
+                <input 
+                  type="text" 
+                  name="b_name" 
+                  tabIndex={-1} 
+                  autoComplete="off" 
+                  value={honeypot} 
+                  onChange={e => setHoneypot(e.target.value)} 
+                />
+              </div>
 
-                const currentValue = formData[field.id] || '';
-                const fieldName = field.field_name || '';
-                const isDocField = fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo');
-                
-                // Aplicar lógica de Obligatoriedad
-                const isRequiredNow = isFieldRequired(field);
-
-                // Opciones parseadas para Select, Radio y Checkbox-Group
-                let optionsList: string[] = [];
-                if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
-                  try {
-                    const parsed = JSON.parse(field.options);
-                    optionsList = [...(parsed.choices || [])];
-                    if (!optionsList.includes('Otra')) optionsList.push('Otra');
-                  } catch {
-                    optionsList = ['Otra'];
-                  }
-                }
-
-                return (
+              <AnimatePresence>
+                {userFound && (
                   <motion.div 
-                    initial={{ opacity: 0, y: 10 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ delay: idx * 0.05 }} 
-                    key={field.id} 
-                    className="relative group"
+                    initial={{ opacity: 0, height: 0, y: -20 }} 
+                    animate={{ opacity: 1, height: 'auto', y: 0 }} 
+                    exit={{ opacity: 0, height: 0 }} 
+                    className="overflow-hidden"
                   >
-                    
-                    {field.field_type !== 'checkbox' && (
-                      <label className="block text-xs font-bold tracking-wider uppercase text-gray-400 mb-2 ml-1 group-focus-within:text-primary transition-colors">
-                        {fieldName} {isRequiredNow && <span className="text-accent ml-1">*</span>}
-                      </label>
-                    )}
-                    
-                    {field.field_type === 'select' ? (
-                      
-                      <div className="space-y-3">
-                        <div className="relative">
-                          <select 
-                            required={isRequiredNow} 
-                            value={currentValue} 
-                            onChange={(e) => handleFieldChange(field.id, e.target.value)} 
-                            className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 appearance-none focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60 cursor-pointer"
-                          >
-                            <option value="" disabled className="bg-surface text-gray-500">Selecciona una opción...</option>
-                            {optionsList.map((opt: string) => (
-                              <option key={opt} value={opt} className="bg-surface text-white">
-                                {opt}
-                              </option>
-                            ))}
-                            {currentValue && currentValue !== 'Otra' && !optionsList.includes(currentValue) && (
-                              <option value={currentValue} className="bg-surface text-white">
-                                {currentValue}
-                              </option>
-                            )}
-                          </select>
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-focus-within:text-primary">
-                            ▼
-                          </div>
-                        </div>
-                        
-                        <AnimatePresence>
-                          {currentValue === 'Otra' && (
-                            <motion.input 
-                              initial={{ opacity: 0, height: 0, marginTop: 0 }} 
-                              animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
-                              exit={{ opacity: 0, height: 0, marginTop: 0 }} 
-                              type="text" 
-                              required 
-                              value={formData[`${field.id}_otra`] || ''} 
-                              onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
-                              className="w-full bg-primary/5 border border-primary/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
-                              placeholder={`Específica tu ${fieldName.toLowerCase()}...`} 
-                            />
-                          )}
-                        </AnimatePresence>
+                    <div className="bg-linear-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20 p-5 rounded-2xl flex items-start gap-4 shadow-lg backdrop-blur-md">
+                      <div className="bg-green-500/20 p-2 rounded-full mt-1">
+                        <UserCheck className="h-5 w-5 text-green-400" />
                       </div>
-                      
-                    ) : field.field_type === 'radio' ? (
-                      
-                      <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {optionsList.map((opt: string) => (
-                            <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${currentValue === opt ? 'bg-primary/10 border-primary/50' : 'bg-black/40 border-white/10 hover:border-gray-500'}`}>
-                              <input 
-                                type="radio" 
-                                name={field.id}
-                                value={opt}
-                                required={isRequiredNow && !currentValue}
-                                checked={currentValue === opt}
-                                onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                                className="w-5 h-5 accent-primary cursor-pointer"
-                              />
-                              <span className="text-sm text-gray-300">{opt}</span>
-                            </label>
-                          ))}
-                        </div>
-
-                        <AnimatePresence>
-                          {currentValue === 'Otra' && (
-                            <motion.input 
-                              initial={{ opacity: 0, height: 0, marginTop: 0 }} 
-                              animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
-                              exit={{ opacity: 0, height: 0, marginTop: 0 }} 
-                              type="text" 
-                              required 
-                              value={formData[`${field.id}_otra`] || ''} 
-                              onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
-                              className="w-full bg-primary/5 border border-primary/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
-                              placeholder={`Específica tu ${fieldName.toLowerCase()}...`} 
-                            />
-                          )}
-                        </AnimatePresence>
+                      <div>
+                        <h4 className="text-green-400 font-bold text-lg">¡Bienvenido de vuelta!</h4>
+                        <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                          Hemos autocompletado tu información basándonos en tu historial. Verifica que todo esté correcto antes de continuar.
+                        </p>
                       </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                    ) : field.field_type === 'checkbox-group' ? (
-                      
-                      <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {optionsList.map((opt: string) => {
-                            const isChecked = currentValue.split(', ').includes(opt);
-                            return (
-                              <label key={opt} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isChecked ? 'bg-accent/10 border-accent/50' : 'bg-black/40 border-white/10 hover:border-gray-500'}`}>
-                                <div className="flex items-center h-5 mt-0.5">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={isChecked}
-                                    onChange={(e) => handleCheckboxGroupChange(field.id, opt, e.target.checked)}
-                                    className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
-                                  />
-                                </div>
-                                <span className="text-sm text-gray-300 leading-tight">{opt}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        
-                        {/* Fake input oculto para manejar el required del grupo de checkboxes */}
-                        {isRequiredNow && !currentValue && (
-                           <input type="checkbox" required className="absolute opacity-0 pointer-events-none -bottom-4" />
-                        )}
+              <div className="space-y-6">
+                {fields.map((field, idx) => {
+                  
+                  // Aplicar lógica de Ocultar/Mostrar
+                  if (!shouldShowField(field)) return null;
 
-                        <AnimatePresence>
-                          {currentValue.split(', ').includes('Otra') && (
-                            <motion.input 
-                              initial={{ opacity: 0, height: 0, marginTop: 0 }} 
-                              animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
-                              exit={{ opacity: 0, height: 0, marginTop: 0 }} 
-                              type="text" 
-                              required 
-                              value={formData[`${field.id}_otra`] || ''} 
-                              onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
-                              className="w-full bg-accent/5 border border-accent/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-accent/40" 
-                              placeholder={`Específica cuáles otras...`} 
-                            />
-                          )}
-                        </AnimatePresence>
-                      </div>
+                  const currentValue = formData[field.id] || '';
+                  const fieldName = field.field_name || '';
+                  const isDocField = fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo');
+                  
+                  // Aplicar lógica de Obligatoriedad
+                  const isRequiredNow = isFieldRequired(field);
 
-                    ) : field.field_type === 'textarea' ? (
+                  // Opciones parseadas para Select, Radio y Checkbox-Group
+                  let optionsList: string[] = [];
+                  if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
+                    try {
+                      const parsed = JSON.parse(field.options);
+                      optionsList = [...(parsed.choices || [])];
+                      if (!optionsList.includes('Otra')) optionsList.push('Otra');
+                    } catch {
+                      optionsList = ['Otra'];
+                    }
+                  }
+
+                  return (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      transition={{ delay: idx * 0.05 }} 
+                      key={field.id} 
+                      className="relative group"
+                    >
                       
-                      <textarea 
-                        required={isRequiredNow} 
-                        value={currentValue} 
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)} 
-                        rows={4} 
-                        className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60 resize-none" 
-                      />
-                      
-                    ) : field.field_type === 'checkbox' ? (
-                      
-                      <div className="flex items-start gap-3 mt-4 bg-white/5 p-4 rounded-xl border border-white/10">
-                        <div className="flex items-center h-5">
-                          <input 
-                            type="checkbox" 
-                            required={isRequiredNow} 
-                            checked={currentValue === 'true'} 
-                            onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
-                            className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
-                          />
-                        </div>
-                        <label 
-                          className="text-sm text-gray-300 leading-tight cursor-pointer" 
-                          onClick={() => handleFieldChange(field.id, currentValue === 'true' ? 'false' : 'true')}
-                        >
-                          {fieldName} {isRequiredNow && <span className="text-accent">*</span>}
+                      {field.field_type !== 'checkbox' && (
+                        <label className="block text-xs font-bold tracking-wider uppercase text-gray-400 mb-2 ml-1 group-focus-within:text-primary transition-colors">
+                          {fieldName} {isRequiredNow && <span className="text-accent ml-1">*</span>}
                         </label>
-                      </div>
+                      )}
                       
-                    ) : (
-                      
-                      <div className="relative">
-                        <input 
-                          type={field.field_type} 
+                      {field.field_type === 'select' ? (
+                        
+                        <div className="space-y-3">
+                          <div className="relative">
+                            <select 
+                              required={isRequiredNow} 
+                              value={currentValue} 
+                              onChange={(e) => handleFieldChange(field.id, e.target.value)} 
+                              className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 appearance-none focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60 cursor-pointer"
+                            >
+                              <option value="" disabled className="bg-surface text-gray-500">Selecciona una opción...</option>
+                              {optionsList.map((opt: string) => (
+                                <option key={opt} value={opt} className="bg-surface text-white">
+                                  {opt}
+                                </option>
+                              ))}
+                              {currentValue && currentValue !== 'Otra' && !optionsList.includes(currentValue) && (
+                                <option value={currentValue} className="bg-surface text-white">
+                                  {currentValue}
+                                </option>
+                              )}
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-focus-within:text-primary">
+                              ▼
+                            </div>
+                          </div>
+                          
+                          <AnimatePresence>
+                            {currentValue === 'Otra' && (
+                              <motion.input 
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
+                                exit={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                type="text" 
+                                required 
+                                value={formData[`${field.id}_otra`] || ''} 
+                                onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
+                                className="w-full bg-primary/5 border border-primary/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
+                                placeholder={`Específica tu ${fieldName.toLowerCase()}...`} 
+                              />
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        
+                      ) : field.field_type === 'radio' ? (
+                        
+                        <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {optionsList.map((opt: string) => (
+                              <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${currentValue === opt ? 'bg-primary/10 border-primary/50' : 'bg-black/40 border-white/10 hover:border-gray-500'}`}>
+                                <input 
+                                  type="radio" 
+                                  name={field.id}
+                                  value={opt}
+                                  required={isRequiredNow && !currentValue}
+                                  checked={currentValue === opt}
+                                  onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                                  className="w-5 h-5 accent-primary cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-300">{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+
+                          <AnimatePresence>
+                            {currentValue === 'Otra' && (
+                              <motion.input 
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
+                                exit={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                type="text" 
+                                required 
+                                value={formData[`${field.id}_otra`] || ''} 
+                                onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
+                                className="w-full bg-primary/5 border border-primary/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
+                                placeholder={`Específica tu ${fieldName.toLowerCase()}...`} 
+                              />
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                      ) : field.field_type === 'checkbox-group' ? (
+                        
+                        <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {optionsList.map((opt: string) => {
+                              const isChecked = currentValue.split(', ').includes(opt);
+                              return (
+                                <label key={opt} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isChecked ? 'bg-accent/10 border-accent/50' : 'bg-black/40 border-white/10 hover:border-gray-500'}`}>
+                                  <div className="flex items-center h-5 mt-0.5">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={isChecked}
+                                      onChange={(e) => handleCheckboxGroupChange(field.id, opt, e.target.checked)}
+                                      className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                                    />
+                                  </div>
+                                  <span className="text-sm text-gray-300 leading-tight">{opt}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          
+                          {/* Fake input oculto para manejar el required del grupo de checkboxes */}
+                          {isRequiredNow && !currentValue && (
+                             <input type="checkbox" required className="absolute opacity-0 pointer-events-none -bottom-4" />
+                          )}
+
+                          <AnimatePresence>
+                            {currentValue.split(', ').includes('Otra') && (
+                              <motion.input 
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
+                                exit={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                type="text" 
+                                required 
+                                value={formData[`${field.id}_otra`] || ''} 
+                                onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
+                                className="w-full bg-accent/5 border border-accent/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-accent/40" 
+                                placeholder={`Específica cuáles otras...`} 
+                              />
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                      ) : field.field_type === 'textarea' ? (
+                        
+                        <textarea 
                           required={isRequiredNow} 
                           value={currentValue} 
                           onChange={(e) => handleFieldChange(field.id, e.target.value)} 
-                          onBlur={(e) => { 
-                            if (isDocField) handleVerifyDocument(e.target.value); 
-                          }} 
-                          placeholder={isDocField ? "Ingresa tu número..." : ""} 
-                          className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60" 
+                          rows={4} 
+                          className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60 resize-none" 
                         />
-                        {isDocField && isVerifying && (
-                          <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        
+                      ) : field.field_type === 'checkbox' ? (
+                        
+                        <div className="flex items-start gap-3 mt-4 bg-white/5 p-4 rounded-xl border border-white/10">
+                          <div className="flex items-center h-5">
+                            <input 
+                              type="checkbox" 
+                              required={isRequiredNow} 
+                              checked={currentValue === 'true'} 
+                              onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
+                            />
                           </div>
-                        )}
-                      </div>
-                      
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
+                          <label 
+                            className="text-sm text-gray-300 leading-tight cursor-pointer" 
+                            onClick={() => handleFieldChange(field.id, currentValue === 'true' ? 'false' : 'true')}
+                          >
+                            {fieldName} {isRequiredNow && <span className="text-accent">*</span>}
+                          </label>
+                        </div>
+                        
+                      ) : (
+                        
+                        <div className="relative">
+                          <input 
+                            type={field.field_type} 
+                            required={isRequiredNow} 
+                            value={currentValue} 
+                            onChange={(e) => handleFieldChange(field.id, e.target.value)} 
+                            onBlur={(e) => { 
+                              if (isDocField) handleVerifyDocument(e.target.value); 
+                            }} 
+                            placeholder={isDocField ? "Ingresa tu número..." : ""} 
+                            className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60" 
+                          />
+                          {isDocField && isVerifying && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                            </div>
+                          )}
+                        </div>
+                        
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
 
-            <div className="pt-10 mt-10 border-t border-white/5">
-              <button 
-                type="submit" 
-                disabled={isSubmitting} 
-                className="w-full relative group overflow-hidden rounded-xl disabled:opacity-50"
-              >
-                <div className="absolute inset-0 bg-linear-to-r from-primary to-accent opacity-90 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative flex items-center justify-center gap-3 py-4 px-6 text-white font-bold text-lg tracking-wide shadow-2xl transition-transform active:scale-[0.98]">
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-6 w-6 animate-spin" /> Procesando...
-                    </>
-                  ) : (
-                    <>Confirmar Inscripción</>
-                  )}
-                </div>
-              </button>
-            </div>
-            
-          </form>
-        </div>
-      </motion.div>
+              {/* CHECKBOX HABEAS DATA - Condicional */}
+              {event.require_habeas_data && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className="mt-8 p-5 bg-white/5 border border-white/10 rounded-2xl flex items-start gap-4 hover:border-accent/50 transition-colors cursor-pointer"
+                  onClick={() => setAcceptHabeas(!acceptHabeas)}
+                >
+                  <div className="flex items-center h-5 mt-1">
+                    <input 
+                      type="checkbox" 
+                      required 
+                      checked={acceptHabeas} 
+                      onChange={(e) => setAcceptHabeas(e.target.checked)} 
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-300 leading-tight">
+                      He leído y acepto la{' '}
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (event.habeas_data_url) {
+                            window.open(event.habeas_data_url, '_blank');
+                          } else {
+                            alert("Por favor, lee las Políticas desde el botón en el pie de página.");
+                          }
+                        }}
+                        className="text-accent font-bold hover:underline"
+                      >
+                        Política de Tratamiento de Datos Personales
+                      </span>{' '}
+                      de ACOFI. <span className="text-accent">*</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">Requerido para procesar tu inscripción y emitir credenciales.</p>
+                  </div>
+                </motion.div>
+              )}
+
+              <div className="pt-10 mt-10 border-t border-white/5">
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className="w-full relative group overflow-hidden rounded-xl disabled:opacity-50"
+                >
+                  <div className="absolute inset-0 bg-linear-to-r from-primary to-accent opacity-90 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="relative flex items-center justify-center gap-3 py-4 px-6 text-white font-bold text-lg tracking-wide shadow-2xl transition-transform active:scale-[0.98]">
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-6 w-6 animate-spin" /> Procesando...
+                      </>
+                    ) : (
+                      <>Confirmar Inscripción</>
+                    )}
+                  </div>
+                </button>
+              </div>
+              
+            </form>
+          </div>
+        </motion.div>
+      </div>
+      
+      <Footer />
     </div>
   );
 }
