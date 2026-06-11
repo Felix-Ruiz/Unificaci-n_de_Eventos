@@ -11,7 +11,8 @@ import {
   Lock, 
   Clock, 
   Users, 
-  CalendarDays 
+  CalendarDays,
+  ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useParams } from 'next/navigation';
@@ -21,7 +22,7 @@ import Footer from '../../../components/Footer';
 
 export default function FormularioPublico() {
   const params = useParams();
-  const eventIdOrSlug = params?.id as string; // Ahora puede recibir ID o Slug
+  const eventIdOrSlug = params?.id as string;
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [event, setEvent] = useState<any>(null);
@@ -29,7 +30,12 @@ export default function FormularioPublico() {
   const [status, setStatus] = useState<'open' | 'paused' | 'full' | 'expired'>('open');
   
   const [formData, setFormData] = useState<Record<string, string>>({});
+  
+  // SEGURIDAD 1: Honeypot (Trampa invisible para bots tontos)
   const [honeypot, setHoneypot] = useState('');
+  
+  // SEGURIDAD 2: Cloudflare Turnstile
+  const [turnstileToken, setTurnstileToken] = useState('');
   
   // Estado para la validación del Habeas Data
   const [acceptHabeas, setAcceptHabeas] = useState(false);
@@ -41,12 +47,30 @@ export default function FormularioPublico() {
 
   const isKiosk = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === 'true';
 
+  // INYECCIÓN NATIVA DE CLOUDFLARE TURNSTILE
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+
+    // Definir el callback global que Cloudflare ejecutará al validar
+    (window as any).onTurnstileSuccess = (token: string) => {
+      setTurnstileToken(token);
+    };
+
+    return () => {
+      document.head.removeChild(script);
+      delete (window as any).onTurnstileSuccess;
+    };
+  }, []);
+
   useEffect(() => {
     if (!eventIdOrSlug) return;
 
     async function loadEvent() {
       try {
-        // Validación de ID (UUID) o Alias (Slug)
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventIdOrSlug);
         
         let query = supabase.from('events').select('*');
@@ -64,7 +88,6 @@ export default function FormularioPublico() {
         
         setEvent(eventData);
 
-        // Se usa eventData.id para garantizar que busque correctamente en registros
         const { count } = await supabase
           .from('registrations')
           .select('*', { count: 'exact', head: true })
@@ -103,7 +126,6 @@ export default function FormularioPublico() {
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 
-  // Manejador especial para los grupos de Checkbox (Selección Múltiple)
   const handleCheckboxGroupChange = (fieldId: string, option: string, isChecked: boolean) => {
     setFormData(prev => {
       const currentVal = prev[fieldId] || '';
@@ -157,80 +179,84 @@ export default function FormularioPublico() {
     }
   };
 
-  // EVALUACIÓN DE LÓGICA: Mostrar u Ocultar
   const shouldShowField = (field: any) => {
     if (!field.options) return true;
-    
     try {
       const parsed = JSON.parse(field.options);
-      
-      if (!parsed.logic || !parsed.logic.dependsOnId) {
-        return true;
-      }
-      
+      if (!parsed.logic || !parsed.logic.dependsOnId) return true;
       const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
       if (!parentField) return true;
-
       const parentVal = formData[parentField.id] || '';
-      
-      // Si el padre es de selección múltiple, evaluamos si contiene la opción
       const isMatch = parentField.field_type === 'checkbox-group' 
         ? parentVal.split(', ').includes(parsed.logic.dependsOnValue)
         : parentVal === parsed.logic.dependsOnValue;
-
       const action = parsed.logic.action || 'show';
-      
-      if (action === 'hide') {
-        return !isMatch;
-      }
-      
-      if (action === 'show') {
-        return isMatch;
-      }
-      
-      return true; // Si la acción es 'require', la pregunta siempre debe mostrarse
-      
-    } catch { 
-      return true; 
-    }
+      if (action === 'hide') return !isMatch;
+      if (action === 'show') return isMatch;
+      return true;
+    } catch { return true; }
   };
 
-  // EVALUACIÓN DE LÓGICA: Hacer Obligatoria
   const isFieldRequired = (field: any) => {
     if (field.is_required) return true; 
-    
     if (!field.options) return false;
-    
     try {
       const parsed = JSON.parse(field.options);
-      
       if (parsed.logic && parsed.logic.action === 'require' && parsed.logic.dependsOnId) {
         const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
         const parentVal = formData[parsed.logic.dependsOnId] || '';
-        
         if (parentField?.field_type === 'checkbox-group') {
           return parentVal.split(', ').includes(parsed.logic.dependsOnValue);
         } else {
           return parentVal === parsed.logic.dependsOnValue;
         }
       }
-      
       return false;
-      
-    } catch { 
-      return false; 
+    } catch { return false; }
+  };
+
+  // SEGURIDAD 3: Verificar Rate Limiting (Límite de envíos por dispositivo)
+  const checkRateLimit = () => {
+    const history = JSON.parse(localStorage.getItem('acofi_spam_guard') || '[]');
+    const now = Date.now();
+    // Limpiamos los registros que tengan más de 10 minutos
+    const recentSubmissions = history.filter((time: number) => now - time < 10 * 60 * 1000);
+    
+    // Si ha enviado 3 o más en los últimos 10 mins, lo bloqueamos
+    if (recentSubmissions.length >= 3 && !isKiosk) {
+      return false;
     }
+    return true;
+  };
+
+  const updateRateLimit = () => {
+    const history = JSON.parse(localStorage.getItem('acofi_spam_guard') || '[]');
+    history.push(Date.now());
+    localStorage.setItem('acofi_spam_guard', JSON.stringify(history));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // TRAMPA 1: Honeypot (Si un bot llenó el campo invisible, simulamos éxito pero no guardamos)
     if (honeypot) { 
       setSuccess(true); 
       return; 
     }
 
-    // Validación obligatoria del Habeas Data antes de procesar el envío
+    // TRAMPA 2: Validar Rate Limiting Local
+    if (!checkRateLimit()) {
+      alert("Has superado el límite de intentos permitidos. Por favor, intenta de nuevo en 10 minutos.");
+      return;
+    }
+
+    // TRAMPA 3: Validar Cloudflare Turnstile
+    if (!turnstileToken) {
+      alert("Por favor, completa la verificación de seguridad (No soy un robot) antes de continuar.");
+      return;
+    }
+
+    // Validación Habeas Data
     if (event.require_habeas_data && !acceptHabeas) {
       alert("Debes leer y aceptar la Política de Tratamiento de Datos Personales para continuar.");
       return;
@@ -243,7 +269,6 @@ export default function FormularioPublico() {
       const finalFormData = { ...formData };
       
       fields.forEach(f => {
-        // Evitamos enviar datos de campos que la lógica ocultó
         if (!shouldShowField(f)) {
           delete finalFormData[f.id];
           delete finalFormData[`${f.id}_otra`];
@@ -253,11 +278,9 @@ export default function FormularioPublico() {
         const fn = (f.field_name || '').toLowerCase();
         const val = formData[f.id] || '';
         
-        // Mapear "Otra" si aplica (para select, radio o checkbox-group)
         if (['select', 'radio'].includes(f.field_type) && val === 'Otra' && formData[`${f.id}_otra`]) {
           finalFormData[f.id] = formData[`${f.id}_otra`];
         } else if (f.field_type === 'checkbox-group' && val.includes('Otra') && formData[`${f.id}_otra`]) {
-          // Si es múltiple y contiene otra, reemplazamos 'Otra' por el valor escrito
           let arr = val.split(', ');
           arr = arr.map(v => v === 'Otra' ? formData[`${f.id}_otra`] : v);
           finalFormData[f.id] = arr.join(', ');
@@ -294,11 +317,12 @@ export default function FormularioPublico() {
       await supabase
         .from('registrations')
         .insert([{ 
-          event_id: event.id, // Referencia segura al ID original aunque el acceso fuera por slug
+          event_id: event.id,
           historic_user_doc: documento, 
           form_data: finalFormData 
         }]);
 
+      updateRateLimit(); // Registramos este envío exitoso para proteger contra spam
       setSuccess(true);
       
       if (isKiosk) {
@@ -309,6 +333,11 @@ export default function FormularioPublico() {
       alert("Error en el servidor al enviar el registro."); 
     } finally { 
       setIsSubmitting(false); 
+      // Resetear token para requerir nueva verificación si intenta enviar otro
+      if ((window as any).turnstile) {
+        (window as any).turnstile.reset();
+        setTurnstileToken('');
+      }
     }
   };
 
@@ -424,7 +453,6 @@ export default function FormularioPublico() {
         >
           <div className="h-1.5 w-full bg-linear-to-r from-primary via-accent to-primary background-animate"></div>
           
-          {/* BANNER GIGANTE DE PORTADA */}
           {event.banner_url && (
             <div className="w-full h-48 md:h-72 overflow-hidden relative bg-black/50">
               <img 
@@ -456,7 +484,6 @@ export default function FormularioPublico() {
               </div>
             </div>
 
-            {/* DESCRIPCIÓN DEL EVENTO */}
             {event.description && (
               <div className="mb-12 bg-white/5 border border-white/10 p-6 rounded-2xl">
                 <div className="flex items-center gap-2 text-accent mb-3">
@@ -509,17 +536,13 @@ export default function FormularioPublico() {
               <div className="space-y-6">
                 {fields.map((field, idx) => {
                   
-                  // Aplicar lógica de Ocultar/Mostrar
                   if (!shouldShowField(field)) return null;
 
                   const currentValue = formData[field.id] || '';
                   const fieldName = field.field_name || '';
                   const isDocField = fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo');
-                  
-                  // Aplicar lógica de Obligatoriedad
                   const isRequiredNow = isFieldRequired(field);
 
-                  // Opciones parseadas para Select, Radio y Checkbox-Group
                   let optionsList: string[] = [];
                   if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
                     try {
@@ -649,7 +672,6 @@ export default function FormularioPublico() {
                             })}
                           </div>
                           
-                          {/* Fake input oculto para manejar el required del grupo de checkboxes */}
                           {isRequiredNow && !currentValue && (
                              <input type="checkbox" required className="absolute opacity-0 pointer-events-none -bottom-4" />
                           )}
@@ -728,7 +750,7 @@ export default function FormularioPublico() {
                 })}
               </div>
 
-              {/* CHECKBOX HABEAS DATA - Condicional */}
+              {/* CHECKBOX HABEAS DATA */}
               {event.require_habeas_data && (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -768,7 +790,22 @@ export default function FormularioPublico() {
                 </motion.div>
               )}
 
-              <div className="pt-10 mt-10 border-t border-white/5">
+              {/* WIDGET DE CLOUDFLARE TURNSTILE */}
+              {!isKiosk && (
+                <div className="flex flex-col items-center justify-center mt-6 pt-4 border-t border-white/5">
+                  <p className="text-xs text-gray-500 mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" /> Verificación de Seguridad
+                  </p>
+                  <div 
+                    className="cf-turnstile" 
+                    data-sitekey="1x00000000000000000000AA" 
+                    data-callback="onTurnstileSuccess"
+                    data-theme="dark"
+                  ></div>
+                </div>
+              )}
+
+              <div className="pt-8 mt-8 border-t border-white/5">
                 <button 
                   type="submit" 
                   disabled={isSubmitting} 

@@ -45,9 +45,10 @@ export default function CheckInEventPage() {
   const [manualFormData, setManualFormData] = useState<Record<string, string>>({});
   const [isAddingManual, setIsAddingManual] = useState(false);
 
-  // ESTADOS PARA EXPORTACIÓN INTELIGENTE (EXCEL)
+  // ESTADOS PARA EXPORTACIÓN INTELIGENTE Y AUDITORÍA
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
 
   useEffect(() => {
     if (!eventId) return;
@@ -72,6 +73,13 @@ export default function CheckInEventPage() {
         { event: 'INSERT', schema: 'public', table: 'registrations', filter: `event_id=eq.${eventId}` }, 
         (payload: any) => {
           setRegistrations((prev) => [...prev, payload.new]);
+        }
+      )
+      .on(
+        'postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'attendance_logs', filter: `event_id=eq.${eventId}` }, 
+        (payload: any) => {
+          setAttendanceLogs((prev) => [...prev, payload.new]);
         }
       )
       .subscribe();
@@ -159,6 +167,16 @@ export default function CheckInEventPage() {
       .order('created_at', { ascending: true });
       
     setRegistrations(regsData || []);
+
+    const { data: logsData } = await supabase
+      .from('attendance_logs')
+      .select('*')
+      .eq('event_id', eventId);
+      
+    if (logsData) {
+      setAttendanceLogs(logsData);
+    }
+
     setLoading(false);
   }
 
@@ -172,6 +190,15 @@ export default function CheckInEventPage() {
       .update({ attended: newState })
       .eq('id', id);
       
+    if (!error && newState) {
+       await supabase.from('attendance_logs').insert([{
+           event_id: eventId,
+           registration_id: id,
+           zone_name: 'Entrada Principal',
+           operator_name: 'Panel Administrativo'
+       }]);
+    }
+
     if (error) { 
       alert("Error al marcar asistencia."); 
       loadData(); 
@@ -258,16 +285,25 @@ export default function CheckInEventPage() {
           ciudad
         }, { onConflict: 'documento_identidad' });
       
-      const { error: regErr } = await supabase
+      const { data: newReg, error: regErr } = await supabase
         .from('registrations')
         .insert([{ 
           event_id: eventId, 
           historic_user_doc: doc, 
           form_data: finalFormData, 
           attended: true 
-        }]);
+        }]).select().single();
 
       if (regErr) throw regErr;
+
+      if (newReg) {
+         await supabase.from('attendance_logs').insert([{ 
+           event_id: eventId, 
+           registration_id: newReg.id, 
+           zone_name: 'Entrada Principal', 
+           operator_name: 'Panel Administrativo (Manual)' 
+         }]);
+      }
 
       setShowAddModal(false);
       setManualFormData({});
@@ -283,7 +319,7 @@ export default function CheckInEventPage() {
   // FUNCIONES DE EXPORTACIÓN INTELIGENTE
   const openExportModal = () => {
     if (registrations.length === 0) return alert("No hay registros para exportar.");
-    const allColIds = ['doc', 'asistencia', 'fecha', ...fields.map(f => f.id)];
+    const allColIds = ['doc', 'asistencia', 'fecha', 'zonas', ...fields.map(f => f.id)];
     setSelectedColumns(allColIds);
     setShowExportModal(true);
   };
@@ -295,7 +331,7 @@ export default function CheckInEventPage() {
   };
 
   const selectAllColumns = () => {
-    setSelectedColumns(['doc', 'asistencia', 'fecha', ...fields.map(f => f.id)]);
+    setSelectedColumns(['doc', 'asistencia', 'fecha', 'zonas', ...fields.map(f => f.id)]);
   };
 
   const deselectAllColumns = () => {
@@ -323,6 +359,13 @@ export default function CheckInEventPage() {
       if (selectedColumns.includes('asistencia')) {
         row['Asistió'] = reg.attended ? 'SÍ' : 'NO';
       }
+
+      if (selectedColumns.includes('zonas')) {
+        const userLogs = attendanceLogs.filter(l => l.registration_id === reg.id);
+        row['Historial de Accesos (Multizona)'] = userLogs.map(l => 
+          `${l.zone_name} por [${l.operator_name || 'N/A'}] a las ${new Date(l.created_at).toLocaleTimeString()}`
+        ).join(' | ') || 'Ninguno';
+      }
       
       if (selectedColumns.includes('fecha')) {
         row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
@@ -334,7 +377,7 @@ export default function CheckInEventPage() {
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte Asistencia");
-    XLSX.writeFile(workbook, `Asistencia_${event.name.replace(/\s+/g, '_')}.xlsx`);
+    XLSX.writeFile(workbook, `Asistencia_Auditoria_${event.name.replace(/\s+/g, '_')}.xlsx`);
     
     setShowExportModal(false);
   };
@@ -437,6 +480,19 @@ export default function CheckInEventPage() {
                       />
                     </div>
                     <span className="text-sm font-bold text-accent">Estado de Asistencia (SÍ / NO)</span>
+                  </label>
+
+                  {/* NUEVA OPCIÓN: AUDITORÍA DE STAFF */}
+                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                    <div className="flex items-center h-5">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedColumns.includes('zonas')} 
+                        onChange={() => toggleColumn('zonas')} 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-accent">Historial de Zonas y Staff (Auditoría)</span>
                   </label>
 
                   <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
@@ -667,7 +723,6 @@ export default function CheckInEventPage() {
             Añadir Manual
           </button>
           
-          {/* BOTÓN CON NUEVA LÓGICA DE EXPORTACIÓN */}
           <button 
             onClick={openExportModal} 
             className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm"
@@ -766,8 +821,8 @@ export default function CheckInEventPage() {
                   <th className="px-6 py-4 font-bold w-16">N°</th>
                   <th className="px-6 py-4 font-bold">Documento</th>
                   <th className="px-6 py-4 font-bold">Nombre Completo</th>
-                  <th className="px-6 py-4 font-bold text-center">Estado</th>
-                  <th className="px-6 py-4 font-bold text-right">Acción</th>
+                  <th className="px-6 py-4 font-bold text-center">Estado Principal</th>
+                  <th className="px-6 py-4 font-bold text-right">Acción Principal</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
