@@ -322,6 +322,25 @@ export default function FormularioPublico() {
           form_data: finalFormData 
         }]);
 
+      // --- LLAMADA AL BACKEND DE CORREOS (BREVO) ---
+      if (email) {
+        try {
+          await fetch('/api/send-ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email,
+              nombre: `${nombre} ${apellido}`.trim(),
+              eventName: event.name,
+              documento: documento
+            })
+          });
+        } catch (emailErr) {
+          console.error("Fallo silencioso al enviar correo:", emailErr);
+        }
+      }
+      // ----------------------------------------------
+
       updateRateLimit(); // Registramos este envío exitoso para proteger contra spam
       setSuccess(true);
       
