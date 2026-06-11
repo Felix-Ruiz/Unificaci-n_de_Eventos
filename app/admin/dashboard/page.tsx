@@ -207,7 +207,8 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/e/${evento.id}`} target="_blank">
+                    {/* AQUÍ ESTÁ EL FIX: Busca el slug primero, si no, usa el ID */}
+                    <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
                       <button className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10">
                         <ExternalLink className="h-4 w-4" /> Público
                       </button>

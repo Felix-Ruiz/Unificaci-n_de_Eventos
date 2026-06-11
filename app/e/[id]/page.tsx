@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Loader2, 
@@ -34,8 +34,9 @@ export default function FormularioPublico() {
   // SEGURIDAD 1: Honeypot (Trampa invisible para bots tontos)
   const [honeypot, setHoneypot] = useState('');
   
-  // SEGURIDAD 2: Cloudflare Turnstile
+  // SEGURIDAD 2: Cloudflare Turnstile (Referencia explícita)
   const [turnstileToken, setTurnstileToken] = useState('');
+  const turnstileRef = useRef<HTMLDivElement>(null);
   
   // Estado para la validación del Habeas Data
   const [acceptHabeas, setAcceptHabeas] = useState(false);
@@ -47,24 +48,36 @@ export default function FormularioPublico() {
 
   const isKiosk = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === 'true';
 
-  // INYECCIÓN NATIVA DE CLOUDFLARE TURNSTILE
+  // INYECCIÓN EXPLÍCITA DE CLOUDFLARE TURNSTILE (Soluciona el problema de visibilidad)
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    if (!loadingInit && status === 'open' && !isKiosk && turnstileRef.current) {
+      const renderTurnstile = () => {
+        if ((window as any).turnstile) {
+          try {
+            // Renderiza el widget explícitamente en el div referenciado
+            (window as any).turnstile.render(turnstileRef.current, {
+              sitekey: '1x00000000000000000000AA', // Llave de prueba (Siempre aprueba)
+              callback: (token: string) => setTurnstileToken(token),
+              theme: 'dark'
+            });
+          } catch (e) {
+            console.error("Error renderizando Turnstile:", e);
+          }
+        }
+      };
 
-    // Definir el callback global que Cloudflare ejecutará al validar
-    (window as any).onTurnstileSuccess = (token: string) => {
-      setTurnstileToken(token);
-    };
-
-    return () => {
-      document.head.removeChild(script);
-      delete (window as any).onTurnstileSuccess;
-    };
-  }, []);
+      if (!(window as any).turnstile) {
+        const script = document.createElement('script');
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.onload = renderTurnstile;
+        document.head.appendChild(script);
+      } else {
+        renderTurnstile();
+      }
+    }
+  }, [loadingInit, status, isKiosk]);
 
   useEffect(() => {
     if (!eventIdOrSlug) return;
@@ -219,10 +232,8 @@ export default function FormularioPublico() {
   const checkRateLimit = () => {
     const history = JSON.parse(localStorage.getItem('acofi_spam_guard') || '[]');
     const now = Date.now();
-    // Limpiamos los registros que tengan más de 10 minutos
     const recentSubmissions = history.filter((time: number) => now - time < 10 * 60 * 1000);
     
-    // Si ha enviado 3 o más en los últimos 10 mins, lo bloqueamos
     if (recentSubmissions.length >= 3 && !isKiosk) {
       return false;
     }
@@ -238,21 +249,21 @@ export default function FormularioPublico() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // TRAMPA 1: Honeypot (Si un bot llenó el campo invisible, simulamos éxito pero no guardamos)
+    // TRAMPA 1: Honeypot
     if (honeypot) { 
       setSuccess(true); 
       return; 
     }
 
-    // TRAMPA 2: Validar Rate Limiting Local
+    // TRAMPA 2: Rate Limiting Local
     if (!checkRateLimit()) {
       alert("Has superado el límite de intentos permitidos. Por favor, intenta de nuevo en 10 minutos.");
       return;
     }
 
     // TRAMPA 3: Validar Cloudflare Turnstile
-    if (!turnstileToken) {
-      alert("Por favor, completa la verificación de seguridad (No soy un robot) antes de continuar.");
+    if (!turnstileToken && !isKiosk) {
+      alert("Por favor, espera a que se complete la verificación de seguridad antes de continuar.");
       return;
     }
 
@@ -341,7 +352,7 @@ export default function FormularioPublico() {
       }
       // ----------------------------------------------
 
-      updateRateLimit(); // Registramos este envío exitoso para proteger contra spam
+      updateRateLimit();
       setSuccess(true);
       
       if (isKiosk) {
@@ -352,9 +363,8 @@ export default function FormularioPublico() {
       alert("Error en el servidor al enviar el registro."); 
     } finally { 
       setIsSubmitting(false); 
-      // Resetear token para requerir nueva verificación si intenta enviar otro
-      if ((window as any).turnstile) {
-        (window as any).turnstile.reset();
+      if ((window as any).turnstile && turnstileRef.current) {
+        (window as any).turnstile.reset(turnstileRef.current);
         setTurnstileToken('');
       }
     }
@@ -809,18 +819,14 @@ export default function FormularioPublico() {
                 </motion.div>
               )}
 
-              {/* WIDGET DE CLOUDFLARE TURNSTILE */}
+              {/* WIDGET DE CLOUDFLARE TURNSTILE EXPLÍCITO */}
               {!isKiosk && (
                 <div className="flex flex-col items-center justify-center mt-6 pt-4 border-t border-white/5">
                   <p className="text-xs text-gray-500 mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" /> Verificación de Seguridad
                   </p>
-                  <div 
-                    className="cf-turnstile" 
-                    data-sitekey="1x00000000000000000000AA" 
-                    data-callback="onTurnstileSuccess"
-                    data-theme="dark"
-                  ></div>
+                  {/* Este es el div donde se inyectará el widget explícitamente */}
+                  <div ref={turnstileRef}></div>
                 </div>
               )}
 
