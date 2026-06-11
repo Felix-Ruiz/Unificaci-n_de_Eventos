@@ -22,7 +22,7 @@ export default function LoginPage() {
     setTimeout(() => setToast(null), 5000);
   };
   
-  // RESTAURADO: Validador de conexión a Supabase
+  // Validador de conexión a Supabase
   const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error'>('checking');
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function LoginPage() {
       setDbStatus('connected');
     } catch {
       setDbStatus('error');
-      showToast('Error de Conexión', 'No se pudo establecer conexión con la base de datos.', 'error');
+      showToast('Error de Conexión', 'No se pudo establecer conexión con la base de datos de ACOFI.', 'error');
     }
   };
 
@@ -45,44 +45,40 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Verificación de credenciales en la nueva tabla de roles
+      // Verificación directa de credenciales (Texto plano compatible con tu BD actual)
       const { data: user, error } = await supabase
         .from('system_users')
         .select('*')
-        .eq('email', email)
-        .eq('password', password)
+        .eq('email', email.trim().toLowerCase())
+        .eq('password', password.trim())
         .single();
 
       if (error || !user) {
-        throw new Error("Credenciales incorrectas o usuario no autorizado.");
+        throw new Error("Credenciales de acceso incorrectas o usuario no autorizado.");
       }
 
       // Guardar la sesión con el rol asignado
       localStorage.setItem('acofi-session', JSON.stringify(user));
 
+      // Mostramos el éxito e ingresamos de INMEDIATO, sin retrasos artificiales.
       showToast('Acceso Concedido', 'Iniciando sesión...', 'success');
 
-      // Redirección por roles
-      setTimeout(() => {
-        if (user.role === 'STAFF' && user.permissions.includes('asistencia') && !user.permissions.includes('eventos')) {
-          router.push('/admin/asistencia');
-        } else {
-          router.push('/admin/dashboard');
-        }
-      }, 1000);
+      if (user.role === 'STAFF' && user.permissions.includes('asistencia') && !user.permissions.includes('eventos')) {
+        router.push('/admin/asistencia');
+      } else {
+        router.push('/admin/dashboard');
+      }
 
     } catch (err: any) {
       showToast('Acceso Denegado', err.message, 'error');
-      setLoading(false);
+      setLoading(false); // Liberamos el botón si hay error
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
       
-      {/* ========================================================= */}
-      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
-      {/* ========================================================= */}
+      {/* CONTENEDOR DE NOTIFICACIONES TOAST */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toast && (
@@ -105,7 +101,7 @@ export default function LoginPage() {
                 <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -117,7 +113,7 @@ export default function LoginPage() {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/10 blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px] pointer-events-none"></div>
 
-      {/* ESTADO DE CONEXIÓN RESTAURADO */}
+      {/* ESTADO DE CONEXIÓN */}
       <div className="absolute top-6 left-6 md:left-auto md:right-6 flex items-center gap-2 bg-surface border border-white/10 px-4 py-2 rounded-full shadow-lg z-20">
         <Database className="h-4 w-4 text-gray-400" />
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest hidden md:inline-block">Base de Datos:</span>
