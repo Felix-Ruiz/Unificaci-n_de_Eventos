@@ -14,39 +14,44 @@ import {
   CalendarDays,
   ShieldCheck,
   Info,
-  X
+  X,
+  FileText,
+  ExternalLink,
+  MonitorSmartphone
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 import Footer from '../../../components/Footer';
 
 export default function FormularioPublico() {
   const params = useParams();
+  const router = useRouter();
   const eventIdOrSlug = params?.id as string;
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [event, setEvent] = useState<any>(null);
   const [fields, setFields] = useState<any[]>([]);
-  const [status, setStatus] = useState<'open' | 'paused' | 'full' | 'expired'>('open');
+  const [status, setStatus] = useState<'open' | 'paused' | 'full' | 'expired' | 'locked_device'>('open');
   
+  // RESTRICCIÓN POR CONTRASEÑA
+  const [isLockedByPassword, setIsLockedByPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
   const [formData, setFormData] = useState<Record<string, string>>({});
-  
   const [honeypot, setHoneypot] = useState('');
-  
   const [turnstileToken, setTurnstileToken] = useState('');
   const turnstileRef = useRef<HTMLDivElement>(null);
   
   const [acceptHabeas, setAcceptHabeas] = useState(false);
+  const [showHabeasModal, setShowHabeasModal] = useState(false);
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [userFound, setUserFound] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // ==========================================
-  // SISTEMA DE NOTIFICACIONES (TOASTS NATIVOS)
-  // ==========================================
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
 
   const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'error') => {
@@ -57,14 +62,14 @@ export default function FormularioPublico() {
   const isKiosk = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === 'true';
 
   useEffect(() => {
-    if (!loadingInit && status === 'open' && !isKiosk && turnstileRef.current) {
+    if (!loadingInit && status === 'open' && !isLockedByPassword && !isKiosk && turnstileRef.current) {
       const renderTurnstile = () => {
         if ((window as any).turnstile) {
           try {
             (window as any).turnstile.render(turnstileRef.current, {
               sitekey: '1x00000000000000000000AA', 
               callback: (token: string) => setTurnstileToken(token),
-              theme: 'dark'
+              theme: 'auto'
             });
           } catch (e) {
             console.error("Error renderizando Turnstile:", e);
@@ -83,7 +88,7 @@ export default function FormularioPublico() {
         renderTurnstile();
       }
     }
-  }, [loadingInit, status, isKiosk]);
+  }, [loadingInit, status, isLockedByPassword, isKiosk]);
 
   useEffect(() => {
     if (!eventIdOrSlug) return;
@@ -106,6 +111,21 @@ export default function FormularioPublico() {
         }
         
         setEvent(eventData);
+
+        // Validar restricción por dispositivo
+        if (eventData.one_per_device && !isKiosk) {
+          const storedCheck = localStorage.getItem(`acofi_reg_${eventData.id}`);
+          if (storedCheck) {
+            setStatus('locked_device');
+            setLoadingInit(false);
+            return;
+          }
+        }
+
+        // Validar protección por Contraseña
+        if (eventData.form_password) {
+          setIsLockedByPassword(true);
+        }
 
         const { count } = await supabase
           .from('registrations')
@@ -133,13 +153,21 @@ export default function FormularioPublico() {
         
       } catch (error) {
         setEvent(null);
-      } finally {
-        setLoadingInit(false);
-      }
+      } opacity: 0; setLoadingInit(false);
     }
     
     loadEvent();
   }, [eventIdOrSlug]);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === event.form_password) {
+      setIsLockedByPassword(false);
+    } else {
+      setPasswordError(true);
+      setTimeout(() => setPasswordError(false), 2000);
+    }
+  };
 
   const handleFieldChange = (id: string, value: string) => {
     setFormData(prev => ({ ...prev, [id]: value }));
@@ -234,23 +262,6 @@ export default function FormularioPublico() {
     } catch { return false; }
   };
 
-  const checkRateLimit = () => {
-    const history = JSON.parse(localStorage.getItem('acofi_spam_guard') || '[]');
-    const now = Date.now();
-    const recentSubmissions = history.filter((time: number) => now - time < 10 * 60 * 1000);
-    
-    if (recentSubmissions.length >= 3 && !isKiosk) {
-      return false;
-    }
-    return true;
-  };
-
-  const updateRateLimit = () => {
-    const history = JSON.parse(localStorage.getItem('acofi_spam_guard') || '[]');
-    history.push(Date.now());
-    localStorage.setItem('acofi_spam_guard', JSON.stringify(history));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -259,13 +270,8 @@ export default function FormularioPublico() {
       return; 
     }
 
-    if (!checkRateLimit()) {
-      showToast('Límite Excedido', 'Has superado el límite de intentos permitidos. Por favor, intenta de nuevo en 10 minutos.', 'error');
-      return;
-    }
-
     if (!turnstileToken && !isKiosk) {
-      showToast('Verificación Requerida', 'Por favor, espera a que cargue y marca la casilla de seguridad Cloudflare (No soy un robot) antes de continuar.', 'error');
+      showToast('Verificación Requerida', 'Por favor, marca la casilla de seguridad Cloudflare (No soy un robot) antes de continuar.', 'error');
       return;
     }
 
@@ -336,7 +342,7 @@ export default function FormularioPublico() {
 
       if (email && event.send_notifications) {
         try {
-          const res = await fetch('/api/send-ticket', {
+          await fetch('/api/send-ticket', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -346,22 +352,16 @@ export default function FormularioPublico() {
               documento: documento
             })
           });
-          
-          if (!res.ok) {
-            const errData = await res.json();
-            showToast('Aviso de Correo', `Registro exitoso, pero falló el envío de correo. Brevo: ${JSON.stringify(errData)}`, 'info');
-          }
-        } catch (emailErr: any) {
-          showToast('Aviso de Correo', `El servidor de correos no respondió: ${emailErr.message}`, 'info');
+        } catch (emailErr) {
+          console.error("Error enviando correo:", emailErr);
         }
       }
 
-      updateRateLimit();
-      setSuccess(true);
-      
-      if (isKiosk) {
-        setTimeout(() => window.location.reload(), 3000);
+      if (event.one_per_device && !isKiosk) {
+        localStorage.setItem(`acofi_reg_${event.id}`, 'true');
       }
+
+      setSuccess(true);
       
     } catch (error: any) { 
       showToast('Error del Servidor', 'Ocurrió un problema al enviar tu registro. Intenta nuevamente.', 'error');
@@ -390,29 +390,42 @@ export default function FormularioPublico() {
     );
   }
 
+  // VISTA INTERFICIAL DE PROTECCIÓN CON CONTRASEÑA
+  if (isLockedByPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative" style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/20 blur-[150px] rounded-full pointer-events-none"></div>
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-10 rounded-4xl max-w-sm w-full text-center shadow-2xl relative z-10">
+          <div className="bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/30">
+            <Lock className="h-8 w-8 text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Formulario Protegido</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">Digita la clave de acceso autorizada para inscribirte a <strong className="text-gray-900 dark:text-white">{event.name}</strong>.</p>
+          
+          <form onSubmit={handlePasswordSubmit}>
+            <input 
+              type="password" 
+              value={passwordInput} 
+              onChange={e => setPasswordInput(e.target.value)} 
+              placeholder="Escribe la clave aquí..." 
+              className={`w-full bg-white dark:bg-black/50 border ${passwordError ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} rounded-xl py-3.5 px-4 text-center text-gray-900 dark:text-white focus:outline-none focus:border-primary transition-colors mb-4`} 
+            />
+            {passwordError && <p className="text-xs text-red-500 mb-4 font-bold">Contraseña inválida</p>}
+            <button type="submit" className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 transition-transform cursor-pointer">
+              Desbloquear Formulario
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (status !== 'open') {
     const messages = {
-      paused: { 
-        icon: Lock, 
-        color: 'text-yellow-500', 
-        bg: 'bg-yellow-500/10', 
-        title: 'Inscripciones Pausadas', 
-        desc: 'El registro se encuentra cerrado temporalmente.' 
-      },
-      full: { 
-        icon: Users, 
-        color: 'text-red-500', 
-        bg: 'bg-red-500/10', 
-        title: 'Aforo Completo', 
-        desc: 'Lo sentimos, hemos alcanzado el límite máximo de asistentes permitidos.' 
-      },
-      expired: { 
-        icon: Clock, 
-        color: 'text-gray-400', 
-        bg: 'bg-white/5', 
-        title: 'Registro Cerrado', 
-        desc: 'La fecha límite de inscripción para este evento ha finalizado.' 
-      }
+      paused: { icon: Lock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', title: 'Inscripciones Pausadas', desc: 'El registro se encuentra cerrado temporalmente.' },
+      full: { icon: Users, color: 'text-red-500', bg: 'bg-red-500/10', title: 'Aforo Completo', desc: 'Lo sentimos, hemos alcanzado el límite máximo de asistentes permitidos.' },
+      expired: { icon: Clock, color: 'text-gray-400 dark:text-gray-500', bg: 'bg-gray-200 dark:bg-white/5', title: 'Registro Cerrado', desc: 'La fecha límite de inscripción para este evento ha finalizado.' },
+      locked_device: { icon: MonitorSmartphone, color: 'text-blue-500', bg: 'bg-blue-500/10', title: 'Inscripción Ya Realizada', desc: 'Tu dispositivo o dirección de red ya cuenta con un registro en este evento. No se permiten registros duplicados.' }
     };
     
     const m = messages[status];
@@ -423,10 +436,10 @@ export default function FormularioPublico() {
         style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
       >
         <div className={`absolute top-1/4 left-1/4 w-96 h-96 ${m.bg} blur-[120px] rounded-full pointer-events-none`}></div>
-        <div className="bg-surface/50 backdrop-blur-xl border border-white/5 p-10 rounded-3xl max-w-md w-full text-center shadow-2xl relative z-10">
+        <div className="bg-white/95 dark:bg-surface/50 backdrop-blur-xl border border-gray-200 dark:border-white/5 p-10 rounded-3xl max-w-md w-full text-center shadow-2xl relative z-10">
           <m.icon className={`h-16 w-16 ${m.color} mx-auto mb-6`} />
-          <h2 className="text-2xl font-bold text-white mb-2">{m.title}</h2>
-          <p className="text-gray-400">{m.desc}</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{m.title}</h2>
+          <p className="text-gray-600 dark:text-gray-400">{m.desc}</p>
         </div>
       </div>
     );
@@ -435,34 +448,50 @@ export default function FormularioPublico() {
   if (success) {
     return (
       <div 
-        className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden" 
+        className="min-h-screen flex flex-col justify-between bg-background relative overflow-hidden" 
         style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
       >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-500/20 blur-[150px] rounded-full pointer-events-none"></div>
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }} 
-          animate={{ scale: 1, opacity: 1 }} 
-          className="bg-surface/80 backdrop-blur-2xl border border-white/10 p-12 rounded-4xl max-w-md w-full text-center shadow-2xl relative z-10"
-        >
-          <CheckCircle2 className="h-20 w-20 text-green-400 mx-auto mb-4 relative z-10" />
-          <h2 className="text-3xl font-bold text-white mb-3">¡Inscripción Exitosa!</h2>
-          <p className="text-gray-400 mb-8 text-lg">
-            Tu registro para <span className="text-white font-medium">{event.name}</span> ha sido confirmado.
-          </p>
-          
-          {isKiosk ? (
-            <p className="text-primary text-sm font-bold animate-pulse">
-              Preparando para el siguiente asistente...
-            </p>
-          ) : (
-            <button 
-              onClick={() => window.location.reload()} 
-              className="text-primary hover:text-accent font-medium transition-colors cursor-pointer"
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-500/10 blur-[150px] rounded-full pointer-events-none"></div>
+        <div className="flex-1 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-12 rounded-4xl max-w-md w-full text-center shadow-2xl relative z-10"
             >
-              Realizar otro registro
-            </button>
-          )}
-        </motion.div>
+              <CheckCircle2 className="h-20 w-20 text-green-500 dark:text-green-400 mx-auto mb-4 relative z-10" />
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">¡Inscripción Exitosa!</h2>
+              
+              {event.thank_you_enabled && event.thank_you_text ? (
+                 <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
+                    {event.thank_you_text}
+                 </p>
+              ) : (
+                 <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
+                    Tu registro para <span className="text-gray-900 dark:text-white font-medium">{event.name}</span> ha sido confirmado.
+                 </p>
+              )}
+              
+              {isKiosk ? (
+                <p className="text-primary text-sm font-bold animate-pulse">
+                  Preparando para el siguiente asistente...
+                </p>
+              ) : event.thank_you_enabled && event.thank_you_url ? (
+                <a href={event.thank_you_url} target="_blank" rel="noopener noreferrer" className="w-full block">
+                  <button className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-4d-static transition-transform active:translate-y-1 cursor-pointer">
+                    Continuar <ExternalLink className="h-4 w-4"/>
+                  </button>
+                </a>
+              ) : !event.one_per_device ? (
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="text-primary hover:text-accent font-medium transition-colors cursor-pointer"
+                >
+                  Realizar otro registro
+                </button>
+              ) : null}
+            </motion.div>
+        </div>
+        <Footer />
       </div>
     );
   }
@@ -472,9 +501,7 @@ export default function FormularioPublico() {
       className="min-h-screen bg-background py-16 flex flex-col justify-between relative overflow-hidden" 
       style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
     >
-      {/* ========================================================= */}
-      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
-      {/* ========================================================= */}
+      {/* TOASTS CONTENEDOR */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toast && (
@@ -483,27 +510,90 @@ export default function FormularioPublico() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
-                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
-                'bg-blue-500/10 border-blue-500/30'
+                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
+                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
+                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
               }`}
             >
-              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
               
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+              <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      {/* MODAL INMERSIVO DE TRATAMIENTO DE DATOS */}
+      <AnimatePresence>
+        {showHabeasModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-surface rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden border-t-4 border-accent"
+            >
+              <div className="p-5 bg-gray-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+                <h2 className="text-gray-900 dark:text-white font-black uppercase tracking-widest text-sm flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-accent"/> Política de Tratamiento de Datos Personales
+                </h2>
+                <button onClick={() => setShowHabeasModal(false)} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none cursor-pointer">×</button>
+              </div>
+              
+              <div className="overflow-y-auto custom-scrollbar p-8 text-gray-700 dark:text-gray-300 text-sm leading-relaxed space-y-4">
+                  {event.habeas_data_url ? (
+                    <div className="h-[50vh] w-full">
+                       <iframe src={event.habeas_data_url} className="w-full h-full border-0 rounded-lg bg-white"></iframe>
+                    </div>
+                  ) : (
+                    <>
+                      <p><strong>1. MARCO LEGAL Y OBJETIVO</strong><br/>
+                      De conformidad con lo dispuesto en la Ley Estatutaria 1581 de 2012 y el Decreto Reglamentario 1377 de 2013 de la República de Colombia, la Asociación Colombiana de Facultades de Ingeniería (ACOFI) informa su política de recolección, almacenamiento y tratamiento de datos personales.</p>
+                      
+                      <p><strong>2. FINALIDAD DEL TRATAMIENTO</strong><br/>
+                      Los datos personales recolectados en esta plataforma son utilizados estricta y exclusivamente para los siguientes fines:
+                      <br/>- Registro de asistencia a eventos institucionales de ACOFI.
+                      <br/>- Emisión, registro y entrega de credenciales e insignias digitales institucionales.
+                      <br/>- Comunicación directa referente a certificaciones o actualizaciones del evento.</p>
+                      
+                      <p><strong>3. ACCESO PÚBLICO Y VERIFICACIÓN</strong><br/>
+                      Al aceptar la emisión de una credencial digital, el titular autoriza que su nombre, programa certificado y número de identificación estén disponibles en el directorio público de verificación para consulta de terceros.</p>
+
+                      <p><strong>4. DERECHOS DEL TITULAR</strong><br/>
+                      El titular de los datos tiene derecho a conocer, actualizar, rectificar y solicitar la supresión de sus datos personales. Para ejercer estos derechos, puede comunicarse a los canales oficiales de ACOFI.</p>
+                    </>
+                  )}
+              </div>
+
+              <div className="p-4 bg-gray-50 dark:bg-black/30 border-t border-gray-200 dark:border-white/10 text-center">
+                <button 
+                  onClick={() => {
+                    setAcceptHabeas(true);
+                    setShowHabeasModal(false);
+                  }} 
+                  className="bg-primary text-white px-8 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-primary/80 transition-colors cursor-pointer"
+                >
+                  Aceptar y Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/10 blur-[120px]"></div>
@@ -515,18 +605,18 @@ export default function FormularioPublico() {
           initial={{ y: 30, opacity: 0 }} 
           animate={{ y: 0, opacity: 1 }} 
           transition={{ duration: 0.6 }} 
-          className="w-full max-w-3xl bg-surface/60 backdrop-blur-2xl border border-white/10 rounded-4xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 h-max"
+          className="w-full max-w-3xl bg-white/90 dark:bg-surface/60 backdrop-blur-2xl border border-gray-200 dark:border-white/10 rounded-4xl shadow-[0_0_50px_rgba(0,0,0,0.05)] dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 h-max"
         >
           <div className="h-1.5 w-full bg-linear-to-r from-primary via-accent to-primary background-animate"></div>
           
           {event.banner_url && (
-            <div className="w-full h-48 md:h-72 overflow-hidden relative bg-black/50">
+            <div className="w-full h-48 md:h-72 overflow-hidden relative bg-gray-100 dark:bg-black/50">
               <img 
                 src={event.banner_url} 
                 alt="Banner Evento" 
                 className="w-full h-full object-cover" 
               />
-              <div className="absolute inset-0 bg-linear-to-t from-surface/90 to-transparent"></div>
+              <div className="absolute inset-0 bg-linear-to-t from-white/90 dark:from-surface/90 to-transparent"></div>
             </div>
           )}
           
@@ -543,20 +633,20 @@ export default function FormularioPublico() {
                   className="h-24 mx-auto mb-8 object-contain drop-shadow-2xl" 
                 />
               )}
-              <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">{event.name}</h1>
-              <div className="flex items-center justify-center gap-2 mt-3 text-primary/80">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">{event.name}</h1>
+              <div className="flex items-center justify-center gap-2 mt-3 text-primary">
                 <Sparkles className="h-4 w-4" />
-                <p className="text-sm font-medium tracking-widest uppercase">Registro Oficial</p>
+                <p className="text-sm font-bold tracking-widest uppercase">Registro Oficial</p>
               </div>
             </div>
 
             {event.description && (
-              <div className="mb-12 bg-white/5 border border-white/10 p-6 rounded-2xl">
+              <div className="mb-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-6 rounded-2xl">
                 <div className="flex items-center gap-2 text-accent mb-3">
                   <CalendarDays className="h-5 w-5"/> 
-                  <h3 className="font-bold">Información del Evento</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white">Información del Evento</h3>
                 </div>
-                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
                   {event.description}
                 </p>
               </div>
@@ -584,13 +674,13 @@ export default function FormularioPublico() {
                     exit={{ opacity: 0, height: 0 }} 
                     className="overflow-hidden"
                   >
-                    <div className="bg-linear-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20 p-5 rounded-2xl flex items-start gap-4 shadow-lg backdrop-blur-md">
-                      <div className="bg-green-500/20 p-2 rounded-full mt-1">
-                        <UserCheck className="h-5 w-5 text-green-400" />
+                    <div className="bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-500/10 dark:to-emerald-500/5 border border-green-200 dark:border-green-500/20 p-5 rounded-2xl flex items-start gap-4 shadow-lg backdrop-blur-md">
+                      <div className="bg-green-100 dark:bg-green-500/20 p-2 rounded-full mt-1">
+                        <UserCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
                       </div>
                       <div>
-                        <h4 className="text-green-400 font-bold text-lg">¡Bienvenido de vuelta!</h4>
-                        <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                        <h4 className="text-green-700 dark:text-green-400 font-bold text-lg">¡Bienvenido de vuelta!</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
                           Hemos autocompletado tu información basándonos en tu historial. Verifica que todo esté correcto antes de continuar.
                         </p>
                       </div>
@@ -620,6 +710,8 @@ export default function FormularioPublico() {
                     }
                   }
 
+                  const inputBaseClasses = "w-full bg-white dark:bg-black/40 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-gray-50 dark:hover:bg-black/60";
+
                   return (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }} 
@@ -630,7 +722,7 @@ export default function FormularioPublico() {
                     >
                       
                       {field.field_type !== 'checkbox' && (
-                        <label className="block text-xs font-bold tracking-wider uppercase text-gray-400 mb-2 ml-1 group-focus-within:text-primary transition-colors">
+                        <label className="block text-xs font-bold tracking-wider uppercase text-gray-500 dark:text-gray-400 mb-2 ml-1 group-focus-within:text-primary transition-colors">
                           {fieldName} {isRequiredNow && <span className="text-accent ml-1">*</span>}
                         </label>
                       )}
@@ -643,16 +735,16 @@ export default function FormularioPublico() {
                               required={isRequiredNow} 
                               value={currentValue} 
                               onChange={(e) => handleFieldChange(field.id, e.target.value)} 
-                              className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 appearance-none focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60 cursor-pointer"
+                              className={`${inputBaseClasses} appearance-none cursor-pointer`}
                             >
-                              <option value="" disabled className="bg-surface text-gray-500">Selecciona una opción...</option>
+                              <option value="" disabled className="text-gray-500">Selecciona una opción...</option>
                               {optionsList.map((opt: string) => (
-                                <option key={opt} value={opt} className="bg-surface text-white">
+                                <option key={opt} value={opt} className="text-gray-900 dark:text-white bg-white dark:bg-surface">
                                   {opt}
                                 </option>
                               ))}
                               {currentValue && currentValue !== 'Otra' && !optionsList.includes(currentValue) && (
-                                <option value={currentValue} className="bg-surface text-white">
+                                <option value={currentValue} className="text-gray-900 dark:text-white bg-white dark:bg-surface">
                                   {currentValue}
                                 </option>
                               )}
@@ -672,7 +764,7 @@ export default function FormularioPublico() {
                                 required 
                                 value={formData[`${field.id}_otra`] || ''} 
                                 onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
-                                className="w-full bg-primary/5 border border-primary/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
+                                className="w-full bg-primary/5 border border-primary/30 text-gray-900 dark:text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
                                 placeholder={`Específica tu ${fieldName.toLowerCase()}...`} 
                               />
                             )}
@@ -681,10 +773,10 @@ export default function FormularioPublico() {
                         
                       ) : field.field_type === 'radio' ? (
                         
-                        <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
+                        <div className="space-y-3 bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-200 dark:border-white/5">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {optionsList.map((opt: string) => (
-                              <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${currentValue === opt ? 'bg-primary/10 border-primary/50' : 'bg-black/40 border-white/10 hover:border-gray-500'}`}>
+                              <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${currentValue === opt ? 'bg-primary/10 border-primary/50' : 'bg-white dark:bg-black/40 border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-gray-500'}`}>
                                 <input 
                                   type="radio" 
                                   name={field.id}
@@ -694,7 +786,7 @@ export default function FormularioPublico() {
                                   onChange={(e) => handleFieldChange(field.id, e.target.value)}
                                   className="w-5 h-5 accent-primary cursor-pointer"
                                 />
-                                <span className="text-sm text-gray-300">{opt}</span>
+                                <span className="text-sm text-gray-700 dark:text-gray-300">{opt}</span>
                               </label>
                             ))}
                           </div>
@@ -709,7 +801,7 @@ export default function FormularioPublico() {
                                 required 
                                 value={formData[`${field.id}_otra`] || ''} 
                                 onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
-                                className="w-full bg-primary/5 border border-primary/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
+                                className="w-full bg-primary/5 border border-primary/30 text-gray-900 dark:text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-primary/40" 
                                 placeholder={`Específica tu ${fieldName.toLowerCase()}...`} 
                               />
                             )}
@@ -718,21 +810,21 @@ export default function FormularioPublico() {
 
                       ) : field.field_type === 'checkbox-group' ? (
                         
-                        <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
+                        <div className="space-y-3 bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-200 dark:border-white/5">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {optionsList.map((opt: string) => {
                               const isChecked = currentValue.split(', ').includes(opt);
                               return (
-                                <label key={opt} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isChecked ? 'bg-accent/10 border-accent/50' : 'bg-black/40 border-white/10 hover:border-gray-500'}`}>
+                                <label key={opt} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isChecked ? 'bg-accent/10 border-accent/50' : 'bg-white dark:bg-black/40 border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-gray-500'}`}>
                                   <div className="flex items-center h-5 mt-0.5">
                                     <input 
                                       type="checkbox" 
                                       checked={isChecked}
                                       onChange={(e) => handleCheckboxGroupChange(field.id, opt, e.target.checked)}
-                                      className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                                     />
                                   </div>
-                                  <span className="text-sm text-gray-300 leading-tight">{opt}</span>
+                                  <span className="text-sm text-gray-700 dark:text-gray-300 leading-tight">{opt}</span>
                                 </label>
                               );
                             })}
@@ -752,7 +844,7 @@ export default function FormularioPublico() {
                                 required 
                                 value={formData[`${field.id}_otra`] || ''} 
                                 onChange={(e) => handleFieldChange(`${field.id}_otra`, e.target.value)} 
-                                className="w-full bg-accent/5 border border-accent/30 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-accent/40" 
+                                className="w-full bg-accent/5 border border-accent/30 text-gray-900 dark:text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-accent/40" 
                                 placeholder={`Específica cuáles otras...`} 
                               />
                             )}
@@ -766,23 +858,23 @@ export default function FormularioPublico() {
                           value={currentValue} 
                           onChange={(e) => handleFieldChange(field.id, e.target.value)} 
                           rows={4} 
-                          className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60 resize-none" 
+                          className={`${inputBaseClasses} resize-none`}
                         />
                         
                       ) : field.field_type === 'checkbox' ? (
                         
-                        <div className="flex items-start gap-3 mt-4 bg-white/5 p-4 rounded-xl border border-white/10">
+                        <div className="flex items-start gap-3 mt-4 bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10">
                           <div className="flex items-center h-5">
                             <input 
                               type="checkbox" 
                               required={isRequiredNow} 
                               checked={currentValue === 'true'} 
                               onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
-                              className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
                             />
                           </div>
                           <label 
-                            className="text-sm text-gray-300 leading-tight cursor-pointer" 
+                            className="text-sm text-gray-700 dark:text-gray-300 leading-tight cursor-pointer" 
                             onClick={() => handleFieldChange(field.id, currentValue === 'true' ? 'false' : 'true')}
                           >
                             {fieldName} {isRequiredNow && <span className="text-accent">*</span>}
@@ -801,7 +893,7 @@ export default function FormularioPublico() {
                               if (isDocField) handleVerifyDocument(e.target.value); 
                             }} 
                             placeholder={isDocField ? "Ingresa tu número..." : ""} 
-                            className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-black/60" 
+                            className={inputBaseClasses}
                           />
                           {isDocField && isVerifying && (
                             <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -820,7 +912,7 @@ export default function FormularioPublico() {
               {event.require_habeas_data && (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className="mt-8 p-5 bg-white/5 border border-white/10 rounded-2xl flex items-start gap-4 hover:border-accent/50 transition-colors cursor-pointer"
+                  className="mt-8 p-5 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl flex items-start gap-4 hover:border-accent/50 transition-colors cursor-pointer"
                   onClick={() => setAcceptHabeas(!acceptHabeas)}
                 >
                   <div className="flex items-center h-5 mt-1">
@@ -830,20 +922,16 @@ export default function FormularioPublico() {
                       checked={acceptHabeas} 
                       onChange={(e) => setAcceptHabeas(e.target.checked)} 
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-300 leading-tight">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-tight">
                       He leído y acepto la{' '}
                       <span 
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (event.habeas_data_url) {
-                            window.open(event.habeas_data_url, '_blank');
-                          } else {
-                            showToast('Información de Privacidad', 'Nuestras políticas de privacidad se encuentran disponibles en los enlaces del pie de página.', 'info');
-                          }
+                          setShowHabeasModal(true);
                         }}
                         className="text-accent font-bold hover:underline"
                       >
@@ -856,9 +944,9 @@ export default function FormularioPublico() {
                 </motion.div>
               )}
 
-              {/* WIDGET DE CLOUDFLARE TURNSTILE EXPLÍCITO */}
+              {/* CLOUDFLARE TURNSTILE */}
               {!isKiosk && (
-                <div className="flex flex-col items-center justify-center mt-6 pt-4 border-t border-white/5">
+                <div className="flex flex-col items-center justify-center mt-6 pt-4 border-t border-gray-200 dark:border-white/5">
                   <p className="text-xs text-gray-500 mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" /> Verificación de Seguridad
                   </p>
@@ -866,14 +954,14 @@ export default function FormularioPublico() {
                 </div>
               )}
 
-              <div className="pt-8 mt-8 border-t border-white/5">
+              <div className="pt-8 mt-8 border-t border-gray-200 dark:border-white/5">
                 <button 
                   type="submit" 
                   disabled={isSubmitting} 
                   className="w-full relative group overflow-hidden rounded-xl disabled:opacity-50"
                 >
                   <div className="absolute inset-0 bg-linear-to-r from-primary to-accent opacity-90 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="relative flex items-center justify-center gap-3 py-4 px-6 text-white font-bold text-lg tracking-wide shadow-2xl transition-transform active:scale-[0.98]">
+                  <div className="relative flex items-center justify-center gap-3 py-4 px-6 text-white font-bold text-lg tracking-wide shadow-2xl transition-transform active:scale-[0.98] cursor-pointer">
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-6 w-6 animate-spin" /> Procesando...
