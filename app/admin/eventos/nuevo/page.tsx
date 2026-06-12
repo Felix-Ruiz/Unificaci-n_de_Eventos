@@ -25,7 +25,7 @@ import {
   Mail,
   ChevronDown,
   Lock,
-  MonitorSmartphone,
+  Smartphone,
   ThumbsUp
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -45,7 +45,43 @@ interface FormField {
   _ui_showLogic?: boolean;
 }
 
-export default function NuevoEventopage() {
+// =====================================================================
+// COMPONENTE EXTRAÍDO PARA EVITAR PÉRDIDA DE FOCO (RE-RENDER BUG FIX)
+// =====================================================================
+const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
+  return (
+    <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
+      <button 
+        type="button"
+        onClick={() => onToggle(id)}
+        className="w-full flex items-center justify-between p-5 md:p-6 bg-gray-50 dark:bg-transparent hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer text-left focus:outline-none"
+      >
+        <div className="flex items-center gap-3">
+          <Icon className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
+        </div>
+        <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div 
+            initial={{ height: 0 }} 
+            animate={{ height: 'auto' }} 
+            exit={{ height: 0 }} 
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="p-5 md:p-6 pt-0 border-t border-gray-200 dark:border-white/5 mt-4 space-y-6">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default function NuevoEventoPage() {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
@@ -317,40 +353,6 @@ export default function NuevoEventopage() {
     }
   };
 
-  const AccordionSection = ({ id, icon: Icon, title, children }: any) => {
-    const isOpen = openSection === id;
-    return (
-      <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
-        <button 
-          type="button"
-          onClick={() => toggleSection(id)}
-          className="w-full flex items-center justify-between p-5 md:p-6 bg-gray-50 dark:bg-transparent hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer text-left focus:outline-none"
-        >
-          <div className="flex items-center gap-3">
-            <Icon className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
-          </div>
-          <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
-        </button>
-        <AnimatePresence initial={false}>
-          {isOpen && (
-            <motion.div 
-              initial={{ height: 0 }} 
-              animate={{ height: 'auto' }} 
-              exit={{ height: 0 }} 
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="overflow-hidden"
-            >
-              <div className="p-5 md:p-6 pt-0 border-t border-gray-200 dark:border-white/5 mt-4 space-y-6">
-                {children}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative pb-20">
       
@@ -416,7 +418,7 @@ export default function NuevoEventopage() {
         {/* COLUMNA IZQUIERDA: ACORDEÓN DE FUNCIONALIDADES */}
         <div className="lg:col-span-4 space-y-4">
           
-          <AccordionSection id="detalles" icon={Settings} title="Detalles y Diseño Base">
+          <AccordionSection id="detalles" icon={Settings} title="Detalles y Diseño Base" isOpen={openSection === 'detalles'} onToggle={toggleSection}>
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">Nombre del Evento</label>
               <input 
@@ -541,7 +543,7 @@ export default function NuevoEventopage() {
             </div>
           </AccordionSection>
 
-          <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones">
+          <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones" isOpen={openSection === 'seguridad'} onToggle={toggleSection}>
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
                 <Lock className="h-4 w-4"/> Restringir con Contraseña (Opcional)
@@ -559,7 +561,7 @@ export default function NuevoEventopage() {
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div className="flex-1 pr-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                    <MonitorSmartphone className="h-4 w-4 text-primary"/> Una Respuesta por Equipo
+                    <Smartphone className="h-4 w-4 text-primary"/> Una Respuesta por Equipo
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Bloquea respuestas múltiples del mismo dispositivo o IP.</p>
               </div>
@@ -580,7 +582,7 @@ export default function NuevoEventopage() {
 
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'></path><circle cx='9' cy='7' r='4'></circle><path d='M22 21v-2a4 4 0 0 0-3-3.87'></path><path d='M16 3.13a4 4 0 0 1 0 7.75'></path></svg>" className="h-4 w-4 invert dark:invert-0" alt="capacity" /> Aforo Máximo (Capacidad)
+                <Users className="h-4 w-4"/> Aforo Máximo (Capacidad)
               </label>
               <input 
                 type="number" 
@@ -604,7 +606,7 @@ export default function NuevoEventopage() {
             </div>
           </AccordionSection>
 
-          <AccordionSection id="comunicaciones" icon={Mail} title="Comunicaciones y Mensajes">
+          <AccordionSection id="comunicaciones" icon={Mail} title="Comunicaciones y Mensajes" isOpen={openSection === 'comunicaciones'} onToggle={toggleSection}>
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div>
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white">Enviar Ticket por Correo</h3>
@@ -690,7 +692,7 @@ export default function NuevoEventopage() {
             </div>
           </AccordionSection>
 
-          <AccordionSection id="legal" icon={ShieldCheck} title="Políticas Legal e Identidad">
+          <AccordionSection id="legal" icon={ShieldCheck} title="Políticas Legal e Identidad" isOpen={openSection === 'legal'} onToggle={toggleSection}>
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div>
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white">Casilla Habeas Data</h3>
