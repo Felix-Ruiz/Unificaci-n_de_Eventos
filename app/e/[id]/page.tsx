@@ -51,6 +51,7 @@ export default function FormularioPublico() {
   const [userFound, setUserFound] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [clientIp, setClientIp] = useState('');
 
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
 
@@ -111,9 +112,26 @@ export default function FormularioPublico() {
         
         setEvent(eventData);
 
-        if (eventData.one_per_device && !isKiosk) {
-          const storedCheck = localStorage.getItem(`acofi_reg_${eventData.id}`);
-          if (storedCheck) {
+        // OBTENCIÓN DE IP PÚBLICA Y VALIDACIÓN ANTIBYPASS (INCÓGNITO SEGURO)
+        let detectedIp = '';
+        try {
+          const ipResponse = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipResponse.json();
+          detectedIp = ipData.ip;
+          setClientIp(detectedIp);
+        } catch (ipErr) {
+          console.error("Error resolviendo IP pública del cliente:", ipErr);
+        }
+
+        if (eventData.one_per_device && !isKiosk && detectedIp) {
+          const { data: ipCheck } = await supabase
+            .from('registrations')
+            .select('id')
+            .eq('event_id', eventData.id)
+            .eq('ip_address', detectedIp)
+            .limit(1);
+
+          if (ipCheck && ipCheck.length > 0) {
             setStatus('locked_device');
             setLoadingInit(false);
             return;
@@ -336,7 +354,8 @@ export default function FormularioPublico() {
         .insert([{ 
           event_id: event.id,
           historic_user_doc: documento, 
-          form_data: finalFormData 
+          form_data: finalFormData,
+          ip_address: clientIp || null // Guardamos la IP real en la base de datos
         }]);
 
       if (email && event.send_notifications) {
@@ -356,8 +375,13 @@ export default function FormularioPublico() {
         }
       }
 
-      if (event.one_per_device && !isKiosk) {
-        localStorage.setItem(`acofi_reg_${event.id}`, 'true');
+      // REDIRECCIÓN AUTOMÁTICA INSTANTÁNEA (Punto 3 solucionado)
+      if (event.thank_you_enabled && event.thank_you_url && !isKiosk) {
+        showToast('Inscripción Exitosa', 'Redirigiendo automáticamente al sitio oficial...', 'success');
+        setTimeout(() => {
+          window.location.href = event.thank_you_url;
+        }, 1200);
+        return;
       }
 
       setSuccess(true);
@@ -389,6 +413,7 @@ export default function FormularioPublico() {
     );
   }
 
+  // VISTA INTERFICIAL DE PROTECCIÓN CON CONTRASEÑA
   if (isLockedByPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4 relative" style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}>
@@ -423,7 +448,7 @@ export default function FormularioPublico() {
       paused: { icon: Lock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', title: 'Inscripciones Pausadas', desc: 'El registro se encuentra cerrado temporalmente.' },
       full: { icon: Users, color: 'text-red-500', bg: 'bg-red-500/10', title: 'Aforo Completo', desc: 'Lo sentimos, hemos alcanzado el límite máximo de asistentes permitidos.' },
       expired: { icon: Clock, color: 'text-gray-400 dark:text-gray-500', bg: 'bg-gray-200 dark:bg-white/5', title: 'Registro Cerrado', desc: 'La fecha límite de inscripción para este evento ha finalizado.' },
-      locked_device: { icon: Smartphone, color: 'text-blue-500', bg: 'bg-blue-500/10', title: 'Inscripción Ya Realizada', desc: 'Tu dispositivo o dirección de red ya cuenta con un registro en este evento. No se permiten registros duplicados.' }
+      locked_device: { icon: Smartphone, color: 'text-blue-500', bg: 'bg-blue-500/10', title: 'Inscripción Ya Realizada', desc: 'Esta dirección de red ya cuenta con un registro en este evento. No se permiten registros múltiples desde el mismo equipo.' }
     };
     
     const m = messages[status];
@@ -459,13 +484,9 @@ export default function FormularioPublico() {
               <CheckCircle2 className="h-20 w-20 text-green-500 dark:text-green-400 mx-auto mb-4 relative z-10" />
               <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">¡Inscripción Exitosa!</h2>
               
-              {event.thank_you_enabled && event.thank_you_text ? (
+              {event.thank_you_enabled && event.thank_you_text && (
                  <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
                     {event.thank_you_text}
-                 </p>
-              ) : (
-                 <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
-                    Tu registro para <span className="text-gray-900 dark:text-white font-medium">{event.name}</span> ha sido confirmado.
                  </p>
               )}
               
@@ -473,12 +494,6 @@ export default function FormularioPublico() {
                 <p className="text-primary text-sm font-bold animate-pulse">
                   Preparando para el siguiente asistente...
                 </p>
-              ) : event.thank_you_enabled && event.thank_you_url ? (
-                <a href={event.thank_you_url} target="_blank" rel="noopener noreferrer" className="w-full block">
-                  <button className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-4d-static transition-transform active:translate-y-1 cursor-pointer">
-                    Continuar <ExternalLink className="h-4 w-4"/>
-                  </button>
-                </a>
               ) : !event.one_per_device ? (
                 <button 
                   onClick={() => window.location.reload()} 
@@ -530,7 +545,7 @@ export default function FormularioPublico() {
         </AnimatePresence>
       </div>
 
-      {/* MODAL INMERSIVO DE TRATAMIENTO DE DATOS */}
+      {/* MODAL INMERSIVO DE TRATAMIENTO DE DATOS (Punto 1 solucionado) */}
       <AnimatePresence>
         {showHabeasModal && (
           <motion.div 
@@ -920,7 +935,7 @@ export default function FormularioPublico() {
                       checked={acceptHabeas} 
                       onChange={(e) => setAcceptHabeas(e.target.checked)} 
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                     />
                   </div>
                   <div>

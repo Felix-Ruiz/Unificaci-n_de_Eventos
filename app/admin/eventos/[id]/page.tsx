@@ -22,7 +22,8 @@ import {
   MonitorPlay,
   X,
   AlertCircle,
-  Info
+  Info,
+  Settings
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -650,6 +651,13 @@ export default function EventoDetalleAdmin() {
                         Gafetes
                       </button>
                     </Link>
+
+                    <Link href={`/admin/eventos/${eventId}/editar`}>
+                        <button className="bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer">
+                            <Settings className="h-4 w-4 text-gray-400" /> Editar Evento
+                        </button>
+                        </Link>
+                    
                     
                     {/* BOTÓN CON LA NUEVA LÓGICA DE EXPORTACIÓN */}
                     <button 
