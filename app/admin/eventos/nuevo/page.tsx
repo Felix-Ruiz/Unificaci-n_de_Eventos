@@ -26,7 +26,8 @@ import {
   ChevronDown,
   Lock,
   Smartphone,
-  ThumbsUp
+  ThumbsUp,
+  Bot
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -45,9 +46,6 @@ interface FormField {
   _ui_showLogic?: boolean;
 }
 
-// =====================================================================
-// COMPONENTE EXTRAÍDO PARA EVITAR PÉRDIDA DE FOCO (RE-RENDER BUG FIX)
-// =====================================================================
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
   return (
     <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
@@ -91,36 +89,31 @@ export default function NuevoEventoPage() {
     setTimeout(() => setToast(null), 5000);
   };
   
-  // ESTADO DEL ACORDEÓN
   const [openSection, setOpenSection] = useState<string>('detalles');
 
-  // ESTADOS PRINCIPALES
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [eventSlug, setEventSlug] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#4f46e5');
   const [accentColor, setAccentColor] = useState('#0ea5e9');
   
-  // ESTADOS MULTIMEDIA
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
-  // ESTADOS DE RESTRICCIÓN Y ACCESO
   const [maxCapacity, setMaxCapacity] = useState('');
   const [closeDate, setCloseDate] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [onePerDevice, setOnePerDevice] = useState(false);
+  const [turnstileEnabled, setTurnstileEnabled] = useState(true); // NUEVO: Switch Anti-Bots
 
-  // ESTADOS DE COMUNICACIONES Y POST-REGISTRO
   const [sendNotifications, setSendNotifications] = useState(true);
   const [sendFeedbackSurvey, setSendFeedbackSurvey] = useState(false);
   const [thankYouEnabled, setThankYouEnabled] = useState(false);
   const [thankYouText, setThankYouText] = useState('');
   const [thankYouUrl, setThankYouUrl] = useState('');
 
-  // ESTADOS LEGALES
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
@@ -320,7 +313,8 @@ export default function NuevoEventoPage() {
           one_per_device: onePerDevice,
           thank_you_enabled: thankYouEnabled,
           thank_you_text: thankYouText || null,
-          thank_you_url: thankYouUrl || null
+          thank_you_url: thankYouUrl || null,
+          turnstile_enabled: turnstileEnabled
         }])
         .select()
         .single();
@@ -544,7 +538,31 @@ export default function NuevoEventoPage() {
           </AccordionSection>
 
           <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones" isOpen={openSection === 'seguridad'} onToggle={toggleSection}>
-            <div className="space-y-1.5">
+            
+            {/* NUEVO TOGGLE: CLOUDFLARE TURNSTILE (KILL SWITCH) */}
+            <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+              <div className="flex-1 pr-2">
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                    <Bot className="h-4 w-4 text-purple-500"/> Protección Anti-Bots
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Verifica y detiene ataques automatizados con Cloudflare Turnstile.</p>
+              </div>
+              <button 
+                type="button" 
+                role="switch"
+                aria-checked={turnstileEnabled}
+                onClick={() => setTurnstileEnabled(!turnstileEnabled)} 
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  turnstileEnabled ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-700'
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                  turnstileEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-white/5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
                 <Lock className="h-4 w-4"/> Restringir con Contraseña (Opcional)
               </label>
@@ -704,7 +722,7 @@ export default function NuevoEventoPage() {
                 aria-checked={requireHabeasData}
                 onClick={() => setRequireHabeasData(!requireHabeasData)} 
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  requireHabeasData ? 'bg-green-500' : 'bg-gray-700'
+                  requireHabeasData ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'
                 }`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${

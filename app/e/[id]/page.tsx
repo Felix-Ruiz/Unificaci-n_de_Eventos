@@ -17,7 +17,7 @@ import {
   X,
   FileText,
   ExternalLink,
-  MonitorSmartphone
+  Smartphone
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
@@ -62,7 +62,7 @@ export default function FormularioPublico() {
   const isKiosk = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === 'true';
 
   useEffect(() => {
-    if (!loadingInit && status === 'open' && !isLockedByPassword && !isKiosk && turnstileRef.current) {
+    if (!loadingInit && status === 'open' && !isLockedByPassword && !isKiosk && event?.turnstile_enabled && turnstileRef.current) {
       const renderTurnstile = () => {
         if ((window as any).turnstile) {
           try {
@@ -88,7 +88,7 @@ export default function FormularioPublico() {
         renderTurnstile();
       }
     }
-  }, [loadingInit, status, isLockedByPassword, isKiosk]);
+  }, [loadingInit, status, isLockedByPassword, isKiosk, event]);
 
   useEffect(() => {
     if (!eventIdOrSlug) return;
@@ -96,7 +96,6 @@ export default function FormularioPublico() {
     async function loadEvent() {
       try {
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventIdOrSlug);
-        
         let query = supabase.from('events').select('*');
         if (isUUID) {
           query = query.eq('id', eventIdOrSlug);
@@ -112,7 +111,6 @@ export default function FormularioPublico() {
         
         setEvent(eventData);
 
-        // Validar restricción por dispositivo
         if (eventData.one_per_device && !isKiosk) {
           const storedCheck = localStorage.getItem(`acofi_reg_${eventData.id}`);
           if (storedCheck) {
@@ -122,7 +120,6 @@ export default function FormularioPublico() {
           }
         }
 
-        // Validar protección por Contraseña
         if (eventData.form_password) {
           setIsLockedByPassword(true);
         }
@@ -153,7 +150,9 @@ export default function FormularioPublico() {
         
       } catch (error) {
         setEvent(null);
-      } opacity: 0; setLoadingInit(false);
+      } finally {
+        setLoadingInit(false);
+      }
     }
     
     loadEvent();
@@ -270,7 +269,7 @@ export default function FormularioPublico() {
       return; 
     }
 
-    if (!turnstileToken && !isKiosk) {
+    if (event?.turnstile_enabled && !turnstileToken && !isKiosk) {
       showToast('Verificación Requerida', 'Por favor, marca la casilla de seguridad Cloudflare (No soy un robot) antes de continuar.', 'error');
       return;
     }
@@ -367,7 +366,7 @@ export default function FormularioPublico() {
       showToast('Error del Servidor', 'Ocurrió un problema al enviar tu registro. Intenta nuevamente.', 'error');
     } finally { 
       setIsSubmitting(false); 
-      if ((window as any).turnstile && turnstileRef.current) {
+      if (event?.turnstile_enabled && (window as any).turnstile && turnstileRef.current) {
         (window as any).turnstile.reset(turnstileRef.current);
         setTurnstileToken('');
       }
@@ -390,7 +389,6 @@ export default function FormularioPublico() {
     );
   }
 
-  // VISTA INTERFICIAL DE PROTECCIÓN CON CONTRASEÑA
   if (isLockedByPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4 relative" style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}>
@@ -425,7 +423,7 @@ export default function FormularioPublico() {
       paused: { icon: Lock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', title: 'Inscripciones Pausadas', desc: 'El registro se encuentra cerrado temporalmente.' },
       full: { icon: Users, color: 'text-red-500', bg: 'bg-red-500/10', title: 'Aforo Completo', desc: 'Lo sentimos, hemos alcanzado el límite máximo de asistentes permitidos.' },
       expired: { icon: Clock, color: 'text-gray-400 dark:text-gray-500', bg: 'bg-gray-200 dark:bg-white/5', title: 'Registro Cerrado', desc: 'La fecha límite de inscripción para este evento ha finalizado.' },
-      locked_device: { icon: MonitorSmartphone, color: 'text-blue-500', bg: 'bg-blue-500/10', title: 'Inscripción Ya Realizada', desc: 'Tu dispositivo o dirección de red ya cuenta con un registro en este evento. No se permiten registros duplicados.' }
+      locked_device: { icon: Smartphone, color: 'text-blue-500', bg: 'bg-blue-500/10', title: 'Inscripción Ya Realizada', desc: 'Tu dispositivo o dirección de red ya cuenta con un registro en este evento. No se permiten registros duplicados.' }
     };
     
     const m = messages[status];
@@ -510,9 +508,9 @@ export default function FormularioPublico() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
-                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
-                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
+                toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-900' : 
+                toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-900' : 
+                'bg-blue-50 border-blue-200 text-blue-900'
               }`}
             >
               {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
@@ -922,7 +920,7 @@ export default function FormularioPublico() {
                       checked={acceptHabeas} 
                       onChange={(e) => setAcceptHabeas(e.target.checked)} 
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                     />
                   </div>
                   <div>
@@ -945,7 +943,7 @@ export default function FormularioPublico() {
               )}
 
               {/* CLOUDFLARE TURNSTILE */}
-              {!isKiosk && (
+              {!isKiosk && event?.turnstile_enabled && (
                 <div className="flex flex-col items-center justify-center mt-6 pt-4 border-t border-gray-200 dark:border-white/5">
                   <p className="text-xs text-gray-500 mb-3 font-bold uppercase tracking-widest flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4" /> Verificación de Seguridad
