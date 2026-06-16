@@ -44,6 +44,7 @@ interface FormField {
   isDefault: boolean;
   logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
   _ui_showLogic?: boolean;
+  allowOther?: boolean; // NUEVO: Controlar si se permite la opción "Otra"
 }
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
@@ -99,8 +100,7 @@ export default function NuevoEventoPage() {
   const [accentColor, setAccentColor] = useState('#0ea5e9');
   const [bgColor, setBgColor] = useState('#09090b');
   
-  // CAMPO DINÁMICO PARA EL CORREO DEL CREADOR/COORDINADOR
-  const [creatorEmail, setCreatorEmail] = useState('');
+  const [creatorEmail, setCreatorEmail] = useState<string | null>(null);
 
   useEffect(() => {
     async function getCreator() {
@@ -135,15 +135,21 @@ export default function NuevoEventoPage() {
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
+  // NUEVA ESTRUCTURA DE CAMPOS POR DEFECTO
   const [fields, setFields] = useState<FormField[]>([
-    { id: 'f-tipo-doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'], isDefault: true },
-    { id: 'f-doc', label: 'Documento de Identidad', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-tipo-doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'], isDefault: true, allowOther: false },
+    { id: 'f-doc', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-nom', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-ape', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true },
     { id: 'f-email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true },
-    { id: 'f-nom', label: 'Nombre Completo', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-inst', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true },
-    { id: 'f-cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true },
-    { id: 'f-pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true },
-    { id: 'f-ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true },
+    { id: 'f-email-conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true },
+    { id: 'f-tel', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-gen', label: 'Género', type: 'select', isRequired: true, options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'], isDefault: true, allowOther: false },
+    { id: 'f-dir', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-inst', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,7 +200,8 @@ export default function NuevoEventoPage() {
       options: [],
       isDefault: false,
       logic: null,
-      _ui_showLogic: false
+      _ui_showLogic: false,
+      allowOther: true
     };
     setFields([...fields, newField]);
   };
@@ -234,11 +241,8 @@ export default function NuevoEventoPage() {
 
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
-        
-        if (!uniqueOptions.includes('Otra')) {
-          uniqueOptions.push('Otra');
-        }
 
+        // Removemos el push automático de 'Otra' para respetar el switch.
         updateField(id, 'options', uniqueOptions);
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde el archivo Excel.`, 'success');
       } catch (error) {
@@ -256,9 +260,8 @@ export default function NuevoEventoPage() {
       if (val) {
         const field = fields.find(f => f.id === id);
         if (field && !field.options.includes(val)) {
-          let newOptions = field.options.filter(o => o !== 'Otra');
-          newOptions.push(val);
-          newOptions.push('Otra');
+          // Ya no inyectamos "Otra" a la fuerza
+          const newOptions = [...field.options, val];
           updateField(id, 'options', newOptions);
         }
         e.currentTarget.value = '';
@@ -272,6 +275,14 @@ export default function NuevoEventoPage() {
     setIsSaving(true);
 
     try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user?.email) {
+        throw new Error("No se pudo identificar al usuario creador. Por favor, recarga la página o vuelve a ingresar.");
+      }
+      
+      const finalCreatorEmail = user.email;
+
       if (eventSlug) {
         const { data: existingSlug } = await supabase
           .from('events')
@@ -334,7 +345,7 @@ export default function NuevoEventoPage() {
           thank_you_text: thankYouText || null,
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
-          creator_email: creatorEmail.trim() || null // AQUÍ GUARDAMOS LO QUE HAYA EN EL INPUT
+          creator_email: finalCreatorEmail
         }])
         .select()
         .single();
@@ -347,7 +358,8 @@ export default function NuevoEventoPage() {
         field_type: f.type,
         is_required: f.isRequired,
         is_default: f.isDefault,
-        options: JSON.stringify({ choices: f.options, logic: f.logic || null }),
+        // Al guardar, incluimos el flag de allowOther
+        options: JSON.stringify({ choices: f.options, logic: f.logic || null, allowOther: f.allowOther ?? true }),
         order_index: index
       }));
 
@@ -681,30 +693,6 @@ export default function NuevoEventoPage() {
               </button>
             </div>
 
-            {/* CAMPO DINÁMICO PARA EL CORREO DEL COORDINADOR */}
-            <AnimatePresence>
-              {sendNotifications && (
-                <motion.div 
-                  initial={{ height: 0, opacity: 0 }} 
-                  animate={{ height: 'auto', opacity: 1 }} 
-                  exit={{ height: 0, opacity: 0 }} 
-                  className="space-y-1.5 pt-4 border-t border-gray-200 dark:border-white/5 overflow-hidden"
-                >
-                  <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
-                  </label>
-                  <input 
-                    type="email" 
-                    value={creatorEmail} 
-                    onChange={(e) => setCreatorEmail(e.target.value)} 
-                    placeholder="Ej. coordinador@universidad.edu.co" 
-                    className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
-                  />
-                  <p className="text-[10px] text-gray-500">A este correo llegarán las alertas cuando alguien se inscriba al evento.</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-white/5">
               <div className="flex items-center justify-between">
                 <div className="flex-1 pr-2">
@@ -904,6 +892,22 @@ export default function NuevoEventoPage() {
                         </div>
 
                       </div>
+
+                      {/* NUEVO TOGGLE: Permitir opción OTRA (Punto 2) */}
+                      {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
+                        <div className="flex items-center gap-3 mt-3 ml-1">
+                          <span className="text-xs text-gray-500 font-bold">Permitir opción "Otra"</span>
+                          <button 
+                            type="button" 
+                            role="switch"
+                            aria-checked={field.allowOther ?? true}
+                            onClick={() => updateField(field.id, 'allowOther', !(field.allowOther ?? true))} 
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.allowOther ?? true ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-700'}`}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${field.allowOther ?? true ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      )}
 
                       {field._ui_showLogic && (
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 bg-primary/5 -mx-5 px-5 pb-2 rounded-b-xl overflow-hidden">

@@ -104,7 +104,7 @@ export default function DashboardPage() {
                 <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
                 <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
               </div>
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white"><X className="h-4 w-4" /></button>
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-4 w-4" /></button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -131,10 +131,10 @@ export default function DashboardPage() {
                   : `¿Deseas crear una copia idéntica de "${confirmModal.event.name}" incluyendo todas sus preguntas y configuraciones?`}
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium">Cancelar</button>
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
                 <button 
                   onClick={executeAction} 
-                  className={`px-5 py-2.5 rounded-lg text-white font-bold transition-transform active:scale-95 shadow-4d-static ${
+                  className={`px-5 py-2.5 rounded-lg text-white font-bold transition-transform active:scale-95 shadow-4d-static cursor-pointer ${
                     confirmModal.type === 'archive' ? 'bg-red-500 hover:bg-red-600' : 'bg-accent hover:bg-accent/90 text-black'
                   }`}
                 >
@@ -152,7 +152,7 @@ export default function DashboardPage() {
           <p className="text-gray-400">Resumen general de eventos y registros históricos.</p>
         </div>
         <Link href="/admin/eventos/nuevo">
-          <button className="bg-accent text-black font-bold py-3 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 hover:bg-accent/90">
+          <button className="bg-accent text-black font-bold py-3 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 hover:bg-accent/90 cursor-pointer">
             <Calendar className="h-5 w-5" /> 
             Nuevo Evento
           </button>
@@ -215,7 +215,12 @@ export default function DashboardPage() {
                     )}
                     <div>
                       <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-bold text-white">{evento.name}</h3>
+                        {/* ENLACE DIRECTO EN EL NOMBRE DEL EVENTO (PUNTO 7) */}
+                        <Link href={`/admin/eventos/${evento.id}`}>
+                          <h3 className="text-lg font-bold text-white hover:text-primary transition-colors cursor-pointer">
+                            {evento.name}
+                          </h3>
+                        </Link>
                         {!evento.is_active && (
                           <span className="bg-yellow-500/10 text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
                             <PauseCircle className="h-3 w-3" /> PAUSADO
@@ -228,25 +233,25 @@ export default function DashboardPage() {
                   
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
-                      <button className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10">
+                      <button className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10 cursor-pointer">
                         <ExternalLink className="h-4 w-4" /> Público
                       </button>
                     </Link>
                     <Link href={`/admin/eventos/${evento.id}`}>
-                      <button className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-colors text-sm font-medium border border-primary/20">
+                      <button className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-colors text-sm font-medium border border-primary/20 cursor-pointer">
                         <QrCode className="h-4 w-4" /> Gestionar
                       </button>
                     </Link>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'duplicate', event: evento })} 
-                      className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20" 
+                      className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
                       title="Duplicar Evento"
                     >
                       <CopyPlus className="h-4 w-4" />
                     </button>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'archive', event: evento })} 
-                      className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20" 
+                      className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20 cursor-pointer" 
                       title="Mover a la papelera"
                     >
                       <Trash2 className="h-4 w-4" />

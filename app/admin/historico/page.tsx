@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Edit, FileSpreadsheet, Loader2, X, Trash2, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { 
+  Search, Edit, FileSpreadsheet, Loader2, X, Trash2, 
+  ChevronLeft, ChevronRight, ChevronFirst, ChevronLast, 
+  AlertCircle, CheckCircle2, Info, Download, Trash 
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
 
@@ -37,7 +41,9 @@ export default function HistoricoPage() {
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
   // ==========================================
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id: string } | null>(null);
+  
+  // Modificamos el estado del modal para soportar tanto eliminación individual como masiva (vaciar)
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id?: string; type: 'single' | 'deleteAll' } | null>(null);
 
   const showToast = (title: string, desc: string, type: 'error' | 'info' | 'success' = 'info') => {
     setToast({ title, desc, type });
@@ -48,7 +54,7 @@ export default function HistoricoPage() {
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       fetchUsers();
-    }, 400); // Pequeño retraso para no saturar la base de datos mientras escribes en el buscador
+    }, 400);
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, currentPage, itemsPerPage]);
@@ -79,6 +85,30 @@ export default function HistoricoPage() {
       if (count !== null) setTotalUsers(count);
     }
     setLoading(false);
+  };
+
+  // ==========================================
+  // DESCARGAR EXCEL DE TODOS LOS HISTÓRICOS (Punto 5)
+  // ==========================================
+  const handleDownloadAll = async () => {
+    showToast('Preparando Archivo', 'Recopilando la base de datos completa. Por favor espera...', 'info');
+    try {
+      const { data, error } = await supabase.from('historic_users').select('*');
+      if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        return showToast('Base Vacía', 'No hay registros en el histórico para descargar.', 'error');
+      }
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Histórico Completo");
+      XLSX.writeFile(wb, `ACOFI_Historico_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      showToast('Éxito', 'El archivo Excel ha sido descargado.', 'success');
+    } catch (error: any) {
+      showToast('Error de Descarga', 'No se pudo generar el archivo Excel.', 'error');
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,26 +214,49 @@ export default function HistoricoPage() {
   };
 
   const handleDeleteClick = (documento_identidad: string) => {
-    setConfirmModal({ isOpen: true, id: documento_identidad });
+    setConfirmModal({ isOpen: true, id: documento_identidad, type: 'single' });
   };
 
-  const confirmDelete = async () => {
+  const handleDeleteAllClick = () => {
+    setConfirmModal({ isOpen: true, type: 'deleteAll' });
+  };
+
+  const confirmAction = async () => {
     if (!confirmModal) return;
 
-    try {
-      const { error } = await supabase
-        .from('historic_users')
-        .delete()
-        .eq('documento_identidad', confirmModal.id);
+    if (confirmModal.type === 'single') {
+      try {
+        const { error } = await supabase
+          .from('historic_users')
+          .delete()
+          .eq('documento_identidad', confirmModal.id);
 
-      if (error) throw error;
-      showToast('Usuario Eliminado', 'El registro fue borrado de la base histórica.', 'success');
-      await fetchUsers();
-    } catch (error) {
-      showToast('Error al Eliminar', 'Hubo un error al intentar eliminar el usuario.', 'error');
-    } finally {
-      setConfirmModal(null);
+        if (error) throw error;
+        showToast('Usuario Eliminado', 'El registro fue borrado de la base histórica.', 'success');
+        await fetchUsers();
+      } catch (error) {
+        showToast('Error al Eliminar', 'Hubo un error al intentar eliminar el usuario.', 'error');
+      }
+    } else if (confirmModal.type === 'deleteAll') {
+      try {
+        // En Supabase, para vaciar una tabla de forma masiva sin WHERE (que a veces requiere privilegios especiales)
+        // se suele borrar donde el ID es "no nulo" o usar una función RPC. 
+        // Esta es la sintaxis segura para borrar todas las filas:
+        const { error } = await supabase
+          .from('historic_users')
+          .delete()
+          .neq('documento_identidad', 'vacío-inexistente'); // Filtro dummy que atrapa a todos
+
+        if (error) throw error;
+        showToast('Base Vaciada', 'Todos los registros históricos han sido eliminados permanentemente.', 'success');
+        setCurrentPage(1);
+        await fetchUsers();
+      } catch (error) {
+        showToast('Error', 'No se pudo vaciar la base de datos.', 'error');
+      }
     }
+    
+    setConfirmModal(null);
   };
 
   // Cálculos para paginación
@@ -245,7 +298,7 @@ export default function HistoricoPage() {
         </AnimatePresence>
       </div>
 
-      {/* MODAL 4D DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      {/* MODAL 4D DE CONFIRMACIÓN (Dual: Eliminar 1 o Vaciar Todo) */}
       <AnimatePresence>
         {confirmModal && (
           <motion.div 
@@ -257,17 +310,21 @@ export default function HistoricoPage() {
               className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-              <h2 className="text-2xl font-bold text-white mb-3">Eliminar Registro</h2>
+              <h2 className="text-2xl font-bold text-white mb-3">
+                {confirmModal.type === 'deleteAll' ? 'Vaciar Base Histórica' : 'Eliminar Registro'}
+              </h2>
               <p className="text-gray-300 mb-8">
-                ¿Estás seguro de que deseas eliminar a este usuario histórico? Esta acción es irreversible.
+                {confirmModal.type === 'deleteAll' 
+                  ? '¿Estás completamente seguro de ELIMINAR TODOS los registros del histórico? Esta acción es destructiva y no se puede deshacer.' 
+                  : '¿Estás seguro de que deseas eliminar a este usuario histórico? Esta acción es irreversible.'}
               </p>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
                 <button 
-                  onClick={confirmDelete} 
+                  onClick={confirmAction} 
                   className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
                 >
-                  Eliminar Usuario
+                  {confirmModal.type === 'deleteAll' ? 'Sí, Vaciar Base' : 'Eliminar Usuario'}
                 </button>
               </div>
             </motion.div>
@@ -275,28 +332,47 @@ export default function HistoricoPage() {
         )}
       </AnimatePresence>
 
-      <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
+      <header className="flex flex-col lg:flex-row justify-between lg:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Base Histórica de Usuarios</h1>
           <p className="text-gray-400">Gestiona y localiza a los participantes de eventos anteriores.</p>
         </div>
         
-        <div className="relative">
-          <input 
-            type="file" 
-            accept=".xlsx, .xls" 
-            onChange={handleFileUpload} 
-            className="hidden" 
-            id="excel-upload"
-            disabled={uploading}
-          />
-          <label 
-            htmlFor="excel-upload"
-            className={`bg-primary text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 transition-transform shadow-4d-static ${uploading ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:bg-primary/90 active:translate-y-1 active:shadow-none'}`}
+        <div className="flex flex-wrap items-center gap-3">
+          
+          <button 
+            onClick={handleDownloadAll}
+            className="bg-surface border border-white/10 text-white font-bold py-3 px-4 rounded-lg flex items-center gap-2 hover:bg-white/5 transition-colors cursor-pointer"
+            title="Descargar toda la base en Excel"
           >
-            {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5" />}
-            {uploading ? `Procesando... ${uploadProgress}%` : 'Cargar Histórico'}
-          </label>
+            <Download className="h-5 w-5 text-accent" /> Descargar BD
+          </button>
+          
+          <button 
+            onClick={handleDeleteAllClick}
+            className="bg-red-500/10 text-red-500 font-bold py-3 px-4 rounded-lg flex items-center gap-2 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+            title="Borrar todos los registros"
+          >
+            <Trash className="h-5 w-5" /> Vaciar Todo
+          </button>
+
+          <div className="relative">
+            <input 
+              type="file" 
+              accept=".xlsx, .xls" 
+              onChange={handleFileUpload} 
+              className="hidden" 
+              id="excel-upload"
+              disabled={uploading}
+            />
+            <label 
+              htmlFor="excel-upload"
+              className={`bg-primary text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 transition-transform shadow-4d-static ${uploading ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:bg-primary/90 active:translate-y-1 active:shadow-none'}`}
+            >
+              {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5" />}
+              {uploading ? `Procesando... ${uploadProgress}%` : 'Cargar Histórico'}
+            </label>
+          </div>
         </div>
       </header>
 
@@ -417,11 +493,21 @@ export default function HistoricoPage() {
           <p className="text-sm text-gray-400">
             Mostrando <span className="font-medium text-white">{users.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</span> a <span className="font-medium text-white">{Math.min(currentPage * itemsPerPage, totalUsers)}</span> de <span className="font-medium text-white">{totalUsers}</span> resultados
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
+            {/* Botón Principio (Punto 6) */}
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1 || loading}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white cursor-pointer"
+              title="Ir a la primera página"
+            >
+              <ChevronFirst className="h-5 w-5" />
+            </button>
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1 || loading}
               className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white cursor-pointer"
+              title="Anterior"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -429,8 +515,18 @@ export default function HistoricoPage() {
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages || loading}
               className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white cursor-pointer"
+              title="Siguiente"
             >
               <ChevronRight className="h-5 w-5" />
+            </button>
+            {/* Botón Final (Punto 6) */}
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage >= totalPages || loading}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white cursor-pointer"
+              title="Ir a la última página"
+            >
+              <ChevronLast className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -443,7 +539,7 @@ export default function HistoricoPage() {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+            className="fixed inset-0 z-1000 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}

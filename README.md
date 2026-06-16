@@ -40,18 +40,20 @@ Gemini al dar clic en el check de Política de Tratamiento de Datos Personales d
 
 
 
-Debemos corregir los colores de textos y botones cuando seleccionamos el color de tema blanco, porque muchos son dificiles de leer.
+Necesitamos:
 
+1. Agregar a las preguntas por defecto el Número de telefono, Genero, Dirección y otro campo de verificación de correo, para que escriban el correo dos veces y no haya errores, a parte tener validación de que lo que se esta escribiendo si es un correo. Recuerda que estos campos deben traer la información del historico. 
 
+2. Debemos poder quitar la opción de OTRA en las respuestas en caso de que o queramos que escriban una respuesta diferente a las que ya cargamos.
 
-Agreguemos una funcionalidad en el creador de eventos en la que podamos agregar una url o texto de agradecimiento con un toggle para activar o desactivar. Esto por si no queremos que a lo que un usuario termine un registro le muestre el mensaje de hacer nuevo registro si no un mensaje mas personalizado o que lo redirija a una url para que vea algo mas. 
+3. Poder editar los participantes de un evento, poder eliminarlos, todo. 
 
+4. Separar de la creación de evento y de los formularios el nombre del apellido, es decir que ya no quede como nombre completo si no Nombre y apellidos por separados. 
 
+5. El admin master o todos los usuarios tipo master deben poder descargar el archivo de participantes historicos, y poder borrar todos los historicos si queremos vaciar la lista.
 
-Bloquear ip , unica respuesta por equipo
+6. En el listado o vista de historico poder tener un boton al final de pagina para ir hasta la ultima pagina sin pasar una pagina por pagina.
 
-Modificar respuestas
+7. Poder hacer clic en el nombre de un evento y que nos redirija a Gestionar evento , que funcione como el boton gestionar evento. 
 
-Resultados instantaneos
-
-Formularios con contraseñas
+Recuerda que si en tu memoria te falta algun código para mejorar estas cosas , me lo pides y me entregas actualizado. Hay varios códigos que ya los tienes en memoria porque los acabamos de trabajar.

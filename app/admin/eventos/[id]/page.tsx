@@ -23,7 +23,9 @@ import {
   X,
   AlertCircle,
   Info,
-  Settings
+  Settings,
+  Pencil,
+  Save
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -41,6 +43,7 @@ export default function EventoDetalleAdmin() {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false); // Para no desmontar toda la vista al guardar/eliminar
   
   const [activeTab, setActiveTab] = useState<'lista' | 'analitica'>('lista');
   
@@ -55,10 +58,16 @@ export default function EventoDetalleAdmin() {
   const excelUploadRef = useRef<HTMLInputElement>(null);
 
   // ==========================================
-  // ESTADOS PARA EXPORTACIÓN INTELIGENTE (EXCEL)
+  // ESTADOS PARA EXPORTACIÓN INTELIGENTE
   // ==========================================
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+
+  // ==========================================
+  // ESTADOS PARA EDICIÓN Y ELIMINACIÓN DE PARTICIPANTES
+  // ==========================================
+  const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
+  const [deletingParticipant, setDeletingParticipant] = useState<any | null>(null);
 
   // ==========================================
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
@@ -111,11 +120,80 @@ export default function EventoDetalleAdmin() {
   }
 
   // ==========================================
+  // LÓGICA DE EDICIÓN Y ELIMINACIÓN DE PARTICIPANTES
+  // ==========================================
+  const handleEditFieldChange = (fieldId: string, value: string) => {
+    if (!editingParticipant) return;
+    setEditingParticipant({
+      ...editingParticipant,
+      form_data: {
+        ...editingParticipant.form_data,
+        [fieldId]: value
+      }
+    });
+  };
+
+  const saveParticipantEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingParticipant) return;
+    
+    setIsActionLoading(true);
+    try {
+      // Buscamos si el usuario cambió el número de documento para actualizar la llave principal
+      let docFieldId = fields.find(f => f.field_name.toLowerCase().includes('documento') && !f.field_name.toLowerCase().includes('tipo'))?.id;
+      let updatePayload: any = { form_data: editingParticipant.form_data };
+      
+      if (docFieldId && editingParticipant.form_data[docFieldId]) {
+        updatePayload.historic_user_doc = editingParticipant.form_data[docFieldId];
+      }
+
+      // Actualizamos la BD
+      const { error } = await supabase
+        .from('registrations')
+        .update(updatePayload)
+        .eq('id', editingParticipant.id);
+
+      if (error) throw error;
+
+      // Actualizamos el estado local sin recargar la página entera
+      setRegistrations(prev => prev.map(r => r.id === editingParticipant.id ? { ...r, ...updatePayload } : r));
+      
+      showToast('Actualizado', 'Los datos del participante fueron modificados correctamente.', 'success');
+      setEditingParticipant(null);
+    } catch (error: any) {
+      showToast('Error', 'No se pudo guardar la modificación del participante.', 'error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const confirmDeleteParticipant = async () => {
+    if (!deletingParticipant) return;
+    
+    setIsActionLoading(true);
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .delete()
+        .eq('id', deletingParticipant.id);
+
+      if (error) throw error;
+
+      setRegistrations(prev => prev.filter(r => r.id !== deletingParticipant.id));
+      showToast('Eliminado', 'El participante ha sido removido del evento.', 'success');
+      setDeletingParticipant(null);
+    } catch (error: any) {
+      showToast('Error', 'No se pudo eliminar al participante.', 'error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // ==========================================
   // FUNCIONES DE EXPORTACIÓN INTELIGENTE
   // ==========================================
   const openExportModal = () => {
     if (registrations.length === 0) return showToast('Reporte Vacío', 'No hay registros para exportar.', 'info');
-    // Por defecto, marcamos todas las columnas (los IDs de los campos + la fecha)
     const allColIds = ['fecha', ...fields.map(f => f.id)];
     setSelectedColumns(allColIds);
     setShowExportModal(true);
@@ -143,14 +221,12 @@ export default function EventoDetalleAdmin() {
     const excelData = registrations.map((reg: any) => {
       const row: any = {};
       
-      // Añadir los campos que el usuario seleccionó
       fields.forEach((f: any) => { 
         if (selectedColumns.includes(f.id)) {
           row[f.field_name] = reg.form_data[f.id] || '-'; 
         }
       });
 
-      // Añadir la fecha si fue seleccionada
       if (selectedColumns.includes('fecha')) {
         row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
       }
@@ -186,7 +262,7 @@ export default function EventoDetalleAdmin() {
         for (const row of data) {
           let doc = '';
           let form_data: Record<string, string> = {};
-          let nombre = '', apellido = '', email = '', institucion = '', cargo = '', pais = '', ciudad = '';
+          let nombre = '', apellido = '', email = '', institucion = '', cargo = '', pais = '', ciudad = '', tel = '', gen = '', dir = '';
 
           fields.forEach((f: any) => {
             const val = row[f.field_name] || '';
@@ -204,6 +280,9 @@ export default function EventoDetalleAdmin() {
             if (fn.includes('cargo')) cargo = String(val);
             if (fn.includes('país') || fn.includes('pais')) pais = String(val);
             if (fn.includes('ciudad')) ciudad = String(val);
+            if (fn.includes('teléfono') || fn.includes('telefono')) tel = String(val);
+            if (fn.includes('género') || fn.includes('genero')) gen = String(val);
+            if (fn.includes('dirección') || fn.includes('direccion')) dir = String(val);
           });
 
           if (!doc || doc === 'undefined') continue;
@@ -218,7 +297,10 @@ export default function EventoDetalleAdmin() {
               institucion, 
               cargo, 
               pais, 
-              ciudad
+              ciudad,
+              telefono: tel,
+              genero: gen,
+              direccion: dir
             }, { onConflict: 'documento_identidad' });
 
           const { error: regErr } = await supabase
@@ -375,6 +457,121 @@ export default function EventoDetalleAdmin() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* MODAL ELIMINAR PARTICIPANTE */}
+      <AnimatePresence>
+        {deletingParticipant && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              <h2 className="text-2xl font-bold text-white mb-3">Eliminar Participante</h2>
+              <p className="text-gray-300 mb-8 text-sm">
+                ¿Estás seguro de eliminar este registro? Esta acción borrará al participante del evento de forma permanente.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setDeletingParticipant(null)} disabled={isActionLoading} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50">Cancelar</button>
+                <button 
+                  onClick={confirmDeleteParticipant} 
+                  disabled={isActionLoading}
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>} 
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL EDITAR PARTICIPANTE */}
+      <AnimatePresence>
+        {editingParticipant && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-surface border border-white/10 rounded-3xl w-full max-w-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Pencil className="h-5 w-5 text-primary"/> Editar Participante
+                </h2>
+                <button 
+                  onClick={() => setEditingParticipant(null)} 
+                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5"
+                >
+                  <X className="h-6 w-6"/>
+                </button>
+              </div>
+              
+              <form onSubmit={saveParticipantEdit} className="flex flex-col flex-1 overflow-hidden">
+                <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
+                  {fields.map((f: any) => (
+                    <div key={f.id} className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{f.field_name}</label>
+                      {['select', 'radio'].includes(f.field_type) ? (
+                        <select 
+                          value={editingParticipant.form_data[f.id] || ''} 
+                          onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
+                        >
+                          <option value="">Seleccionar...</option>
+                          {f.options && JSON.parse(f.options).choices?.map((opt: string) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                          <option value="Otra">Otra</option>
+                        </select>
+                      ) : f.field_type === 'textarea' ? (
+                        <textarea 
+                          value={editingParticipant.form_data[f.id] || ''} 
+                          onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                          rows={3}
+                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary resize-none"
+                        />
+                      ) : (
+                        <input 
+                          type="text" 
+                          value={editingParticipant.form_data[f.id] || ''} 
+                          onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-6 border-t border-white/5 bg-surface flex justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setEditingParticipant(null)} 
+                    disabled={isActionLoading}
+                    className="px-6 py-3 rounded-xl text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isActionLoading}
+                    className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 disabled:opacity-50"
+                  >
+                    {isActionLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : <Save className="h-5 w-5"/>} 
+                    Guardar Cambios
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL 4D DE CONFIRMACIÓN DE ARCHIVO */}
       <AnimatePresence>
@@ -656,8 +853,7 @@ export default function EventoDetalleAdmin() {
                         <button className="bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer">
                             <Settings className="h-4 w-4 text-gray-400" /> Editar Evento
                         </button>
-                        </Link>
-                    
+                    </Link>
                     
                     {/* BOTÓN CON LA NUEVA LÓGICA DE EXPORTACIÓN */}
                     <button 
@@ -695,6 +891,7 @@ export default function EventoDetalleAdmin() {
                   <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
                     <thead className="bg-black/30 text-xs uppercase text-gray-500">
                       <tr>
+                        <th className="px-6 py-4 font-medium w-10 text-center">Acciones</th>
                         <th className="px-6 py-4 font-medium">Fecha</th>
                         {fields.map((f: any) => (
                           <th key={f.id} className="px-6 py-4 font-medium">
@@ -705,7 +902,25 @@ export default function EventoDetalleAdmin() {
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {currentItems.map((reg: any) => (
-                        <tr key={reg.id} className="hover:bg-white/5 transition-colors">
+                        <tr key={reg.id} className="hover:bg-white/5 transition-colors group">
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => setEditingParticipant(reg)}
+                                className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
+                                title="Editar Participante"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button 
+                                onClick={() => setDeletingParticipant(reg)}
+                                className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
+                                title="Eliminar Participante"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
                           <td className="px-6 py-4 text-xs text-gray-500">
                             {new Date(reg.created_at).toLocaleDateString()}
                           </td>
