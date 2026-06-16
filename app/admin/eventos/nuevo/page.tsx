@@ -99,8 +99,8 @@ export default function NuevoEventoPage() {
   const [accentColor, setAccentColor] = useState('#0ea5e9');
   const [bgColor, setBgColor] = useState('#09090b');
   
-  // CAPTURA BLINDADA DEL CORREO DEL CREADOR
-  const [creatorEmail, setCreatorEmail] = useState<string | null>(null);
+  // CAMPO DINÁMICO PARA EL CORREO DEL CREADOR/COORDINADOR
+  const [creatorEmail, setCreatorEmail] = useState('');
 
   useEffect(() => {
     async function getCreator() {
@@ -272,15 +272,6 @@ export default function NuevoEventoPage() {
     setIsSaving(true);
 
     try {
-      // 1. FORZAMOS LA OBTENCIÓN DEL USUARIO DE FORMA EXPLÍCITA Y SÍNCRONA
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user?.email) {
-        throw new Error("No se pudo identificar al usuario creador. Por favor, cierra sesión y vuelve a ingresar.");
-      }
-      
-      const finalCreatorEmail = user.email;
-
       if (eventSlug) {
         const { data: existingSlug } = await supabase
           .from('events')
@@ -320,7 +311,6 @@ export default function NuevoEventoPage() {
         }
       }
 
-      // 2. INSERTAMOS USANDO LA VARIABLE finalCreatorEmail QUE YA TIENE EL DATO
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .insert([{ 
@@ -344,7 +334,7 @@ export default function NuevoEventoPage() {
           thank_you_text: thankYouText || null,
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
-          creator_email: finalCreatorEmail // <--- AQUÍ ESTÁ EL DATO ASEGURADO
+          creator_email: creatorEmail.trim() || null // AQUÍ GUARDAMOS LO QUE HAYA EN EL INPUT
         }])
         .select()
         .single();
@@ -586,7 +576,6 @@ export default function NuevoEventoPage() {
 
           <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones" isOpen={openSection === 'seguridad'} onToggle={toggleSection}>
             
-            {/* TOGGLE: CLOUDFLARE TURNSTILE (KILL SWITCH) */}
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div className="flex-1 pr-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
@@ -691,6 +680,30 @@ export default function NuevoEventoPage() {
                 }`} />
               </button>
             </div>
+
+            {/* CAMPO DINÁMICO PARA EL CORREO DEL COORDINADOR */}
+            <AnimatePresence>
+              {sendNotifications && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }} 
+                  animate={{ height: 'auto', opacity: 1 }} 
+                  exit={{ height: 0, opacity: 0 }} 
+                  className="space-y-1.5 pt-4 border-t border-gray-200 dark:border-white/5 overflow-hidden"
+                >
+                  <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
+                  </label>
+                  <input 
+                    type="email" 
+                    value={creatorEmail} 
+                    onChange={(e) => setCreatorEmail(e.target.value)} 
+                    placeholder="Ej. coordinador@universidad.edu.co" 
+                    className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
+                  />
+                  <p className="text-[10px] text-gray-500">A este correo llegarán las alertas cuando alguien se inscriba al evento.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-white/5">
               <div className="flex items-center justify-between">
