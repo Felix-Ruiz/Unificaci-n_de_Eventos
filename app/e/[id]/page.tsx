@@ -336,6 +336,24 @@ export default function FormularioPublico() {
         if (fn.includes('ciudad')) ciudad = finalVal;
       });
 
+      // =========================================================
+      // MOTOR COMPLETO DE CONTROL DE DUPLICADOS (REGLA DE NEGOCIO)
+      // =========================================================
+      if (documento) {
+        const { data: existingReg, error: checkError } = await supabase
+          .from('registrations')
+          .select('id')
+          .eq('event_id', event.id)
+          .eq('historic_user_doc', documento)
+          .limit(1);
+
+        if (existingReg && existingReg.length > 0) {
+          showToast('Registro Duplicado', 'Ya existe una inscripción completada con este número de documento para este evento.', 'error');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       await supabase
         .from('historic_users')
         .upsert({ 
@@ -355,7 +373,7 @@ export default function FormularioPublico() {
           event_id: event.id,
           historic_user_doc: documento, 
           form_data: finalFormData,
-          ip_address: clientIp || null // Guardamos la IP real en la base de datos
+          ip_address: clientIp || null 
         }]);
 
       if (email && event.send_notifications) {
@@ -367,7 +385,8 @@ export default function FormularioPublico() {
               email: email,
               nombre: `${nombre} ${apellido}`.trim(),
               eventName: event.name,
-              documento: documento
+              documento: documento,
+              institucion: institucion
             })
           });
         } catch (emailErr) {
@@ -375,7 +394,11 @@ export default function FormularioPublico() {
         }
       }
 
-      // REDIRECCIÓN AUTOMÁTICA INSTANTÁNEA (Punto 3 solucionado)
+      if (event.one_per_device && !isKiosk) {
+        localStorage.setItem(`acofi_reg_${event.id}`, 'true');
+      }
+
+      // REDIRECCIÓN AUTOMÁTICA INSTANTÁNEA
       if (event.thank_you_enabled && event.thank_you_url && !isKiosk) {
         showToast('Inscripción Exitosa', 'Redirigiendo automáticamente al sitio oficial...', 'success');
         setTimeout(() => {
@@ -413,10 +436,39 @@ export default function FormularioPublico() {
     );
   }
 
-  // VISTA INTERFICIAL DE PROTECCIÓN CON CONTRASEÑA
+  // =========================================================
+  // BLOQUE PREMIUM DE INYECCIÓN CSS (PRESIDENCIA DE COLORES)
+  // =========================================================
+  const primaryCode = event.primary_color || '#4f46e5';
+  const accentCode = event.accent_color || '#0ea5e9';
+  const backgroundCode = event.bg_color || '#0f172a';
+
+  const DynamicStyleBlock = () => (
+    <style dangerouslySetInnerHTML={{__html: `
+      .bg-primary { background-color: ${primaryCode} !important; }
+      .text-primary { color: ${primaryCode} !important; }
+      .border-primary { border-color: ${primaryCode} !important; }
+      .bg-accent { background-color: ${accentCode} !important; }
+      .text-accent { color: ${accentCode} !important; }
+      .border-accent { border-color: ${accentCode} !important; }
+      .hover\\:bg-primary\\/90:hover { background-color: ${primaryCode}E6 !important; }
+      .focus\\:border-primary:focus { border-color: ${primaryCode} !important; }
+      .focus\\:ring-primary:focus { --tw-ring-color: ${primaryCode} !important; box-shadow: 0 0 0 1px ${primaryCode} !important; }
+      .focus\\:border-accent:focus { border-color: ${accentCode} !important; }
+      .focus\\:ring-accent:focus { --tw-ring-color: ${accentCode} !important; box-shadow: 0 0 0 1px ${accentCode} !important; }
+      .from-primary { --tw-gradient-from: ${primaryCode} !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+      .to-accent { --tw-gradient-to: ${accentCode} !important; }
+      .via-accent { --tw-gradient-stops: var(--tw-gradient-from), ${accentCode}, var(--tw-gradient-to) !important; }
+      .accent-primary { accent-color: ${primaryCode} !important; }
+      .checked\\:bg-accent:checked { background-color: ${accentCode} !important; border-color: ${accentCode} !important; }
+      .checked\\:bg-primary:checked { background-color: ${primaryCode} !important; border-color: ${primaryCode} !important; }
+    `}} />
+  );
+
   if (isLockedByPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative" style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}>
+      <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ backgroundColor: backgroundCode }}>
+        <DynamicStyleBlock />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/20 blur-[150px] rounded-full pointer-events-none"></div>
         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-10 rounded-4xl max-w-sm w-full text-center shadow-2xl relative z-10">
           <div className="bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/30">
@@ -455,9 +507,10 @@ export default function FormularioPublico() {
     
     return (
       <div 
-        className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden" 
-        style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
+        className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" 
+        style={{ backgroundColor: backgroundCode }}
       >
+        <DynamicStyleBlock />
         <div className={`absolute top-1/4 left-1/4 w-96 h-96 ${m.bg} blur-[120px] rounded-full pointer-events-none`}></div>
         <div className="bg-white/95 dark:bg-surface/50 backdrop-blur-xl border border-gray-200 dark:border-white/5 p-10 rounded-3xl max-w-md w-full text-center shadow-2xl relative z-10">
           <m.icon className={`h-16 w-16 ${m.color} mx-auto mb-6`} />
@@ -471,9 +524,10 @@ export default function FormularioPublico() {
   if (success) {
     return (
       <div 
-        className="min-h-screen flex flex-col justify-between bg-background relative overflow-hidden" 
-        style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
+        className="min-h-screen flex flex-col justify-between relative overflow-hidden" 
+        style={{ backgroundColor: backgroundCode }}
       >
+        <DynamicStyleBlock />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-500/10 blur-[150px] rounded-full pointer-events-none"></div>
         <div className="flex-1 flex items-center justify-center p-4">
             <motion.div 
@@ -487,6 +541,12 @@ export default function FormularioPublico() {
               {event.thank_you_enabled && event.thank_you_text && (
                  <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
                     {event.thank_you_text}
+                 </p>
+              )}
+              
+              {!event.thank_you_enabled && (
+                 <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
+                    Tu registro para <span className="text-gray-900 dark:text-white font-medium">{event.name}</span> ha sido confirmado.
                  </p>
               )}
               
@@ -511,9 +571,11 @@ export default function FormularioPublico() {
 
   return (
     <div 
-      className="min-h-screen bg-background py-16 flex flex-col justify-between relative overflow-hidden" 
-      style={{ '--primary': event.primary_color || '#4f46e5', '--accent': event.accent_color || '#0ea5e9' } as React.CSSProperties}
+      className="min-h-screen py-16 flex flex-col justify-between relative overflow-hidden" 
+      style={{ backgroundColor: backgroundCode }}
     >
+      <DynamicStyleBlock />
+      
       {/* TOASTS CONTENEDOR */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
@@ -545,7 +607,7 @@ export default function FormularioPublico() {
         </AnimatePresence>
       </div>
 
-      {/* MODAL INMERSIVO DE TRATAMIENTO DE DATOS (Punto 1 solucionado) */}
+      {/* MODAL INMERSIVO DE TRATAMIENTO DE DATOS */}
       <AnimatePresence>
         {showHabeasModal && (
           <motion.div 
@@ -883,7 +945,7 @@ export default function FormularioPublico() {
                               required={isRequiredNow} 
                               checked={currentValue === 'true'} 
                               onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
-                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
                             />
                           </div>
                           <label 
@@ -935,7 +997,7 @@ export default function FormularioPublico() {
                       checked={acceptHabeas} 
                       onChange={(e) => setAcceptHabeas(e.target.checked)} 
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                     />
                   </div>
                   <div>

@@ -77,6 +77,7 @@ export default function EditarEventoPage() {
   const [eventSlug, setEventSlug] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#4f46e5');
   const [accentColor, setAccentColor] = useState('#0ea5e9');
+  const [bgColor, setBgColor] = useState('#09090b'); // NUEVO: Estado para recuperar y guardar el color de fondo
   
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -116,8 +117,12 @@ export default function EditarEventoPage() {
         setEventName(eventData.name || '');
         setEventSlug(eventData.slug || '');
         setEventDescription(eventData.description || '');
+        
+        // RECUPERACIÓN DE COLORES
         setPrimaryColor(eventData.primary_color || '#4f46e5');
         setAccentColor(eventData.accent_color || '#0ea5e9');
+        setBgColor(eventData.bg_color || '#09090b'); // Recuperamos el bg_color existente en BD
+        
         setLogoPreview(eventData.logo_url || null);
         setBannerPreview(eventData.banner_url || null);
         setMaxCapacity(eventData.max_capacity?.toString() || '');
@@ -281,6 +286,7 @@ export default function EditarEventoPage() {
         if (!error) finalBannerUrl = supabase.storage.from('logos').getPublicUrl(fileName).data.publicUrl;
       }
 
+      // SE ACTUALIZA INCLUYENDO EL bg_color
       const { error: eventError } = await supabase.from('events').update({
         name: eventName, slug: eventSlug || null, description: eventDescription,
         logo_url: finalLogoUrl, banner_url: finalBannerUrl,
@@ -288,7 +294,7 @@ export default function EditarEventoPage() {
         habeas_data_url: habeasDataUrl || null, send_feedback_survey: sendFeedbackSurvey,
         max_capacity: maxCapacity ? parseInt(maxCapacity) : null,
         close_date: closeDate ? new Date(closeDate).toISOString() : null,
-        primary_color: primaryColor, accent_color: accentColor,
+        primary_color: primaryColor, accent_color: accentColor, bg_color: bgColor,
         form_password: formPassword || null, one_per_device: onePerDevice,
         thank_you_enabled: thankYouEnabled, thank_you_text: thankYouText || null, thank_you_url: thankYouUrl || null,
         turnstile_enabled: turnstileEnabled
@@ -409,17 +415,24 @@ export default function EditarEventoPage() {
               </div>
             </div>
             <div className="space-y-3">
-              <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2"><Palette className="h-4 w-4"/> Identidad de Marca</label>
-              <div className="flex gap-4">
+              <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2"><Palette className="h-4 w-4"/> Identidad de Marca (Colores)</label>
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 space-y-1">
-                  <label className="text-xs text-gray-500">Color Primario</label>
+                  <label className="text-xs text-gray-500 font-bold">Fondo General</label>
+                  <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" />
+                    <input type="text" value={bgColor.toUpperCase()} onChange={(e) => setBgColor(e.target.value)} className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-gray-500 font-bold">Color Primario</label>
                   <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                     <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" />
                     <input type="text" value={primaryColor.toUpperCase()} onChange={(e) => setPrimaryColor(e.target.value)} className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" />
                   </div>
                 </div>
                 <div className="flex-1 space-y-1">
-                  <label className="text-xs text-gray-500">Color Botón</label>
+                  <label className="text-xs text-gray-500 font-bold">Color Botón</label>
                   <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                     <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" />
                     <input type="text" value={accentColor.toUpperCase()} onChange={(e) => setAccentColor(e.target.value)} className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" />

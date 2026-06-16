@@ -94,8 +94,10 @@ export default function NuevoEventoPage() {
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [eventSlug, setEventSlug] = useState('');
+  
   const [primaryColor, setPrimaryColor] = useState('#4f46e5');
   const [accentColor, setAccentColor] = useState('#0ea5e9');
+  const [bgColor, setBgColor] = useState('#09090b'); // NUEVO: Estado para el color de fondo
   
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export default function NuevoEventoPage() {
   const [closeDate, setCloseDate] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [onePerDevice, setOnePerDevice] = useState(false);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(true); // NUEVO: Switch Anti-Bots
+  const [turnstileEnabled, setTurnstileEnabled] = useState(true);
 
   const [sendNotifications, setSendNotifications] = useState(true);
   const [sendFeedbackSurvey, setSendFeedbackSurvey] = useState(false);
@@ -309,6 +311,7 @@ export default function NuevoEventoPage() {
           close_date: closeDate ? new Date(closeDate).toISOString() : null,
           primary_color: primaryColor,
           accent_color: accentColor,
+          bg_color: bgColor, // SE GUARDA EL COLOR DE FONDO EN BD
           form_password: formPassword || null,
           one_per_device: onePerDevice,
           thank_you_enabled: thankYouEnabled,
@@ -498,9 +501,26 @@ export default function NuevoEventoPage() {
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
                 <Palette className="h-4 w-4"/> Identidad de Marca (Colores)
               </label>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 space-y-1">
-                  <label className="text-xs text-gray-500">Color Primario</label>
+                  <label className="text-xs text-gray-500 font-bold">Fondo General</label>
+                  <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <input 
+                      type="color" 
+                      value={bgColor} 
+                      onChange={(e) => setBgColor(e.target.value)} 
+                      className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" 
+                    />
+                    <input 
+                      type="text" 
+                      value={bgColor.toUpperCase()} 
+                      onChange={(e) => setBgColor(e.target.value)} 
+                      className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" 
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-gray-500 font-bold">Color Primario</label>
                   <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                     <input 
                       type="color" 
@@ -517,7 +537,7 @@ export default function NuevoEventoPage() {
                   </div>
                 </div>
                 <div className="flex-1 space-y-1">
-                  <label className="text-xs text-gray-500">Color Botón</label>
+                  <label className="text-xs text-gray-500 font-bold">Color Botón</label>
                   <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                     <input 
                       type="color" 
@@ -539,7 +559,7 @@ export default function NuevoEventoPage() {
 
           <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones" isOpen={openSection === 'seguridad'} onToggle={toggleSection}>
             
-            {/* NUEVO TOGGLE: CLOUDFLARE TURNSTILE (KILL SWITCH) */}
+            {/* TOGGLE: CLOUDFLARE TURNSTILE (KILL SWITCH) */}
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div className="flex-1 pr-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
