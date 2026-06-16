@@ -77,7 +77,7 @@ export default function EditarEventoPage() {
   const [eventSlug, setEventSlug] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#4f46e5');
   const [accentColor, setAccentColor] = useState('#0ea5e9');
-  const [bgColor, setBgColor] = useState('#09090b'); // NUEVO: Estado para recuperar y guardar el color de fondo
+  const [bgColor, setBgColor] = useState('#09090b'); // RECUPERACIÓN DE COLOR DE FONDO
   
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -121,7 +121,7 @@ export default function EditarEventoPage() {
         // RECUPERACIÓN DE COLORES
         setPrimaryColor(eventData.primary_color || '#4f46e5');
         setAccentColor(eventData.accent_color || '#0ea5e9');
-        setBgColor(eventData.bg_color || '#09090b'); // Recuperamos el bg_color existente en BD
+        setBgColor(eventData.bg_color || '#09090b');
         
         setLogoPreview(eventData.logo_url || null);
         setBannerPreview(eventData.banner_url || null);

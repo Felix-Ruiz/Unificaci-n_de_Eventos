@@ -337,7 +337,7 @@ export default function FormularioPublico() {
       });
 
       // =========================================================
-      // MOTOR COMPLETO DE CONTROL DE DUPLICADOS (REGLA DE NEGOCIO)
+      // MOTOR COMPLETO DE CONTROL DE DUPLICADOS
       // =========================================================
       if (documento) {
         const { data: existingReg, error: checkError } = await supabase
@@ -386,7 +386,8 @@ export default function FormularioPublico() {
               nombre: `${nombre} ${apellido}`.trim(),
               eventName: event.name,
               documento: documento,
-              institucion: institucion
+              institucion: institucion || 'No especificada', // INYECCIÓN PARA EL CREADOR
+              creatorEmail: event.creator_email // INYECCIÓN DEL CREADOR
             })
           });
         } catch (emailErr) {
@@ -437,7 +438,8 @@ export default function FormularioPublico() {
   }
 
   // =========================================================
-  // BLOQUE PREMIUM DE INYECCIÓN CSS (PRESIDENCIA DE COLORES)
+  // BLOQUE PREMIUM DE INYECCIÓN CSS (CAPSULADO)
+  // Ahora el CSS solo afecta a los elementos dentro de #acofi-form-wrapper
   // =========================================================
   const primaryCode = event.primary_color || '#4f46e5';
   const accentCode = event.accent_color || '#0ea5e9';
@@ -445,52 +447,62 @@ export default function FormularioPublico() {
 
   const DynamicStyleBlock = () => (
     <style dangerouslySetInnerHTML={{__html: `
-      .bg-primary { background-color: ${primaryCode} !important; }
-      .text-primary { color: ${primaryCode} !important; }
-      .border-primary { border-color: ${primaryCode} !important; }
-      .bg-accent { background-color: ${accentCode} !important; }
-      .text-accent { color: ${accentCode} !important; }
-      .border-accent { border-color: ${accentCode} !important; }
-      .hover\\:bg-primary\\/90:hover { background-color: ${primaryCode}E6 !important; }
-      .focus\\:border-primary:focus { border-color: ${primaryCode} !important; }
-      .focus\\:ring-primary:focus { --tw-ring-color: ${primaryCode} !important; box-shadow: 0 0 0 1px ${primaryCode} !important; }
-      .focus\\:border-accent:focus { border-color: ${accentCode} !important; }
-      .focus\\:ring-accent:focus { --tw-ring-color: ${accentCode} !important; box-shadow: 0 0 0 1px ${accentCode} !important; }
-      .from-primary { --tw-gradient-from: ${primaryCode} !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-      .to-accent { --tw-gradient-to: ${accentCode} !important; }
-      .via-accent { --tw-gradient-stops: var(--tw-gradient-from), ${accentCode}, var(--tw-gradient-to) !important; }
-      .accent-primary { accent-color: ${primaryCode} !important; }
-      .checked\\:bg-accent:checked { background-color: ${accentCode} !important; border-color: ${accentCode} !important; }
-      .checked\\:bg-primary:checked { background-color: ${primaryCode} !important; border-color: ${primaryCode} !important; }
+      #acofi-form-wrapper .bg-primary { background-color: ${primaryCode} !important; }
+      #acofi-form-wrapper .text-primary { color: ${primaryCode} !important; }
+      #acofi-form-wrapper .border-primary { border-color: ${primaryCode} !important; }
+      
+      #acofi-form-wrapper .bg-accent { background-color: ${accentCode} !important; }
+      #acofi-form-wrapper .text-accent { color: ${accentCode} !important; }
+      #acofi-form-wrapper .border-accent { border-color: ${accentCode} !important; }
+      
+      #acofi-form-wrapper .hover\\:bg-primary\\/90:hover { background-color: ${primaryCode}E6 !important; }
+      
+      #acofi-form-wrapper .focus\\:border-primary:focus { border-color: ${primaryCode} !important; }
+      #acofi-form-wrapper .focus\\:ring-primary:focus { --tw-ring-color: ${primaryCode} !important; box-shadow: 0 0 0 1px ${primaryCode} !important; }
+      
+      #acofi-form-wrapper .focus\\:border-accent:focus { border-color: ${accentCode} !important; }
+      #acofi-form-wrapper .focus\\:ring-accent:focus { --tw-ring-color: ${accentCode} !important; box-shadow: 0 0 0 1px ${accentCode} !important; }
+      
+      #acofi-form-wrapper .from-primary { --tw-gradient-from: ${primaryCode} !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+      #acofi-form-wrapper .to-accent { --tw-gradient-to: ${accentCode} !important; }
+      #acofi-form-wrapper .via-accent { --tw-gradient-stops: var(--tw-gradient-from), ${accentCode}, var(--tw-gradient-to) !important; }
+      
+      #acofi-form-wrapper .accent-primary { accent-color: ${primaryCode} !important; }
+      #acofi-form-wrapper .checked\\:bg-accent:checked { background-color: ${accentCode} !important; border-color: ${accentCode} !important; }
+      #acofi-form-wrapper .checked\\:bg-primary:checked { background-color: ${primaryCode} !important; border-color: ${primaryCode} !important; }
     `}} />
   );
 
+  // VISTA INTERFICIAL DE PROTECCIÓN CON CONTRASEÑA
   if (isLockedByPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ backgroundColor: backgroundCode }}>
+      <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: backgroundCode }}>
         <DynamicStyleBlock />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/20 blur-[150px] rounded-full pointer-events-none"></div>
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-10 rounded-4xl max-w-sm w-full text-center shadow-2xl relative z-10">
-          <div className="bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/30">
-            <Lock className="h-8 w-8 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Formulario Protegido</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">Digita la clave de acceso autorizada para inscribirte a <strong className="text-gray-900 dark:text-white">{event.name}</strong>.</p>
-          
-          <form onSubmit={handlePasswordSubmit}>
-            <input 
-              type="password" 
-              value={passwordInput} 
-              onChange={e => setPasswordInput(e.target.value)} 
-              placeholder="Escribe la clave aquí..." 
-              className={`w-full bg-white dark:bg-black/50 border ${passwordError ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} rounded-xl py-3.5 px-4 text-center text-gray-900 dark:text-white focus:outline-none focus:border-primary transition-colors mb-4`} 
-            />
-            {passwordError && <p className="text-xs text-red-500 mb-4 font-bold">Contraseña inválida</p>}
-            <button type="submit" className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 transition-transform cursor-pointer">
-              Desbloquear Formulario
-            </button>
-          </form>
-        </motion.div>
+        <div id="acofi-form-wrapper" className="flex-1 flex items-center justify-center p-4 relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/20 blur-[150px] rounded-full pointer-events-none"></div>
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-10 rounded-4xl max-w-sm w-full text-center shadow-2xl relative z-10">
+            <div className="bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/30">
+              <Lock className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Formulario Protegido</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">Digita la clave de acceso autorizada para inscribirte a <strong className="text-gray-900 dark:text-white">{event.name}</strong>.</p>
+            
+            <form onSubmit={handlePasswordSubmit}>
+              <input 
+                type="password" 
+                value={passwordInput} 
+                onChange={e => setPasswordInput(e.target.value)} 
+                placeholder="Escribe la clave aquí..." 
+                className={`w-full bg-white dark:bg-black/50 border ${passwordError ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'} rounded-xl py-3.5 px-4 text-center text-gray-900 dark:text-white focus:outline-none focus:border-primary transition-colors mb-4`} 
+              />
+              {passwordError && <p className="text-xs text-red-500 mb-4 font-bold">Contraseña inválida</p>}
+              <button type="submit" className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 transition-transform cursor-pointer">
+                Desbloquear Formulario
+              </button>
+            </form>
+          </motion.div>
+        </div>
+        <Footer />
       </div>
     );
   }
@@ -506,63 +518,54 @@ export default function FormularioPublico() {
     const m = messages[status];
     
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" 
-        style={{ backgroundColor: backgroundCode }}
-      >
+      <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ backgroundColor: backgroundCode }}>
         <DynamicStyleBlock />
-        <div className={`absolute top-1/4 left-1/4 w-96 h-96 ${m.bg} blur-[120px] rounded-full pointer-events-none`}></div>
-        <div className="bg-white/95 dark:bg-surface/50 backdrop-blur-xl border border-gray-200 dark:border-white/5 p-10 rounded-3xl max-w-md w-full text-center shadow-2xl relative z-10">
-          <m.icon className={`h-16 w-16 ${m.color} mx-auto mb-6`} />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{m.title}</h2>
-          <p className="text-gray-600 dark:text-gray-400">{m.desc}</p>
+        <div id="acofi-form-wrapper" className="flex-1 flex items-center justify-center p-4 relative">
+          <div className={`absolute top-1/4 left-1/4 w-96 h-96 ${m.bg} blur-[120px] rounded-full pointer-events-none`}></div>
+          <div className="bg-white/95 dark:bg-surface/50 backdrop-blur-xl border border-gray-200 dark:border-white/5 p-10 rounded-3xl max-w-md w-full text-center shadow-2xl relative z-10">
+            <m.icon className={`h-16 w-16 ${m.color} mx-auto mb-6`} />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{m.title}</h2>
+            <p className="text-gray-600 dark:text-gray-400">{m.desc}</p>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
 
   if (success) {
     return (
-      <div 
-        className="min-h-screen flex flex-col justify-between relative overflow-hidden" 
-        style={{ backgroundColor: backgroundCode }}
-      >
+      <div className="min-h-screen flex flex-col justify-between relative overflow-hidden" style={{ backgroundColor: backgroundCode }}>
         <DynamicStyleBlock />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-500/10 blur-[150px] rounded-full pointer-events-none"></div>
-        <div className="flex-1 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-12 rounded-4xl max-w-md w-full text-center shadow-2xl relative z-10"
-            >
-              <CheckCircle2 className="h-20 w-20 text-green-500 dark:text-green-400 mx-auto mb-4 relative z-10" />
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">¡Inscripción Exitosa!</h2>
-              
-              {event.thank_you_enabled && event.thank_you_text && (
-                 <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
-                    {event.thank_you_text}
-                 </p>
-              )}
-              
-              {!event.thank_you_enabled && (
-                 <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
-                    Tu registro para <span className="text-gray-900 dark:text-white font-medium">{event.name}</span> ha sido confirmado.
-                 </p>
-              )}
-              
-              {isKiosk ? (
-                <p className="text-primary text-sm font-bold animate-pulse">
-                  Preparando para el siguiente asistente...
+        <div id="acofi-form-wrapper" className="flex-1 flex items-center justify-center p-4 relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-green-500/10 blur-[150px] rounded-full pointer-events-none"></div>
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            className="bg-white/95 dark:bg-surface/80 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-12 rounded-4xl max-w-md w-full text-center shadow-2xl relative z-10"
+          >
+            <CheckCircle2 className="h-20 w-20 text-green-500 dark:text-green-400 mx-auto mb-4 relative z-10" />
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">¡Inscripción Exitosa!</h2>
+            
+            {event.thank_you_enabled && event.thank_you_text && (
+                <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
+                  {event.thank_you_text}
                 </p>
-              ) : !event.one_per_device ? (
-                <button 
-                  onClick={() => window.location.reload()} 
-                  className="text-primary hover:text-accent font-medium transition-colors cursor-pointer"
-                >
-                  Realizar otro registro
-                </button>
-              ) : null}
-            </motion.div>
+            )}
+            
+            {isKiosk ? (
+              <p className="text-primary text-sm font-bold animate-pulse">
+                Preparando para el siguiente asistente...
+              </p>
+            ) : !event.one_per_device ? (
+              <button 
+                onClick={() => window.location.reload()} 
+                className="text-primary hover:text-accent font-medium transition-colors cursor-pointer"
+              >
+                Realizar otro registro
+              </button>
+            ) : null}
+          </motion.div>
         </div>
         <Footer />
       </div>
@@ -570,10 +573,7 @@ export default function FormularioPublico() {
   }
 
   return (
-    <div 
-      className="min-h-screen py-16 flex flex-col justify-between relative overflow-hidden" 
-      style={{ backgroundColor: backgroundCode }}
-    >
+    <div className="min-h-screen flex flex-col justify-between relative overflow-hidden" style={{ backgroundColor: backgroundCode }}>
       <DynamicStyleBlock />
       
       {/* TOASTS CONTENEDOR */}
@@ -675,7 +675,7 @@ export default function FormularioPublico() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-accent/10 blur-[120px]"></div>
       </div>
       
-      <div className="flex-1 flex justify-center px-4 mb-16">
+      <div id="acofi-form-wrapper" className="flex-1 flex justify-center py-16 px-4 relative mb-16">
         <motion.div 
           initial={{ y: 30, opacity: 0 }} 
           animate={{ y: 0, opacity: 1 }} 
@@ -945,7 +945,7 @@ export default function FormularioPublico() {
                               required={isRequiredNow} 
                               checked={currentValue === 'true'} 
                               onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
-                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
                             />
                           </div>
                           <label 
@@ -997,7 +997,7 @@ export default function FormularioPublico() {
                       checked={acceptHabeas} 
                       onChange={(e) => setAcceptHabeas(e.target.checked)} 
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                     />
                   </div>
                   <div>
