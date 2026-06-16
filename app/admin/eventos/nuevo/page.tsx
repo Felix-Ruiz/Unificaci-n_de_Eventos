@@ -272,11 +272,14 @@ export default function NuevoEventoPage() {
     setIsSaving(true);
 
     try {
-      let finalCreatorEmail = creatorEmail;
-      if (!finalCreatorEmail) {
-        const { data: { session } } = await supabase.auth.getSession();
-        finalCreatorEmail = session?.user?.email || null;
+      // 1. FORZAMOS LA OBTENCIÓN DEL USUARIO DE FORMA EXPLÍCITA Y SÍNCRONA
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user?.email) {
+        throw new Error("No se pudo identificar al usuario creador. Por favor, cierra sesión y vuelve a ingresar.");
       }
+      
+      const finalCreatorEmail = user.email;
 
       if (eventSlug) {
         const { data: existingSlug } = await supabase
@@ -317,6 +320,7 @@ export default function NuevoEventoPage() {
         }
       }
 
+      // 2. INSERTAMOS USANDO LA VARIABLE finalCreatorEmail QUE YA TIENE EL DATO
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .insert([{ 
@@ -340,7 +344,7 @@ export default function NuevoEventoPage() {
           thank_you_text: thankYouText || null,
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
-          creator_email: finalCreatorEmail
+          creator_email: finalCreatorEmail // <--- AQUÍ ESTÁ EL DATO ASEGURADO
         }])
         .select()
         .single();
