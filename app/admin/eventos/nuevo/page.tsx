@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
@@ -99,6 +99,22 @@ export default function NuevoEventoPage() {
   const [accentColor, setAccentColor] = useState('#0ea5e9');
   const [bgColor, setBgColor] = useState('#09090b');
   
+  // CAPTURA BLINDADA DEL CORREO DEL CREADOR
+  const [creatorEmail, setCreatorEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function getCreator() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        setCreatorEmail(session.user.email);
+      } else {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user?.email) setCreatorEmail(data.user.email);
+      }
+    }
+    getCreator();
+  }, []);
+
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -256,8 +272,11 @@ export default function NuevoEventoPage() {
     setIsSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const creatorEmail = user?.email || null;
+      let finalCreatorEmail = creatorEmail;
+      if (!finalCreatorEmail) {
+        const { data: { session } } = await supabase.auth.getSession();
+        finalCreatorEmail = session?.user?.email || null;
+      }
 
       if (eventSlug) {
         const { data: existingSlug } = await supabase
@@ -321,7 +340,7 @@ export default function NuevoEventoPage() {
           thank_you_text: thankYouText || null,
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
-          creator_email: creatorEmail
+          creator_email: finalCreatorEmail
         }])
         .select()
         .single();
@@ -505,8 +524,8 @@ export default function NuevoEventoPage() {
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
                 <Palette className="h-4 w-4"/> Identidad de Marca (Colores)
               </label>
-              <div className="flex flex-col gap-4">
-                <div className="space-y-1">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 space-y-1">
                   <label className="text-xs text-gray-500 font-bold">Fondo General</label>
                   <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                     <input 
@@ -523,40 +542,38 @@ export default function NuevoEventoPage() {
                     />
                   </div>
                 </div>
-                <div className="flex gap-4">
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs text-gray-500 font-bold">Color Primario</label>
-                    <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
-                      <input 
-                        type="color" 
-                        value={primaryColor} 
-                        onChange={(e) => setPrimaryColor(e.target.value)} 
-                        className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" 
-                      />
-                      <input 
-                        type="text" 
-                        value={primaryColor.toUpperCase()} 
-                        onChange={(e) => setPrimaryColor(e.target.value)} 
-                        className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" 
-                      />
-                    </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-gray-500 font-bold">Color Primario</label>
+                  <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <input 
+                      type="color" 
+                      value={primaryColor} 
+                      onChange={(e) => setPrimaryColor(e.target.value)} 
+                      className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" 
+                    />
+                    <input 
+                      type="text" 
+                      value={primaryColor.toUpperCase()} 
+                      onChange={(e) => setPrimaryColor(e.target.value)} 
+                      className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" 
+                    />
                   </div>
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs text-gray-500 font-bold">Color Botón</label>
-                    <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
-                      <input 
-                        type="color" 
-                        value={accentColor} 
-                        onChange={(e) => setAccentColor(e.target.value)} 
-                        className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" 
-                      />
-                      <input 
-                        type="text" 
-                        value={accentColor.toUpperCase()} 
-                        onChange={(e) => setAccentColor(e.target.value)} 
-                        className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" 
-                      />
-                    </div>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-gray-500 font-bold">Color Botón</label>
+                  <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                    <input 
+                      type="color" 
+                      value={accentColor} 
+                      onChange={(e) => setAccentColor(e.target.value)} 
+                      className="w-12 h-10 cursor-pointer border-0 p-0 bg-transparent" 
+                    />
+                    <input 
+                      type="text" 
+                      value={accentColor.toUpperCase()} 
+                      onChange={(e) => setAccentColor(e.target.value)} 
+                      className="w-full bg-transparent px-2 text-xs text-gray-900 dark:text-white outline-none" 
+                    />
                   </div>
                 </div>
               </div>
@@ -565,6 +582,7 @@ export default function NuevoEventoPage() {
 
           <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones" isOpen={openSection === 'seguridad'} onToggle={toggleSection}>
             
+            {/* TOGGLE: CLOUDFLARE TURNSTILE (KILL SWITCH) */}
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div className="flex-1 pr-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
