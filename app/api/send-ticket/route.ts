@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // Extraemos creatorEmail enviado desde el formulario público
+    // Extraemos creatorEmail; si viene vacío (evento viejo), será undefined
     const { email, nombre, eventName, documento, institucion = 'No especificada', creatorEmail } = body;
 
     if (!email || !nombre || !eventName || !documento) {
@@ -18,11 +18,13 @@ export async function POST(request: Request) {
     const senderEmail = process.env.BREVO_SENDER_EMAIL || 'registros@acofiapps.com';
     const senderName = process.env.BREVO_SENDER_NAME || 'ACOFI Eventos';
     
-    // EL CORREO DEL ADMINISTRADOR AHORA ES DINÁMICO (El creador del evento)
-    // Si por alguna razón el evento es antiguo y no tiene creador, usa el global como respaldo
-    const adminNotificationEmail = creatorEmail || senderEmail;
+    // RED DE SEGURIDAD PARA EL CORREO DEL ADMIN:
+    // 1. Intenta usar el correo del creador del evento (creatorEmail).
+    // 2. Si es nulo (evento viejo), usa tu variable de entorno ADMIN_NOTIFICATION_EMAIL (¡Configúrala en Vercel con tu correo personal!).
+    // 3. Si nada de eso existe, usa un correo de respaldo estático (cámbialo por el tuyo para evitar bloqueos de Brevo).
+    const adminNotificationEmail = creatorEmail || process.env.ADMIN_NOTIFICATION_EMAIL || 'tucorreo@personal.com';
 
-    // Generador de QR Avanzado (QuickChart) para darle alto contraste y que no sea blanco y negro pálido
+    // Generador de QR Avanzado (QuickChart) - Alto contraste para evitar errores de lectura
     const qrUrl = `https://quickchart.io/qr?text=${documento}&dark=0f172a&light=ffffff&margin=2&size=300&ecLevel=H`;
 
     // ==========================================
@@ -73,10 +75,11 @@ export async function POST(request: Request) {
           <table width="100%" cellpadding="8" cellspacing="0" style="color: #334155; font-size: 15px;">
             <tr><td width="30%"><strong>Nombre:</strong></td><td>${nombre}</td></tr>
             <tr><td><strong>Cédula/ID:</strong></td><td>${documento}</td></tr>
-            <tr><td><strong>Correo:</strong></td><td><a href="mailto:${email}" style="color: #2563eb;">${email}</a></td></tr>
+            <tr><td><strong>Correo:</strong></td><td><a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a></td></tr>
             <tr><td><strong>Institución:</strong></td><td>${institucion}</td></tr>
           </table>
         </div>
+        <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 30px;">Recibes este correo porque eres el coordinador/creador de este evento.</p>
       </div>
     `;
 
@@ -98,27 +101,29 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'api-key': process.env.BREVO_API_KEY },
       body: JSON.stringify({
-        sender: { name: "Sistema ACOFI", email: senderEmail },
+        sender: { name: "Sistema de Alertas ACOFI", email: senderEmail },
         to: [{ email: adminNotificationEmail, name: 'Coordinador del Evento' }],
-        subject: `NUEVO REGISTRO: ${eventName}`,
+        subject: `🚨 NUEVO REGISTRO: ${eventName}`,
         htmlContent: htmlContentAdmin
       })
     });
 
+    // Ejecutamos y verificamos ambos envíos
     const [userResponse, adminResponse] = await Promise.all([reqUser, reqAdmin]);
     
     if (!userResponse.ok) {
       const err = await userResponse.json();
-      console.error('Brevo Error Usuario:', err);
+      console.error('Brevo Error enviando al usuario:', err);
       return NextResponse.json({ error: 'Brevo API Error (Usuario)', details: err }, { status: userResponse.status });
     }
 
     if (!adminResponse.ok) {
       const errAdmin = await adminResponse.json();
-      console.error('Brevo Error Admin:', errAdmin);
+      console.error('Brevo Error enviando al administrador:', errAdmin);
+      // Solo lo registramos en consola para no interrumpir el flujo del usuario si su correo sí salió
     }
 
-    return NextResponse.json({ success: true, message: 'Correos enviados exitosamente' });
+    return NextResponse.json({ success: true, message: 'Correos procesados correctamente' });
     
   } catch (error: any) {
     console.error('Error general enviando correo:', error);
