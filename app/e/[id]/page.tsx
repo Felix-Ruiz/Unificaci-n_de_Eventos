@@ -112,7 +112,7 @@ export default function FormularioPublico() {
         
         setEvent(eventData);
 
-        // OBTENCIÓN DE IP PÚBLICA Y VALIDACIÓN ANTIBYPASS (INCÓGNITO SEGURO)
+        // OBTENCIÓN DE IP PÚBLICA Y VALIDACIÓN ANTIBYPASS
         let detectedIp = '';
         try {
           const ipResponse = await fetch('https://api.ipify.org?format=json');
@@ -205,6 +205,9 @@ export default function FormularioPublico() {
     });
   };
 
+  // =========================================================
+  // MOTOR DE AUTOCOMPLETADO INTELIGENTE CON SYSTEM KEY
+  // =========================================================
   const handleVerifyDocument = async (documento: string) => {
     if (!documento.trim()) return;
     
@@ -222,14 +225,26 @@ export default function FormularioPublico() {
         let prefilledData: Record<string, string> = {};
         
         fields.forEach(f => {
+          let parsedOpts: any = {};
+          try { parsedOpts = JSON.parse(f.options || '{}'); } catch(e) {}
+          const sk = parsedOpts.system_key || '';
           const fn = (f.field_name || '').toLowerCase();
           
-          if (fn.includes('correo')) prefilledData[f.id] = data.email || '';
-          if (fn.includes('nombre')) prefilledData[f.id] = `${data.nombre} ${data.apellido}`.trim();
-          if (fn.includes('institución') || fn.includes('institucion')) prefilledData[f.id] = data.institucion || '';
-          if (fn.includes('cargo')) prefilledData[f.id] = data.cargo || '';
-          if (fn.includes('país') || fn.includes('pais')) prefilledData[f.id] = data.pais || '';
-          if (fn.includes('ciudad')) prefilledData[f.id] = data.ciudad || '';
+          if (sk === 'email' || (fn.includes('correo') && !fn.includes('confirm'))) prefilledData[f.id] = data.email || '';
+          if (sk === 'email_conf' || fn.includes('confirmar correo')) prefilledData[f.id] = data.email || '';
+          
+          if (sk === 'nombre') prefilledData[f.id] = data.nombre || '';
+          if (sk === 'apellido') prefilledData[f.id] = data.apellido || '';
+          // Compatibilidad si aún usa "Nombre Completo"
+          if (!sk && fn.includes('nombre') && !fn.includes('apellido')) prefilledData[f.id] = `${data.nombre || ''} ${data.apellido || ''}`.trim();
+          
+          if (sk === 'institucion' || fn.includes('institución') || fn.includes('institucion')) prefilledData[f.id] = data.institucion || '';
+          if (sk === 'cargo' || fn.includes('cargo')) prefilledData[f.id] = data.cargo || '';
+          if (sk === 'pais' || fn.includes('país') || fn.includes('pais')) prefilledData[f.id] = data.pais || '';
+          if (sk === 'ciudad' || fn.includes('ciudad')) prefilledData[f.id] = data.ciudad || '';
+          if (sk === 'telefono' || fn.includes('teléfono') || fn.includes('telefono')) prefilledData[f.id] = data.telefono || '';
+          if (sk === 'genero' || fn.includes('género') || fn.includes('genero')) prefilledData[f.id] = data.genero || '';
+          if (sk === 'direccion' || fn.includes('dirección') || fn.includes('direccion')) prefilledData[f.id] = data.direccion || '';
         });
         
         setFormData(prev => ({ ...prev, ...prefilledData }));
@@ -300,7 +315,7 @@ export default function FormularioPublico() {
     setIsSubmitting(true);
     
     try {
-      let nombre = '', apellido = '', email = '', institucion = '', cargo = '', pais = '', ciudad = '', documento = '';
+      let nombre = '', apellido = '', email = '', emailConf = '', institucion = '', cargo = '', pais = '', ciudad = '', documento = '', telefono = '', genero = '', direccion = '';
       const finalFormData = { ...formData };
       
       fields.forEach(f => {
@@ -310,6 +325,9 @@ export default function FormularioPublico() {
           return;
         }
 
+        let parsedOpts: any = {};
+        try { parsedOpts = JSON.parse(f.options || '{}'); } catch(e) {}
+        const sk = parsedOpts.system_key || '';
         const fn = (f.field_name || '').toLowerCase();
         const val = formData[f.id] || '';
         
@@ -323,22 +341,33 @@ export default function FormularioPublico() {
         
         const finalVal = finalFormData[f.id] || val;
         
-        if (fn.includes('documento') && !fn.includes('tipo')) documento = finalVal;
-        if (fn.includes('nombre')) { 
+        if (sk === 'documento_identidad' || (fn.includes('documento') && !fn.includes('tipo'))) documento = finalVal;
+        if (sk === 'nombre') nombre = finalVal;
+        if (sk === 'apellido') apellido = finalVal;
+        if (!sk && fn.includes('nombre') && !fn.includes('apellido')) { 
           const parts = finalVal.split(' '); 
           nombre = parts[0] || ''; 
           apellido = parts.slice(1).join(' ') || ''; 
         }
-        if (fn.includes('correo')) email = finalVal;
-        if (fn.includes('institución') || fn.includes('institucion')) institucion = finalVal;
-        if (fn.includes('cargo')) cargo = finalVal;
-        if (fn.includes('país') || fn.includes('pais')) pais = finalVal;
-        if (fn.includes('ciudad')) ciudad = finalVal;
+        if (sk === 'email' || (fn.includes('correo') && !fn.includes('confirm'))) email = finalVal;
+        if (sk === 'email_conf' || fn.includes('confirmar correo')) emailConf = finalVal;
+        if (sk === 'institucion' || fn.includes('institución') || fn.includes('institucion')) institucion = finalVal;
+        if (sk === 'cargo' || fn.includes('cargo')) cargo = finalVal;
+        if (sk === 'pais' || fn.includes('país') || fn.includes('pais')) pais = finalVal;
+        if (sk === 'ciudad' || fn.includes('ciudad')) ciudad = finalVal;
+        if (sk === 'telefono' || fn.includes('teléfono') || fn.includes('telefono')) telefono = finalVal;
+        if (sk === 'genero' || fn.includes('género') || fn.includes('genero')) genero = finalVal;
+        if (sk === 'direccion' || fn.includes('dirección') || fn.includes('direccion')) direccion = finalVal;
       });
 
-      // =========================================================
-      // MOTOR COMPLETO DE CONTROL DE DUPLICADOS
-      // =========================================================
+      // VALIDACIÓN DE DOBLE CORREO
+      if (email && emailConf && email.trim().toLowerCase() !== emailConf.trim().toLowerCase()) {
+        showToast('Error en Correo', 'Los correos electrónicos ingresados no coinciden. Por favor, verifica.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // MOTOR DE DUPLICADOS
       if (documento) {
         const { data: existingReg, error: checkError } = await supabase
           .from('registrations')
@@ -364,7 +393,10 @@ export default function FormularioPublico() {
           institucion, 
           cargo, 
           pais, 
-          ciudad 
+          ciudad,
+          telefono,
+          genero,
+          direccion 
         }, { onConflict: 'documento_identidad' });
 
       await supabase
@@ -386,8 +418,8 @@ export default function FormularioPublico() {
               nombre: `${nombre} ${apellido}`.trim(),
               eventName: event.name,
               documento: documento,
-              institucion: institucion || 'No especificada', // INYECCIÓN PARA EL CREADOR
-              creatorEmail: event.creator_email // INYECCIÓN DEL CREADOR
+              institucion: institucion || 'No especificada',
+              creatorEmail: event.creator_email
             })
           });
         } catch (emailErr) {
@@ -399,7 +431,6 @@ export default function FormularioPublico() {
         localStorage.setItem(`acofi_reg_${event.id}`, 'true');
       }
 
-      // REDIRECCIÓN AUTOMÁTICA INSTANTÁNEA
       if (event.thank_you_enabled && event.thank_you_url && !isKiosk) {
         showToast('Inscripción Exitosa', 'Redirigiendo automáticamente al sitio oficial...', 'success');
         setTimeout(() => {
@@ -437,10 +468,6 @@ export default function FormularioPublico() {
     );
   }
 
-  // =========================================================
-  // BLOQUE PREMIUM DE INYECCIÓN CSS (CAPSULADO)
-  // Ahora el CSS solo afecta a los elementos dentro de #acofi-form-wrapper
-  // =========================================================
   const primaryCode = event.primary_color || '#4f46e5';
   const accentCode = event.accent_color || '#0ea5e9';
   const backgroundCode = event.bg_color || '#0f172a';
@@ -473,7 +500,6 @@ export default function FormularioPublico() {
     `}} />
   );
 
-  // VISTA INTERFICIAL DE PROTECCIÓN CON CONTRASEÑA
   if (isLockedByPassword) {
     return (
       <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: backgroundCode }}>
@@ -551,6 +577,12 @@ export default function FormularioPublico() {
                 <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
                   {event.thank_you_text}
                 </p>
+            )}
+            
+            {!event.thank_you_enabled && (
+               <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
+                  Tu registro para <span className="text-gray-900 dark:text-white font-medium">{event.name}</span> ha sido confirmado.
+               </p>
             )}
             
             {isKiosk ? (
@@ -771,19 +803,31 @@ export default function FormularioPublico() {
 
                   const currentValue = formData[field.id] || '';
                   const fieldName = field.field_name || '';
-                  const isDocField = fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo');
                   const isRequiredNow = isFieldRequired(field);
 
+                  let allowOther = true;
+                  let systemKey = null;
                   let optionsList: string[] = [];
+                  
                   if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
                     try {
                       const parsed = JSON.parse(field.options);
                       optionsList = [...(parsed.choices || [])];
-                      if (!optionsList.includes('Otra')) optionsList.push('Otra');
+                      allowOther = parsed.allowOther ?? true;
+                      systemKey = parsed.system_key || null;
+                      // Agregar "Otra" dinámicamente solo si está permitido y no existe ya
+                      if (allowOther && !optionsList.includes('Otra')) optionsList.push('Otra');
                     } catch {
                       optionsList = ['Otra'];
                     }
+                  } else {
+                    try {
+                      const parsed = JSON.parse(field.options);
+                      systemKey = parsed.system_key || null;
+                    } catch {}
                   }
+
+                  const isDocField = systemKey === 'documento_identidad' || (fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo'));
 
                   const inputBaseClasses = "w-full bg-white dark:bg-black/40 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-gray-50 dark:hover:bg-black/60";
 
@@ -830,7 +874,7 @@ export default function FormularioPublico() {
                           </div>
                           
                           <AnimatePresence>
-                            {currentValue === 'Otra' && (
+                            {allowOther && currentValue === 'Otra' && (
                               <motion.input 
                                 initial={{ opacity: 0, height: 0, marginTop: 0 }} 
                                 animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
@@ -867,7 +911,7 @@ export default function FormularioPublico() {
                           </div>
 
                           <AnimatePresence>
-                            {currentValue === 'Otra' && (
+                            {allowOther && currentValue === 'Otra' && (
                               <motion.input 
                                 initial={{ opacity: 0, height: 0, marginTop: 0 }} 
                                 animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
@@ -910,7 +954,7 @@ export default function FormularioPublico() {
                           )}
 
                           <AnimatePresence>
-                            {currentValue.split(', ').includes('Otra') && (
+                            {allowOther && currentValue.split(', ').includes('Otra') && (
                               <motion.input 
                                 initial={{ opacity: 0, height: 0, marginTop: 0 }} 
                                 animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
@@ -945,7 +989,7 @@ export default function FormularioPublico() {
                               required={isRequiredNow} 
                               checked={currentValue === 'true'} 
                               onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
-                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary checked:border-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
                             />
                           </div>
                           <label 
@@ -997,7 +1041,7 @@ export default function FormularioPublico() {
                       checked={acceptHabeas} 
                       onChange={(e) => setAcceptHabeas(e.target.checked)} 
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                      className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                     />
                   </div>
                   <div>

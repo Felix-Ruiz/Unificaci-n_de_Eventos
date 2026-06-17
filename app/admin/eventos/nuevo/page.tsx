@@ -27,7 +27,8 @@ import {
   Lock,
   Smartphone,
   ThumbsUp,
-  Bot
+  Bot,
+  Globe
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -44,8 +45,43 @@ interface FormField {
   isDefault: boolean;
   logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
   _ui_showLogic?: boolean;
-  allowOther?: boolean; // NUEVO: Controlar si se permite la opción "Otra"
+  allowOther?: boolean;
+  system_key?: string; // NUEVO: Llave inmutable para conectar con BD sin importar el idioma o texto
 }
+
+// DICCIONARIO DE TRADUCCIONES PARA CAMPOS BASE
+const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
+  es: {
+    tipo_doc: { label: 'Tipo de Documento', options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
+    documento_identidad: { label: 'Número de Documento' },
+    nombre: { label: 'Nombre(s)' },
+    apellido: { label: 'Apellido(s)' },
+    email: { label: 'Correo Electrónico' },
+    email_conf: { label: 'Confirmar Correo' },
+    telefono: { label: 'Número de Teléfono' },
+    genero: { label: 'Género', options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] },
+    direccion: { label: 'Dirección' },
+    institucion: { label: 'Institución' },
+    cargo: { label: 'Cargo' },
+    pais: { label: 'País' },
+    ciudad: { label: 'Ciudad' }
+  },
+  en: {
+    tipo_doc: { label: 'Document Type', options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] },
+    documento_identidad: { label: 'Document Number / ID' },
+    nombre: { label: 'First Name(s)' },
+    apellido: { label: 'Last Name(s)' },
+    email: { label: 'Email Address' },
+    email_conf: { label: 'Confirm Email' },
+    telefono: { label: 'Phone Number' },
+    genero: { label: 'Gender', options: ['Male', 'Female', 'Other', 'Prefer not to say'] },
+    direccion: { label: 'Address' },
+    institucion: { label: 'Institution / Company' },
+    cargo: { label: 'Job Title / Role' },
+    pais: { label: 'Country' },
+    ciudad: { label: 'City' }
+  }
+};
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
   return (
@@ -135,21 +171,23 @@ export default function NuevoEventoPage() {
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
-  // NUEVA ESTRUCTURA DE CAMPOS POR DEFECTO
+  // ESTADO DE IDIOMA Y CAMPOS
+  const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
+  
   const [fields, setFields] = useState<FormField[]>([
-    { id: 'f-tipo-doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'], isDefault: true, allowOther: false },
-    { id: 'f-doc', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-nom', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-ape', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true },
-    { id: 'f-email-conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true },
-    { id: 'f-tel', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-gen', label: 'Género', type: 'select', isRequired: true, options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'], isDefault: true, allowOther: false },
-    { id: 'f-dir', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-inst', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
-    { id: 'f-cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
-    { id: 'f-pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
-    { id: 'f-ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-tipo-doc', system_key: 'tipo_doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: defaultTranslations.es.tipo_doc.options!, isDefault: true, allowOther: false },
+    { id: 'f-doc', system_key: 'documento_identidad', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-nom', system_key: 'nombre', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-ape', system_key: 'apellido', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-email', system_key: 'email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true },
+    { id: 'f-email-conf', system_key: 'email_conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true },
+    { id: 'f-tel', system_key: 'telefono', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-gen', system_key: 'genero', label: 'Género', type: 'select', isRequired: true, options: defaultTranslations.es.genero.options!, isDefault: true, allowOther: false },
+    { id: 'f-dir', system_key: 'direccion', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true },
+    { id: 'f-inst', system_key: 'institucion', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-cargo', system_key: 'cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-pais', system_key: 'pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-ciudad', system_key: 'ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -157,6 +195,20 @@ export default function NuevoEventoPage() {
 
   const toggleSection = (section: string) => {
     setOpenSection(openSection === section ? '' : section);
+  };
+
+  const handleLanguageToggle = (lang: 'es' | 'en') => {
+    setFormLanguage(lang);
+    setFields(prev => prev.map(f => {
+      if (f.isDefault && f.system_key && defaultTranslations[lang][f.system_key]) {
+         return {
+           ...f,
+           label: defaultTranslations[lang][f.system_key].label || f.label,
+           options: defaultTranslations[lang][f.system_key].options || f.options
+         };
+      }
+      return f;
+    }));
   };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -242,7 +294,6 @@ export default function NuevoEventoPage() {
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
 
-        // Removemos el push automático de 'Otra' para respetar el switch.
         updateField(id, 'options', uniqueOptions);
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde el archivo Excel.`, 'success');
       } catch (error) {
@@ -260,7 +311,6 @@ export default function NuevoEventoPage() {
       if (val) {
         const field = fields.find(f => f.id === id);
         if (field && !field.options.includes(val)) {
-          // Ya no inyectamos "Otra" a la fuerza
           const newOptions = [...field.options, val];
           updateField(id, 'options', newOptions);
         }
@@ -345,7 +395,7 @@ export default function NuevoEventoPage() {
           thank_you_text: thankYouText || null,
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
-          creator_email: finalCreatorEmail
+          creator_email: creatorEmail?.trim() || null
         }])
         .select()
         .single();
@@ -358,8 +408,8 @@ export default function NuevoEventoPage() {
         field_type: f.type,
         is_required: f.isRequired,
         is_default: f.isDefault,
-        // Al guardar, incluimos el flag de allowOther
-        options: JSON.stringify({ choices: f.options, logic: f.logic || null, allowOther: f.allowOther ?? true }),
+        // GUARDAMOS LA SYSTEM KEY INTACTA EN LA BASE DE DATOS
+        options: JSON.stringify({ choices: f.options, logic: f.logic || null, allowOther: f.allowOther ?? true, system_key: f.system_key || null }),
         order_index: index
       }));
 
@@ -693,6 +743,29 @@ export default function NuevoEventoPage() {
               </button>
             </div>
 
+            <AnimatePresence>
+              {sendNotifications && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }} 
+                  animate={{ height: 'auto', opacity: 1 }} 
+                  exit={{ height: 0, opacity: 0 }} 
+                  className="space-y-1.5 pt-4 border-t border-gray-200 dark:border-white/5 overflow-hidden"
+                >
+                  <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
+                  </label>
+                  <input 
+                    type="email" 
+                    value={creatorEmail || ''} 
+                    onChange={(e) => setCreatorEmail(e.target.value)} 
+                    placeholder="Ej. coordinador@universidad.edu.co" 
+                    className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
+                  />
+                  <p className="text-[10px] text-gray-500">A este correo llegarán las alertas cuando alguien se inscriba al evento.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-white/5">
               <div className="flex items-center justify-between">
                 <div className="flex-1 pr-2">
@@ -810,9 +883,28 @@ export default function NuevoEventoPage() {
             
             <div className="flex justify-between items-center mb-8 border-b border-gray-200 dark:border-white/5 pb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Diseño del Formulario de Inscripción</h2>
-              <span className="text-xs bg-primary/10 dark:bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">
-                {fields.length} Preguntas
-              </span>
+              <div className="flex items-center gap-4">
+                {/* SWITCH DE IDIOMAS */}
+                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
+                  <button 
+                    type="button"
+                    onClick={() => handleLanguageToggle('es')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    <Globe className="h-3 w-3" /> ES
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleLanguageToggle('en')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    <Globe className="h-3 w-3" /> EN
+                  </button>
+                </div>
+                <span className="text-xs bg-primary/10 dark:bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">
+                  {fields.length} Preguntas
+                </span>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -831,7 +923,7 @@ export default function NuevoEventoPage() {
                     >
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                         
-                        <div className="md:col-span-4">
+                        <div className="md:col-span-4 flex flex-col gap-1">
                           <input 
                             type="text" 
                             value={field.label} 
@@ -839,6 +931,11 @@ export default function NuevoEventoPage() {
                             className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-700 focus:border-accent outline-none text-gray-900 dark:text-white font-bold px-1 py-1 transition-colors" 
                             placeholder="Escribe la pregunta o etiqueta..." 
                           />
+                          {field.system_key && (
+                            <span className="text-[9px] font-mono text-gray-400 ml-1 opacity-50 uppercase tracking-widest">
+                              DATA_KEY: {field.system_key}
+                            </span>
+                          )}
                         </div>
 
                         <div className="md:col-span-3">
@@ -893,7 +990,7 @@ export default function NuevoEventoPage() {
 
                       </div>
 
-                      {/* NUEVO TOGGLE: Permitir opción OTRA (Punto 2) */}
+                      {/* TOGGLE PERMITIR OPCIÓN OTRA */}
                       {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
                         <div className="flex items-center gap-3 mt-3 ml-1">
                           <span className="text-xs text-gray-500 font-bold">Permitir opción "Otra"</span>
@@ -980,11 +1077,9 @@ export default function NuevoEventoPage() {
                               {field.options.map(opt => (
                                 <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
                                   <span>{opt}</span>
-                                  {opt !== 'Otra' && (
-                                    <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
-                                      <X className="h-3 w-3" />
-                                    </button>
-                                  )}
+                                  <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
+                                    <X className="h-3 w-3" />
+                                  </button>
                                 </div>
                               ))}
                             </div>
