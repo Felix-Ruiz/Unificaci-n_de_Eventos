@@ -4,7 +4,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     // Extraemos creatorEmail; si viene vacío (evento viejo), será undefined
-    const { email, nombre, eventName, documento, institucion = 'No especificada', creatorEmail } = body;
+    // Extraemos emailSubject y emailBody personalizados que vienen del formulario público
+    const { 
+      email, 
+      nombre, 
+      eventName, 
+      documento, 
+      institucion = 'No especificada', 
+      creatorEmail,
+      emailSubject,
+      emailBody
+    } = body;
 
     if (!email || !nombre || !eventName || !documento) {
       return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 });
@@ -28,6 +38,29 @@ export async function POST(request: Request) {
     const qrUrl = `https://quickchart.io/qr?text=${documento}&dark=0f172a&light=ffffff&margin=2&size=300&ecLevel=H`;
 
     // ==========================================
+    // PROCESAMIENTO DINÁMICO DEL ASUNTO (SUBJECT)
+    // ==========================================
+    let finalSubject = `Registro Exitoso: ${eventName}`;
+    if (emailSubject && emailSubject.trim() !== '') {
+      finalSubject = emailSubject
+        .replace(/{{nombre}}/g, nombre)
+        .replace(/{{evento}}/g, eventName)
+        .replace(/{{documento}}/g, documento);
+    }
+
+    // ==========================================
+    // PROCESAMIENTO DINÁMICO DEL CUERPO (BODY)
+    // ==========================================
+    let finalBodyText = `Hola <strong style="color: #ffffff;">${nombre}</strong>, tu acceso oficial para el evento <strong>${eventName}</strong> está confirmado.`;
+    if (emailBody && emailBody.trim() !== '') {
+      finalBodyText = emailBody
+        .replace(/{{nombre}}/g, nombre)
+        .replace(/{{evento}}/g, eventName)
+        .replace(/{{documento}}/g, documento)
+        .replace(/\n/g, '<br/>'); // Convertimos saltos de línea del textarea a saltos HTML
+    }
+
+    // ==========================================
     // 1. PLANTILLA EMAIL A PRUEBA DE GMAIL (Alta legibilidad)
     // ==========================================
     const htmlContentUser = `
@@ -38,11 +71,10 @@ export async function POST(request: Request) {
               
               <h2 style="margin: 0 0 15px 0; font-size: 28px; font-weight: 900; color: #ffffff;">¡Registro Exitoso!</h2>
               
-              <p style="color: #94a3b8; font-size: 16px; margin-bottom: 35px; line-height: 1.6;">
-                Hola <strong style="color: #ffffff;">${nombre}</strong>, tu acceso oficial para el evento <strong>${eventName}</strong> está confirmado.
+              <p style="color: #94a3b8; font-size: 16px; margin-bottom: 35px; line-height: 1.6; text-align: left;">
+                ${finalBodyText}
               </p>
               
-              <!-- Contenedor del QR estilo Neón/IA -->
               <div style="background-color: #020617; border: 2px dashed #4f46e5; border-radius: 20px; padding: 35px 20px; text-align: center;">
                 <p style="color: #818cf8; font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 0; margin-bottom: 25px;">Tu Pase Digital Único</p>
                 
@@ -92,7 +124,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         sender: { name: senderName, email: senderEmail },
         to: [{ email: email, name: nombre }],
-        subject: `Registro Exitoso: ${eventName}`,
+        subject: finalSubject,
         htmlContent: htmlContentUser
       })
     });
