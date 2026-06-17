@@ -5,10 +5,70 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Edit, FileSpreadsheet, Loader2, X, Trash2, 
   ChevronLeft, ChevronRight, ChevronFirst, ChevronLast, 
-  AlertCircle, CheckCircle2, Info, Download, Trash 
+  AlertCircle, CheckCircle2, Info, Download, Trash, Globe 
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../lib/supabase';
+import { useLanguage } from '../../../context/LanguageContext';
+
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    pageTitle: "Base Histórica de Usuarios",
+    pageSubtitle: "Gestiona y localiza a los participantes de eventos anteriores.",
+    btnDownload: "Descargar BD",
+    btnDeleteAll: "Vaciar Todo",
+    btnUpload: "Cargar Histórico",
+    searchPlaceholder: "Buscar por nombre, documento o correo...",
+    showText: "Mostrar:",
+    records: "registros",
+    colDoc: "Documento",
+    colPart: "Participante",
+    colCont: "Contacto",
+    colInst: "Institución / Cargo",
+    colLoc: "Ubicación",
+    colActions: "Acciones",
+    showing: "Mostrando",
+    to: "a",
+    of: "de",
+    results: "resultados",
+    modalEmptyTitle: "Vaciar Base Histórica",
+    modalEmptyDesc: "¿Estás completamente seguro de ELIMINAR TODOS los registros del histórico? Esta acción es destructiva y no se puede deshacer.",
+    modalDeleteTitle: "Eliminar Registro",
+    modalDeleteDesc: "¿Estás seguro de que deseas eliminar a este usuario histórico? Esta acción es irreversible.",
+    btnCancel: "Cancelar",
+    btnConfirmEmpty: "Sí, Vaciar Base",
+    btnConfirmDelete: "Eliminar Usuario",
+    langSystem: "Idioma de Sistema"
+  },
+  en: {
+    pageTitle: "Historical User Database",
+    pageSubtitle: "Manage and locate participants from previous events.",
+    btnDownload: "Download DB",
+    btnDeleteAll: "Empty All",
+    btnUpload: "Upload History",
+    searchPlaceholder: "Search by name, document or email...",
+    showText: "Show:",
+    records: "records",
+    colDoc: "Document ID",
+    colPart: "Participant",
+    colCont: "Contact",
+    colInst: "Institution / Role",
+    colLoc: "Location",
+    colActions: "Actions",
+    showing: "Showing",
+    to: "to",
+    of: "of",
+    results: "results",
+    modalEmptyTitle: "Empty Historical Database",
+    modalEmptyDesc: "Are you absolutely sure you want to DELETE ALL historical records? This action is destructive and cannot be undone.",
+    modalDeleteTitle: "Delete Record",
+    modalDeleteDesc: "Are you sure you want to delete this historical user? This action is irreversible.",
+    btnCancel: "Cancel",
+    btnConfirmEmpty: "Yes, Empty DB",
+    btnConfirmDelete: "Delete User",
+    langSystem: "System Language"
+  }
+};
 
 interface HistoricUser {
   email: string;
@@ -25,6 +85,9 @@ interface HistoricUser {
 }
 
 export default function HistoricoPage() {
+  const { language, setLanguage } = useLanguage();
+  const t = systemTranslations[language];
+
   const [users, setUsers] = useState<HistoricUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,6 +99,8 @@ export default function HistoricoPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalUsers, setTotalUsers] = useState(0);
+
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   // ==========================================
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
@@ -88,7 +153,7 @@ export default function HistoricoPage() {
   };
 
   // ==========================================
-  // DESCARGAR EXCEL DE TODOS LOS HISTÓRICOS (Punto 5)
+  // DESCARGAR EXCEL DE TODOS LOS HISTÓRICOS
   // ==========================================
   const handleDownloadAll = async () => {
     showToast('Preparando Archivo', 'Recopilando la base de datos completa. Por favor espera...', 'info');
@@ -239,13 +304,10 @@ export default function HistoricoPage() {
       }
     } else if (confirmModal.type === 'deleteAll') {
       try {
-        // En Supabase, para vaciar una tabla de forma masiva sin WHERE (que a veces requiere privilegios especiales)
-        // se suele borrar donde el ID es "no nulo" o usar una función RPC. 
-        // Esta es la sintaxis segura para borrar todas las filas:
         const { error } = await supabase
           .from('historic_users')
           .delete()
-          .neq('documento_identidad', 'vacío-inexistente'); // Filtro dummy que atrapa a todos
+          .neq('documento_identidad', 'vacío-inexistente'); 
 
         if (error) throw error;
         showToast('Base Vaciada', 'Todos los registros históricos han sido eliminados permanentemente.', 'success');
@@ -259,7 +321,6 @@ export default function HistoricoPage() {
     setConfirmModal(null);
   };
 
-  // Cálculos para paginación
   const totalPages = Math.ceil(totalUsers / itemsPerPage);
 
   return (
@@ -311,20 +372,18 @@ export default function HistoricoPage() {
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
               <h2 className="text-2xl font-bold text-white mb-3">
-                {confirmModal.type === 'deleteAll' ? 'Vaciar Base Histórica' : 'Eliminar Registro'}
+                {confirmModal.type === 'deleteAll' ? t.modalEmptyTitle : t.modalDeleteTitle}
               </h2>
               <p className="text-gray-300 mb-8">
-                {confirmModal.type === 'deleteAll' 
-                  ? '¿Estás completamente seguro de ELIMINAR TODOS los registros del histórico? Esta acción es destructiva y no se puede deshacer.' 
-                  : '¿Estás seguro de que deseas eliminar a este usuario histórico? Esta acción es irreversible.'}
+                {confirmModal.type === 'deleteAll' ? t.modalEmptyDesc : t.modalDeleteDesc}
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
                 <button 
                   onClick={confirmAction} 
                   className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
                 >
-                  {confirmModal.type === 'deleteAll' ? 'Sí, Vaciar Base' : 'Eliminar Usuario'}
+                  {confirmModal.type === 'deleteAll' ? t.btnConfirmEmpty : t.btnConfirmDelete}
                 </button>
               </div>
             </motion.div>
@@ -334,18 +393,36 @@ export default function HistoricoPage() {
 
       <header className="flex flex-col lg:flex-row justify-between lg:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Base Histórica de Usuarios</h1>
-          <p className="text-gray-400">Gestiona y localiza a los participantes de eventos anteriores.</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.pageTitle}</h1>
+          <p className="text-gray-400">{t.pageSubtitle}</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 relative">
           
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            title="Configuración de Idioma"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-40 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <button 
             onClick={handleDownloadAll}
             className="bg-surface border border-white/10 text-white font-bold py-3 px-4 rounded-lg flex items-center gap-2 hover:bg-white/5 transition-colors cursor-pointer"
             title="Descargar toda la base en Excel"
           >
-            <Download className="h-5 w-5 text-accent" /> Descargar BD
+            <Download className="h-5 w-5 text-accent" /> {t.btnDownload}
           </button>
           
           <button 
@@ -353,7 +430,7 @@ export default function HistoricoPage() {
             className="bg-red-500/10 text-red-500 font-bold py-3 px-4 rounded-lg flex items-center gap-2 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
             title="Borrar todos los registros"
           >
-            <Trash className="h-5 w-5" /> Vaciar Todo
+            <Trash className="h-5 w-5" /> {t.btnDeleteAll}
           </button>
 
           <div className="relative">
@@ -370,7 +447,7 @@ export default function HistoricoPage() {
               className={`bg-primary text-white font-bold py-3 px-6 rounded-lg flex items-center gap-2 transition-transform shadow-4d-static ${uploading ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:bg-primary/90 active:translate-y-1 active:shadow-none'}`}
             >
               {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5" />}
-              {uploading ? `Procesando... ${uploadProgress}%` : 'Cargar Histórico'}
+              {uploading ? `Procesando... ${uploadProgress}%` : t.btnUpload}
             </label>
           </div>
         </div>
@@ -382,7 +459,7 @@ export default function HistoricoPage() {
           <Search className="text-gray-400 h-5 w-5 ml-2" />
           <input 
             type="text" 
-            placeholder="Buscar por nombre, documento o correo..." 
+            placeholder={t.searchPlaceholder} 
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -392,7 +469,7 @@ export default function HistoricoPage() {
           />
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400 w-full md:w-auto justify-end">
-          <span>Mostrar:</span>
+          <span>{t.showText}</span>
           <select 
             value={itemsPerPage} 
             onChange={(e) => {
@@ -401,9 +478,9 @@ export default function HistoricoPage() {
             }}
             className="bg-black/50 border border-gray-700 text-white rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer"
           >
-            <option value={20}>20 registros</option>
-            <option value={50}>50 registros</option>
-            <option value={100}>100 registros</option>
+            <option value={20}>20 {t.records}</option>
+            <option value={50}>50 {t.records}</option>
+            <option value={100}>100 {t.records}</option>
           </select>
         </div>
       </div>
@@ -414,12 +491,12 @@ export default function HistoricoPage() {
           <table className="w-full text-left text-sm text-gray-300">
             <thead className="bg-black/50 text-xs uppercase text-gray-500 whitespace-nowrap">
               <tr>
-                <th className="px-6 py-4 font-medium w-32">Documento</th>
-                <th className="px-6 py-4 font-medium w-64">Participante</th>
-                <th className="px-6 py-4 font-medium w-56">Contacto</th>
-                <th className="px-6 py-4 font-medium max-w-xs">Institución / Cargo</th>
-                <th className="px-6 py-4 font-medium w-48">Ubicación</th>
-                <th className="px-6 py-4 font-medium text-right sticky right-0 bg-black/50 z-10 w-28">Acciones</th>
+                <th className="px-6 py-4 font-medium w-32">{t.colDoc}</th>
+                <th className="px-6 py-4 font-medium w-64">{t.colPart}</th>
+                <th className="px-6 py-4 font-medium w-56">{t.colCont}</th>
+                <th className="px-6 py-4 font-medium max-w-xs">{t.colInst}</th>
+                <th className="px-6 py-4 font-medium w-48">{t.colLoc}</th>
+                <th className="px-6 py-4 font-medium text-right sticky right-0 bg-black/50 z-10 w-28">{t.colActions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -491,7 +568,7 @@ export default function HistoricoPage() {
         {/* Paginación */}
         <div className="border-t border-white/5 p-4 flex items-center justify-between bg-black/30">
           <p className="text-sm text-gray-400">
-            Mostrando <span className="font-medium text-white">{users.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</span> a <span className="font-medium text-white">{Math.min(currentPage * itemsPerPage, totalUsers)}</span> de <span className="font-medium text-white">{totalUsers}</span> resultados
+            {t.showing} <span className="font-medium text-white">{users.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</span> {t.to} <span className="font-medium text-white">{Math.min(currentPage * itemsPerPage, totalUsers)}</span> {t.of} <span className="font-medium text-white">{totalUsers}</span> {t.results}
           </p>
           <div className="flex gap-1.5">
             {/* Botón Principio (Punto 6) */}

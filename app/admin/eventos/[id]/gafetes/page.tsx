@@ -51,8 +51,13 @@ export default function GafetesPage() {
     setLoading(false);
   }
 
+  // MOTOR INTELIGENTE PARA EXTRAER CAMPOS (SOPORTA SYSTEM_KEY)
   const getFieldValue = (reg: any, keyword: string) => {
-    const field = fields.find((f: any) => f.field_name?.toLowerCase().includes(keyword));
+    const field = fields.find((f: any) => {
+      let opts: any = {};
+      try { opts = JSON.parse(f.options || '{}'); } catch(e){}
+      return opts.system_key === keyword || f.field_name?.toLowerCase().includes(keyword.toLowerCase());
+    });
     return field ? reg.form_data[field.id] : '';
   };
 
@@ -60,7 +65,10 @@ export default function GafetesPage() {
     if (!searchTerm) return registrations;
     return registrations.filter((reg: any) => {
       const docMatch = reg.historic_user_doc.includes(searchTerm);
-      const nameMatch = getFieldValue(reg, 'nombre')?.toLowerCase().includes(searchTerm.toLowerCase());
+      const nombre = getFieldValue(reg, 'nombre');
+      const apellido = getFieldValue(reg, 'apellido');
+      const fullName = [nombre, apellido].filter(Boolean).join(' ');
+      const nameMatch = fullName.toLowerCase().includes(searchTerm.toLowerCase());
       const instMatch = getFieldValue(reg, 'institu')?.toLowerCase().includes(searchTerm.toLowerCase());
       return docMatch || nameMatch || instMatch;
     });
@@ -164,7 +172,10 @@ export default function GafetesPage() {
          ) : (
            <div className="grid grid-cols-2 gap-6 print:gap-0 print:block">
               {itemsToPrint.map((reg: any, index: number) => {
-                 const name = getFieldValue(reg, 'nombre') || 'Sin Nombre';
+                 const nombre = getFieldValue(reg, 'nombre');
+                 const apellido = getFieldValue(reg, 'apellido');
+                 const fullName = [nombre, apellido].filter(Boolean).join(' ') || 'Sin Nombre';
+                 
                  const cargo = getFieldValue(reg, 'cargo');
                  const inst = getFieldValue(reg, 'institu');
                  const isSelected = selectedIds.has(reg.id);
@@ -199,7 +210,7 @@ export default function GafetesPage() {
                         </div>
                         
                         <h2 className="text-2xl font-black text-gray-900 leading-tight mb-2 uppercase wrap-break-word w-full line-clamp-2">
-                          {name}
+                          {fullName}
                         </h2>
                         {cargo && <p className="text-md font-bold text-gray-600 mb-1 line-clamp-1">{cargo}</p>}
                         {inst && <p className="text-sm font-medium text-gray-500 mb-6 line-clamp-2">{inst}</p>}

@@ -25,25 +25,87 @@ import {
   Info,
   Settings,
   Pencil,
-  Save
+  Save,
+  Globe,
+  SlidersHorizontal
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../../../../context/LanguageContext';
+
+// ==========================================
+// TRADUCCIONES PARA LA INTERFAZ UNIVERSAL
+// ==========================================
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    panelTitle: "Panel de Distribución y Gestión de Inscritos",
+    tabList: "Listado de Inscritos",
+    tabAnalytics: "Estadísticas (Analytics)",
+    btnCheckin: "Check-in Automático",
+    btnPause: "Pausar Evento",
+    btnActivate: "Activar Evento",
+    btnArchive: "Al Historial",
+    btnExport: "Exportar",
+    btnImport: "Subir Datos",
+    btnGafetes: "Gafetes",
+    btnEditEvent: "Editar Evento",
+    searchPlaceholder: "Buscar por cédula, nombre o dato...",
+    tableActions: "Acciones",
+    tableDate: "Fecha",
+    bulkBarSelected: "seleccionados",
+    bulkBtnEdit: "Editar Varios",
+    bulkBtnDelete: "Eliminar Varios",
+    totalCapacity: "Aforo Total",
+    fullLabel: "Lleno",
+    topInst: "Top 5 Instituciones",
+    topRoles: "Distribución de Cargos",
+    topCities: "Ciudades Principales",
+    langSystem: "Idioma de Sistema"
+  },
+  en: {
+    panelTitle: "Distribution and Attendee Management Panel",
+    tabList: "Attendee List",
+    tabAnalytics: "Analytics & Statistics",
+    btnCheckin: "Auto Check-in",
+    btnPause: "Pause Event",
+    btnActivate: "Activate Event",
+    btnArchive: "To History",
+    btnExport: "Export",
+    btnImport: "Upload Data",
+    btnGafetes: "Badges",
+    btnEditEvent: "Edit Event",
+    searchPlaceholder: "Search by ID, name or any field...",
+    tableActions: "Actions",
+    tableDate: "Date",
+    bulkBarSelected: "selected",
+    bulkBtnEdit: "Bulk Edit",
+    bulkBtnDelete: "Bulk Delete",
+    totalCapacity: "Total Capacity",
+    fullLabel: "Full",
+    topInst: "Top 5 Institutions",
+    topRoles: "Role Distribution",
+    topCities: "Top Cities",
+    langSystem: "System Language"
+  }
+};
 
 export default function EventoDetalleAdmin() {
   const params = useParams();
   const router = useRouter();
   const eventId = params?.id as string;
 
+  const { language: systemLang, setLanguage: setSystemLanguage } = useLanguage();
+  const t = systemTranslations[systemLang];
+
   const [event, setEvent] = useState<any>(null);
   const [fields, setFields] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [isActionLoading, setIsActionLoading] = useState(false); // Para no desmontar toda la vista al guardar/eliminar
+  const [isActionLoading, setIsActionLoading] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'lista' | 'analitica'>('lista');
   
@@ -58,13 +120,32 @@ export default function EventoDetalleAdmin() {
   const excelUploadRef = useRef<HTMLInputElement>(null);
 
   // ==========================================
+  // ESTADOS NUEVOS Y SELECCIÓN MASIVA
+  // ==========================================
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [selectedRegIds, setSelectedRegIds] = useState<string[]>([]);
+  
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditTargetField, setBulkEditTargetField] = useState('');
+  const [bulkEditValue, setBulkEditValue] = useState('');
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+
+  // ==========================================
+  // ESTADOS PARA MAPEADOR DE EXCEL
+  // ==========================================
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
+  const [excelRawRows, setExcelRawRows] = useState<any[]>([]);
+  const [columnMapping, setMappingSelection] = useState<Record<string, string>>({});
+
+  // ==========================================
   // ESTADOS PARA EXPORTACIÓN INTELIGENTE
   // ==========================================
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
   // ==========================================
-  // ESTADOS PARA EDICIÓN Y ELIMINACIÓN DE PARTICIPANTES
+  // ESTADOS PARA EDICIÓN Y ELIMINACIÓN INDIVIDUAL
   // ==========================================
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deletingParticipant, setDeletingParticipant] = useState<any | null>(null);
@@ -119,9 +200,6 @@ export default function EventoDetalleAdmin() {
     }
   }
 
-  // ==========================================
-  // LÓGICA DE EDICIÓN Y ELIMINACIÓN DE PARTICIPANTES
-  // ==========================================
   const handleEditFieldChange = (fieldId: string, value: string) => {
     if (!editingParticipant) return;
     setEditingParticipant({
@@ -139,7 +217,6 @@ export default function EventoDetalleAdmin() {
     
     setIsActionLoading(true);
     try {
-      // Buscamos si el usuario cambió el número de documento para actualizar la llave principal
       let docFieldId = fields.find(f => f.field_name.toLowerCase().includes('documento') && !f.field_name.toLowerCase().includes('tipo'))?.id;
       let updatePayload: any = { form_data: editingParticipant.form_data };
       
@@ -147,7 +224,6 @@ export default function EventoDetalleAdmin() {
         updatePayload.historic_user_doc = editingParticipant.form_data[docFieldId];
       }
 
-      // Actualizamos la BD
       const { error } = await supabase
         .from('registrations')
         .update(updatePayload)
@@ -155,7 +231,6 @@ export default function EventoDetalleAdmin() {
 
       if (error) throw error;
 
-      // Actualizamos el estado local sin recargar la página entera
       setRegistrations(prev => prev.map(r => r.id === editingParticipant.id ? { ...r, ...updatePayload } : r));
       
       showToast('Actualizado', 'Los datos del participante fueron modificados correctamente.', 'success');
@@ -180,6 +255,7 @@ export default function EventoDetalleAdmin() {
       if (error) throw error;
 
       setRegistrations(prev => prev.filter(r => r.id !== deletingParticipant.id));
+      setSelectedRegIds(prev => prev.filter(id => id !== deletingParticipant.id));
       showToast('Eliminado', 'El participante ha sido removido del evento.', 'success');
       setDeletingParticipant(null);
     } catch (error: any) {
@@ -189,9 +265,171 @@ export default function EventoDetalleAdmin() {
     }
   };
 
-  // ==========================================
-  // FUNCIONES DE EXPORTACIÓN INTELIGENTE
-  // ==========================================
+  const executeBulkDelete = async () => {
+    if (selectedRegIds.length === 0) return;
+    setIsActionLoading(true);
+    try {
+      const { error } = await supabase.from('registrations').delete().in('id', selectedRegIds);
+      if (error) throw error;
+      setRegistrations(prev => prev.filter(r => !selectedRegIds.includes(r.id)));
+      showToast('Eliminación Masiva', `Se eliminaron ${selectedRegIds.length} registros correctamente.`, 'success');
+      setSelectedRegIds([]);
+      setShowBulkDeleteModal(false);
+    } catch {
+      showToast('Error', 'No se pudieron eliminar los elementos seleccionados.', 'error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const executeBulkEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkEditTargetField || selectedRegIds.length === 0) return;
+    setIsActionLoading(true);
+    try {
+      const updatedRegs = registrations.map(r => {
+        if (selectedRegIds.includes(r.id)) {
+          const nextFormData = { ...r.form_data, [bulkEditTargetField]: bulkEditValue };
+          return { ...r, form_data: nextFormData };
+        }
+        return r;
+      });
+
+      const promises = selectedRegIds.map(id => {
+        const targetReg = updatedRegs.find(r => r.id === id);
+        return supabase.from('registrations').update({ form_data: targetReg.form_data }).eq('id', id);
+      });
+
+      await Promise.all(promises);
+      setRegistrations(updatedRegs);
+      showToast('Edición Masiva', 'Registros actualizados exitosamente.', 'success');
+      setShowBulkEditModal(false);
+      setBulkEditValue('');
+      setBulkEditTargetField('');
+    } catch {
+      showToast('Error', 'Ocurrió un error en la actualización masiva.', 'error');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleImportMasivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImporting(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+        if (data.length === 0) {
+          setIsImporting(false);
+          return showToast('Archivo Vacío', 'El Excel no contiene filas procesables.', 'error');
+        }
+
+        const headers = Object.keys(data[0]);
+        setExcelHeaders(headers);
+        setExcelRawRows(data);
+
+        const exactMatch = fields.every(f => headers.includes(f.field_name));
+
+        if (!exactMatch) {
+          let initialMapping: Record<string, string> = {};
+          fields.forEach(f => {
+            const approximateMatch = headers.find(h => h.toLowerCase().trim() === f.field_name.toLowerCase().trim());
+            if (approximateMatch) initialMapping[f.id] = approximateMatch;
+          });
+          setMappingSelection(initialMapping);
+          setShowMappingModal(true);
+        } else {
+          let defaultMap: Record<string, string> = {};
+          fields.forEach(f => { defaultMap[f.id] = f.field_name; });
+          await proceedWithMappedImport(defaultMap, data);
+        }
+      } catch (error) {
+        showToast('Error de Formato', 'Verifique que el archivo Excel sea válido.', 'error');
+        setIsImporting(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const proceedWithMappedImport = async (mapping: Record<string, string>, rowsToProcess: any[]) => {
+    setIsActionLoading(true);
+    setShowMappingModal(false);
+    let added = 0;
+
+    try {
+      const docField = fields.find(f => {
+        let opts: any = {};
+        try { opts = JSON.parse(f.options || '{}'); } catch(e){}
+        return opts.system_key === 'documento_identidad' || (f.field_name.toLowerCase().includes('documento') && !f.field_name.toLowerCase().includes('tipo'));
+      });
+
+      if (!docField || !mapping[docField.id]) {
+        setIsImporting(false);
+        setIsActionLoading(false);
+        return showToast('Mapeo Inválido', 'Debes relacionar la columna del documento de identidad de forma obligatoria.', 'error');
+      }
+
+      for (const row of rowsToProcess) {
+        let doc = String(row[mapping[docField.id]] || '').trim();
+        if (!doc || doc === 'undefined') continue;
+
+        let form_data: Record<string, string> = {};
+        let nombre = '', apellido = '', email = '', institucion = '', cargo = '', pais = '', ciudad = '', tel = '', gen = '', dir = '';
+
+        fields.forEach((f: any) => {
+          const excelKey = mapping[f.id];
+          const val = excelKey ? row[excelKey] : '';
+          form_data[f.id] = val ? String(val) : '';
+          
+          let parsedOpts: any = {};
+          try { parsedOpts = JSON.parse(f.options || '{}'); } catch(err) {}
+          const sk = parsedOpts.system_key || '';
+          const fn = String(f.field_name).toLowerCase();
+
+          if (sk === 'nombre') nombre = String(val);
+          if (sk === 'apellido') apellido = String(val);
+          if (!sk && fn.includes('nombre') && !fn.includes('apellido')) {
+             const parts = String(val).split(' ');
+             nombre = parts[0] || '';
+             apellido = parts.slice(1).join(' ');
+          }
+          if (sk === 'email' || (fn.includes('correo') && !fn.includes('confirm'))) email = String(val);
+          if (sk === 'institucion' || fn.includes('institución') || fn.includes('institucion')) institucion = String(val);
+          if (sk === 'cargo' || fn.includes('cargo')) cargo = String(val);
+          if (sk === 'pais' || fn.includes('país') || fn.includes('pais')) pais = String(val);
+          if (sk === 'ciudad' || fn.includes('ciudad')) ciudad = String(val);
+          if (sk === 'telefono' || fn.includes('teléfono') || fn.includes('telefono')) tel = String(val);
+          if (sk === 'genero' || fn.includes('género') || fn.includes('genero')) gen = String(val);
+          if (sk === 'direccion' || fn.includes('dirección') || fn.includes('direccion')) dir = String(val);
+        });
+
+        await supabase.from('historic_users').upsert({
+          documento_identidad: doc, email, nombre: nombre || 'Registro Masivo', apellido, institucion, cargo, pais, ciudad, telefono: tel, genero: gen, direccion: dir
+        }, { onConflict: 'documento_identidad' });
+
+        const { error: regErr } = await supabase.from('registrations').insert([{ event_id: eventId, historic_user_doc: doc, form_data }]);
+        if (!regErr) added++;
+      }
+
+      showToast('Importación Completada', `Se importaron ${added} asistentes exitosamente.`, 'success');
+      loadEventData();
+    } catch {
+      showToast('Error', 'Fallo técnico inyectando los datos del Excel.', 'error');
+    } finally {
+      setIsImporting(false);
+      setIsActionLoading(false);
+      if (excelUploadRef.current) excelUploadRef.current.value = '';
+    }
+  };
+
   const openExportModal = () => {
     if (registrations.length === 0) return showToast('Reporte Vacío', 'No hay registros para exportar.', 'info');
     const allColIds = ['fecha', ...fields.map(f => f.id)];
@@ -241,91 +479,6 @@ export default function EventoDetalleAdmin() {
     
     setShowExportModal(false);
     showToast('Descarga Exitosa', 'El reporte Excel ha sido generado y descargado.', 'success');
-  };
-
-  const handleImportMasivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setIsImporting(true);
-    
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'binary' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(worksheet) as any[];
-
-        let added = 0;
-        
-        for (const row of data) {
-          let doc = '';
-          let form_data: Record<string, string> = {};
-          let nombre = '', apellido = '', email = '', institucion = '', cargo = '', pais = '', ciudad = '', tel = '', gen = '', dir = '';
-
-          fields.forEach((f: any) => {
-            const val = row[f.field_name] || '';
-            form_data[f.id] = String(val);
-            
-            const fn = String(f.field_name).toLowerCase();
-            if (fn.includes('documento') && !fn.includes('tipo')) doc = String(val);
-            if (fn.includes('nombre')) {
-               const parts = String(val).split(' ');
-               nombre = parts[0] || '';
-               apellido = parts.slice(1).join(' ');
-            }
-            if (fn.includes('correo')) email = String(val);
-            if (fn.includes('institución') || fn.includes('institucion')) institucion = String(val);
-            if (fn.includes('cargo')) cargo = String(val);
-            if (fn.includes('país') || fn.includes('pais')) pais = String(val);
-            if (fn.includes('ciudad')) ciudad = String(val);
-            if (fn.includes('teléfono') || fn.includes('telefono')) tel = String(val);
-            if (fn.includes('género') || fn.includes('genero')) gen = String(val);
-            if (fn.includes('dirección') || fn.includes('direccion')) dir = String(val);
-          });
-
-          if (!doc || doc === 'undefined') continue;
-
-          await supabase
-            .from('historic_users')
-            .upsert({
-              documento_identidad: doc, 
-              email, 
-              nombre: nombre || 'Registro Masivo', 
-              apellido, 
-              institucion, 
-              cargo, 
-              pais, 
-              ciudad,
-              telefono: tel,
-              genero: gen,
-              direccion: dir
-            }, { onConflict: 'documento_identidad' });
-
-          const { error: regErr } = await supabase
-            .from('registrations')
-            .insert([{
-              event_id: eventId, 
-              historic_user_doc: doc, 
-              form_data
-            }]);
-          
-          if (!regErr) added++;
-        }
-        
-        showToast('Importación Completada', `Se importaron ${added} asistentes exitosamente desde el archivo.`, 'success');
-        loadEventData(); 
-        
-      } catch (error) {
-        showToast('Error de Formato', 'Verifique que las columnas del Excel se llamen exactamente igual a las preguntas del formulario.', 'error');
-      } finally {
-        setIsImporting(false);
-        if (e.target) e.target.value = '';
-      }
-    };
-    
-    reader.readAsBinaryString(file);
   };
 
   const filteredRegistrations = useMemo(() => {
@@ -425,9 +578,7 @@ export default function EventoDetalleAdmin() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
 
-      {/* ========================================================= */}
-      {/* CONTENEDOR DE NOTIFICACIONES TOAST                        */}
-      {/* ========================================================= */}
+      {/* TOASTS CONTENEDOR */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toast && (
@@ -450,7 +601,7 @@ export default function EventoDetalleAdmin() {
                 <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -458,44 +609,113 @@ export default function EventoDetalleAdmin() {
         </AnimatePresence>
       </div>
 
-      {/* MODAL ELIMINAR PARTICIPANTE */}
+      {/* POP-UP MAPEA EXCEL EXPLICITO */}
       <AnimatePresence>
-        {deletingParticipant && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-              <h2 className="text-2xl font-bold text-white mb-3">Eliminar Participante</h2>
-              <p className="text-gray-300 mb-8 text-sm">
-                ¿Estás seguro de eliminar este registro? Esta acción borrará al participante del evento de forma permanente.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setDeletingParticipant(null)} disabled={isActionLoading} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50">Cancelar</button>
-                <button 
-                  onClick={confirmDeleteParticipant} 
-                  disabled={isActionLoading}
-                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>} 
-                  Confirmar
-                </button>
+        {showMappingModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2"><SlidersHorizontal className="h-5 w-5 text-accent"/> Relacionar Columnas del Excel</h2>
+                <button onClick={() => { setShowMappingModal(false); setIsImporting(false); }} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-6 w-6"/></button>
+              </div>
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
+                <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex gap-3 text-yellow-500 text-xs leading-relaxed">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <p>Detectamos discrepancias entre las columnas de tu archivo Excel y las preguntas activas del formulario. Por favor, asocia cada campo de la base de datos con la columna correcta de tu archivo.</p>
+                </div>
+                <div className="space-y-3.5">
+                  {fields.map(f => (
+                    <div key={f.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center p-3 bg-black/20 border border-white/5 rounded-xl">
+                      <span className="text-sm text-gray-200 font-bold truncate">{f.field_name} {f.is_required && <span className="text-accent">*</span>}</span>
+                      <select 
+                        value={columnMapping[f.id] || ''} 
+                        onChange={(e) => setMappingSelection(prev => ({ ...prev, [f.id]: e.target.value }))}
+                        className="w-full bg-black/40 border border-white/10 text-xs text-white rounded-lg p-2.5 focus:border-accent cursor-pointer"
+                      >
+                        <option value="">-- No importar este campo --</option>
+                        {excelHeaders.map(h => (<option key={h} value={h}>{h}</option>))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-6 border-t border-white/5 bg-surface">
+                <button onClick={() => proceedWithMappedImport(columnMapping, excelRawRows)} className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static flex justify-center items-center gap-2 cursor-pointer">Procesar Importación</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODAL EDITAR PARTICIPANTE */}
+      {/* POP-UP: BULK EDIT DE SELECCIONADOS */}
+      <AnimatePresence>
+        {showBulkEditModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-2xl p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2"><Pencil className="h-5 w-5 text-primary"/> Modificación Masiva</h3>
+                <button onClick={() => setShowBulkEditModal(false)} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-5 w-5"/></button>
+              </div>
+              <form onSubmit={executeBulkEdit} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Selecciona el Campo a Modificar</label>
+                  <select 
+                    required 
+                    value={bulkEditTargetField} 
+                    onChange={e => setBulkEditTargetField(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-primary cursor-pointer"
+                  >
+                    <option value="">Selecciona...</option>
+                    {fields.filter(f => {
+                      const fn = f.field_name.toLowerCase();
+                      return !fn.includes('documento') && !fn.includes('tipo');
+                    }).map(f => (<option key={f.id} value={f.id}>{f.field_name}</option>))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Nuevo Valor Común</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Completa el valor que tendrán todos..." 
+                    value={bulkEditValue} 
+                    onChange={e => setBulkEditValue(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-primary"
+                  />
+                </div>
+                <div className="pt-4 flex justify-end gap-2">
+                  <button type="button" onClick={() => setShowBulkEditModal(false)} className="px-5 py-2.5 text-gray-300 hover:bg-white/5 rounded-lg text-sm font-medium cursor-pointer">Cancelar</button>
+                  <button type="submit" className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg text-sm shadow-4d-static flex items-center gap-2 cursor-pointer"><Save className="h-4 w-4"/> Aplicar a {selectedRegIds.length}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* POP-UP: BULK DELETE MODAL */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              <h2 className="text-2xl font-bold text-white mb-3">Eliminación Masiva</h2>
+              <p className="text-gray-300 mb-8 text-sm">¿Estás completamente seguro de eliminar los {selectedRegIds.length} participantes seleccionados del evento al mismo tiempo? Esta acción destruirá los registros de forma definitiva.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowBulkDeleteModal(false)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 font-medium text-sm cursor-pointer">Cancelar</button>
+                <button onClick={executeBulkDelete} className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 shadow-4d-static text-sm flex items-center gap-2 cursor-pointer"><Trash2 className="h-4 w-4"/> Confirmar Destrucción</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL EDITAR PARTICIPANTE INDIVIDUAL */}
       <AnimatePresence>
         {editingParticipant && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
@@ -507,7 +727,7 @@ export default function EventoDetalleAdmin() {
                 </h2>
                 <button 
                   onClick={() => setEditingParticipant(null)} 
-                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5"
+                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
                 >
                   <X className="h-6 w-6"/>
                 </button>
@@ -522,7 +742,7 @@ export default function EventoDetalleAdmin() {
                         <select 
                           value={editingParticipant.form_data[f.id] || ''} 
                           onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
+                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary cursor-pointer"
                         >
                           <option value="">Seleccionar...</option>
                           {f.options && JSON.parse(f.options).choices?.map((opt: string) => (
@@ -554,14 +774,14 @@ export default function EventoDetalleAdmin() {
                     type="button"
                     onClick={() => setEditingParticipant(null)} 
                     disabled={isActionLoading}
-                    className="px-6 py-3 rounded-xl text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50"
+                    className="px-6 py-3 rounded-xl text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
                     disabled={isActionLoading}
-                    className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 disabled:opacity-50"
+                    className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
                     {isActionLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : <Save className="h-5 w-5"/>} 
                     Guardar Cambios
@@ -573,12 +793,44 @@ export default function EventoDetalleAdmin() {
         )}
       </AnimatePresence>
 
+      {/* MODAL ELIMINAR PARTICIPANTE INDIVIDUAL */}
+      <AnimatePresence>
+        {deletingParticipant && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              <h2 className="text-2xl font-bold text-white mb-3">Eliminar Participante</h2>
+              <p className="text-gray-300 mb-8 text-sm">
+                ¿Estás seguro de eliminar este registro? Esta acción borrará al participante del evento de forma permanente.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setDeletingParticipant(null)} disabled={isActionLoading} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50 cursor-pointer">Cancelar</button>
+                <button 
+                  onClick={confirmDeleteParticipant} 
+                  disabled={isActionLoading}
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>} 
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL 4D DE CONFIRMACIÓN DE ARCHIVO */}
       <AnimatePresence>
         {confirmModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
@@ -590,10 +842,10 @@ export default function EventoDetalleAdmin() {
                 ¿Estás seguro de enviar "{event.name}" a la papelera? Esta acción desactivará los registros públicos.
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium">Cancelar</button>
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
                 <button 
                   onClick={confirmArchiveEvent} 
-                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static"
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
                 >
                   Confirmar Acción
                 </button>
@@ -608,7 +860,7 @@ export default function EventoDetalleAdmin() {
         {showExportModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} 
@@ -620,7 +872,7 @@ export default function EventoDetalleAdmin() {
                 </h2>
                 <button 
                   onClick={() => setShowExportModal(false)} 
-                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5"
+                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
                 >
                   <X className="h-6 w-6"/>
                 </button>
@@ -632,20 +884,19 @@ export default function EventoDetalleAdmin() {
                 <div className="flex gap-2 mb-4">
                   <button 
                     onClick={selectAllColumns} 
-                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30"
+                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30 cursor-pointer"
                   >
                     Seleccionar Todas
                   </button>
                   <button 
                     onClick={deselectAllColumns} 
-                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10"
+                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10 cursor-pointer"
                   >
                     Desmarcar Todas
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  {/* Fila Fecha (Dato automático) */}
                   <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                     <div className="flex items-center h-5">
                       <input 
@@ -658,7 +909,6 @@ export default function EventoDetalleAdmin() {
                     <span className="text-sm font-medium text-gray-200">Fecha de Registro</span>
                   </label>
 
-                  {/* Filas Dinámicas del Formulario */}
                   {fields.map(f => (
                     <label key={f.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                       <div className="flex items-center h-5">
@@ -678,7 +928,7 @@ export default function EventoDetalleAdmin() {
               <div className="p-6 border-t border-white/5 bg-surface">
                 <button 
                   onClick={confirmExport} 
-                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2"
+                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 cursor-pointer"
                 >
                   <Download className="h-5 w-5"/> Generar y Descargar
                 </button>
@@ -698,20 +948,39 @@ export default function EventoDetalleAdmin() {
               </span>
             )}
           </div>
-          <p className="text-gray-400">Panel de Distribución y Gestión de Inscritos</p>
+          <p className="text-gray-400">{t.panelTitle}</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 relative">
+          {/* SWITCH DE IDIOMA DEL PANEL DE CONTROL */}
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-2.5 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-xl transition-all cursor-pointer"
+            title="Configuración de Idioma"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
+                <button onClick={() => { setSystemLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${systemLang === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setSystemLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${systemLang === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <Link href={`/admin/eventos/${event.id}/auto-checkin`} target="_blank">
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-primary text-white shadow-4d-static hover:bg-primary/90 transition-transform active:translate-y-1 active:shadow-none">
               <MonitorPlay className="h-4 w-4" /> 
-              Check-in Automático
+              {t.btnCheckin}
             </button>
           </Link>
 
           <button 
             onClick={togglePauseEvent} 
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
               event.is_active 
                 ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' 
                 : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
@@ -719,19 +988,19 @@ export default function EventoDetalleAdmin() {
           >
             {event.is_active ? (
               <>
-                <PauseCircle className="h-4 w-4" /> Pausar Evento
+                <PauseCircle className="h-4 w-4" /> {t.btnPause}
               </>
             ) : (
               <>
-                <PlayCircle className="h-4 w-4" /> Activar Evento
+                <PlayCircle className="h-4 w-4" /> {t.btnActivate}
               </>
             )}
           </button>
           <button 
             onClick={() => setConfirmModal({ isOpen: true, type: 'archive' })} 
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all cursor-pointer"
           >
-            <Trash2 className="h-4 w-4" /> Al Historial
+            <Trash2 className="h-4 w-4" /> {t.btnArchive}
           </button>
         </div>
       </header>
@@ -763,7 +1032,7 @@ export default function EventoDetalleAdmin() {
               />
               <button 
                 onClick={() => copyToClipboard(publicUrl, 'link')} 
-                className="bg-primary hover:bg-primary/80 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap"
+                className="bg-primary hover:bg-primary/80 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors whitespace-nowrap cursor-pointer"
               >
                 {copiedLink ? 'Copiado' : 'Copiar URL'}
               </button>
@@ -780,7 +1049,7 @@ export default function EventoDetalleAdmin() {
             </p>
             <button 
               onClick={() => copyToClipboard(iframeCode, 'iframe')} 
-              className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 py-3 rounded-xl flex justify-center items-center gap-2 transition-all font-bold text-sm"
+              className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 py-3 rounded-xl flex justify-center items-center gap-2 transition-all font-bold text-sm cursor-pointer"
             >
               {copiedIframe ? (
                 <CheckCircle2 className="h-4 w-4 text-green-400"/>
@@ -797,29 +1066,29 @@ export default function EventoDetalleAdmin() {
           <div className="flex items-center gap-4 mb-6 border-b border-white/5 pb-2">
             <button 
               onClick={() => setActiveTab('lista')} 
-              className={`flex items-center gap-2 pb-2 font-bold transition-colors border-b-2 ${
+              className={`flex items-center gap-2 pb-2 font-bold transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'lista' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-300'
               }`}
             >
-              <List className="h-4 w-4" /> Listado de Inscritos
+              <List className="h-4 w-4" /> {t.tabList}
             </button>
             <button 
               onClick={() => setActiveTab('analitica')} 
-              className={`flex items-center gap-2 pb-2 font-bold transition-colors border-b-2 ${
+              className={`flex items-center gap-2 pb-2 font-bold transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'analitica' ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-300'
               }`}
             >
-              <BarChart3 className="h-4 w-4" /> Estadísticas (Analytics)
+              <BarChart3 className="h-4 w-4" /> {t.tabAnalytics}
             </button>
           </div>
 
           {activeTab === 'lista' ? (
-            <div className="bg-surface border border-white/5 rounded-2xl flex flex-col h-full min-h-125">
+            <div className="bg-surface border border-white/5 rounded-2xl flex flex-col h-full min-h-125 relative">
               <div className="p-6 border-b border-white/5 space-y-4">
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   
                   <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-white">Inscritos</h2>
+                    <h2 className="text-xl font-bold text-white">{t.tabList}</h2>
                     <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-bold">
                       {filteredRegistrations.length} {event.max_capacity && `/ ${event.max_capacity}`}
                     </span>
@@ -836,32 +1105,31 @@ export default function EventoDetalleAdmin() {
                     <button 
                       onClick={() => excelUploadRef.current?.click()} 
                       disabled={isImporting} 
-                      className="bg-gray-800 text-white hover:bg-gray-700 font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-transform active:translate-y-1 text-sm border border-transparent disabled:opacity-50"
+                      className="bg-gray-800 text-white hover:bg-gray-700 font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-transform active:translate-y-1 text-sm border border-transparent disabled:opacity-50 cursor-pointer"
                     >
                       {isImporting ? <Loader2 className="h-4 w-4 animate-spin"/> : <UploadCloud className="h-4 w-4" />} 
-                      Subir Datos
+                      {t.btnImport}
                     </button>
 
                     <Link href={`/admin/eventos/${event.id}/gafetes`}>
-                      <button className="bg-white text-black hover:bg-gray-200 font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-transform active:translate-y-1 text-sm border border-transparent">
+                      <button className="bg-white text-black hover:bg-gray-200 font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-transform active:translate-y-1 text-sm border border-transparent cursor-pointer">
                         <Printer className="h-4 w-4" /> 
-                        Gafetes
+                        {t.btnGafetes}
                       </button>
                     </Link>
 
                     <Link href={`/admin/eventos/${eventId}/editar`}>
                         <button className="bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer">
-                            <Settings className="h-4 w-4 text-gray-400" /> Editar Evento
+                            <Settings className="h-4 w-4 text-gray-400" /> {t.btnEditEvent}
                         </button>
                     </Link>
                     
-                    {/* BOTÓN CON LA NUEVA LÓGICA DE EXPORTACIÓN */}
                     <button 
                       onClick={openExportModal} 
-                      className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm"
+                      className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm cursor-pointer"
                     >
                       <Download className="h-4 w-4" /> 
-                      Exportar
+                      {t.btnExport}
                     </button>
                   </div>
                 </div>
@@ -870,7 +1138,7 @@ export default function EventoDetalleAdmin() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                   <input 
                     type="text" 
-                    placeholder="Buscar por cédula, nombre o dato..." 
+                    placeholder={t.searchPlaceholder} 
                     value={searchTerm} 
                     onChange={(e) => { 
                       setSearchTerm(e.target.value); 
@@ -891,8 +1159,24 @@ export default function EventoDetalleAdmin() {
                   <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
                     <thead className="bg-black/30 text-xs uppercase text-gray-500">
                       <tr>
-                        <th className="px-6 py-4 font-medium w-10 text-center">Acciones</th>
-                        <th className="px-6 py-4 font-medium">Fecha</th>
+                        {/* SELECCIÓN MASIVA EN ENCABEZADO */}
+                        <th className="px-4 py-4 w-12 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={currentItems.length > 0 && currentItems.every(item => selectedRegIds.includes(item.id))}
+                            onChange={(e) => {
+                              const pageIds = currentItems.map(i => i.id);
+                              if (e.target.checked) {
+                                setSelectedRegIds(prev => Array.from(new Set([...prev, ...pageIds])));
+                              } else {
+                                setSelectedRegIds(prev => prev.filter(id => !pageIds.includes(id)));
+                              }
+                            }}
+                            className="w-4 h-4 rounded appearance-none border-2 border-gray-600 checked:bg-primary flex items-center justify-center after:content-['✓'] after:text-white after:font-bold after:opacity-0 checked:after:opacity-100 after:text-[10px] cursor-pointer"
+                          />
+                        </th>
+                        <th className="px-6 py-4 font-medium w-24 text-center">{t.tableActions}</th>
+                        <th className="px-6 py-4 font-medium w-32">{t.tableDate}</th>
                         {fields.map((f: any) => (
                           <th key={f.id} className="px-6 py-4 font-medium">
                             {f.field_name}
@@ -903,18 +1187,33 @@ export default function EventoDetalleAdmin() {
                     <tbody className="divide-y divide-white/5">
                       {currentItems.map((reg: any) => (
                         <tr key={reg.id} className="hover:bg-white/5 transition-colors group">
+                          {/* SELECCIÓN INDIVIDUAL (CHECKBOX) */}
+                          <td className="px-4 py-4 text-center">
+                            <input 
+                              type="checkbox" 
+                              checked={selectedRegIds.includes(reg.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedRegIds(prev => [...prev, reg.id]);
+                                } else {
+                                  setSelectedRegIds(prev => prev.filter(id => id !== reg.id));
+                                }
+                              }}
+                              className="w-4 h-4 rounded appearance-none border-2 border-gray-600 checked:bg-primary flex items-center justify-center after:content-['✓'] after:text-white after:font-bold after:opacity-0 checked:after:opacity-100 after:text-[10px] cursor-pointer"
+                            />
+                          </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => setEditingParticipant(reg)}
-                                className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
+                                className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors cursor-pointer"
                                 title="Editar Participante"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
                               <button 
                                 onClick={() => setDeletingParticipant(reg)}
-                                className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
+                                className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-md transition-colors cursor-pointer"
                                 title="Eliminar Participante"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -940,6 +1239,33 @@ export default function EventoDetalleAdmin() {
                 )}
               </div>
 
+              {/* FLOATING ACTION BAR PARA EDICIÓN MASIVA */}
+              <AnimatePresence>
+                {selectedRegIds.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 50 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: 50 }} 
+                    className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-surface/90 border border-primary/40 p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-5 z-40"
+                  >
+                    <span className="text-xs font-bold text-white shrink-0">
+                      <span className="text-primary text-sm font-black">{selectedRegIds.length}</span> {t.bulkBarSelected}
+                    </span>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowBulkEditModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-primary/20 text-primary hover:bg-primary hover:text-white rounded-lg font-bold text-xs transition-colors border border-primary/30 cursor-pointer">
+                        {t.bulkBtnEdit}
+                      </button>
+                      <button onClick={() => setShowBulkDeleteModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-lg font-bold text-xs transition-colors border border-red-500/30 cursor-pointer">
+                        {t.bulkBtnDelete}
+                      </button>
+                      <button onClick={() => setSelectedRegIds([])} className="p-2 text-gray-400 hover:text-white transition-colors cursor-pointer">
+                        <X className="h-4 w-4"/>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {totalPages > 1 && (
                 <div className="p-4 border-t border-white/5 flex items-center justify-between text-sm text-gray-400">
                   <span>Página {currentPage} de {totalPages}</span>
@@ -947,14 +1273,14 @@ export default function EventoDetalleAdmin() {
                     <button 
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
                       disabled={currentPage === 1} 
-                      className="p-2 bg-white/5 rounded-lg hover:bg-white/10 disabled:opacity-30"
+                      className="p-2 bg-white/5 rounded-lg hover:bg-white/10 disabled:opacity-30 cursor-pointer"
                     >
                       <ChevronLeft className="h-4 w-4"/>
                     </button>
                     <button 
                       onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
                       disabled={currentPage === totalPages} 
-                      className="p-2 bg-white/5 rounded-lg hover:bg-white/10 disabled:opacity-30"
+                      className="p-2 bg-white/5 rounded-lg hover:bg-white/10 disabled:opacity-30 cursor-pointer"
                     >
                       <ChevronRight className="h-4 w-4"/>
                     </button>
@@ -968,7 +1294,7 @@ export default function EventoDetalleAdmin() {
               
               <div className="bg-surface border border-white/5 p-6 rounded-2xl md:col-span-2 flex items-center justify-between">
                 <div>
-                  <h3 className="text-gray-400 text-sm font-bold uppercase tracking-widest">Aforo Total</h3>
+                  <h3 className="text-gray-400 text-sm font-bold uppercase tracking-widest">{t.totalCapacity}</h3>
                   <p className="text-4xl font-black text-white mt-1">
                     {registrations.length} <span className="text-lg text-gray-500 font-medium">inscritos</span>
                   </p>
@@ -976,7 +1302,7 @@ export default function EventoDetalleAdmin() {
                 {event.max_capacity && (
                   <div className="text-right">
                     <p className="text-sm text-accent font-bold mb-2">
-                      {Math.round((registrations.length / event.max_capacity) * 100)}% Lleno
+                      {Math.round((registrations.length / event.max_capacity) * 100)}% {t.fullLabel}
                     </p>
                     <div className="w-48 bg-black/50 rounded-full h-3 overflow-hidden border border-white/10">
                       <div 
@@ -991,7 +1317,7 @@ export default function EventoDetalleAdmin() {
               {topInstitutions.length > 0 && (
                 <div className="bg-surface border border-white/5 p-6 rounded-2xl">
                   <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-primary"/> Top 5 Instituciones
+                    <BarChart3 className="h-4 w-4 text-primary"/> {t.topInst}
                   </h3>
                   <div className="space-y-4">
                     {topInstitutions.map(([name, count]: any) => (
@@ -1015,7 +1341,7 @@ export default function EventoDetalleAdmin() {
               {topRoles.length > 0 && (
                 <div className="bg-surface border border-white/5 p-6 rounded-2xl">
                   <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-green-400"/> Distribución de Cargos
+                    <BarChart3 className="h-4 w-4 text-green-400"/> {t.topRoles}
                   </h3>
                   <div className="space-y-4">
                     {topRoles.map(([name, count]: any) => (
@@ -1039,7 +1365,7 @@ export default function EventoDetalleAdmin() {
               {topCities.length > 0 && (
                 <div className="bg-surface border border-white/5 p-6 rounded-2xl md:col-span-2">
                   <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-accent"/> Ciudades Principales
+                    <BarChart3 className="h-4 w-4 text-accent"/> {t.topCities}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     {topCities.map(([name, count]: any) => (

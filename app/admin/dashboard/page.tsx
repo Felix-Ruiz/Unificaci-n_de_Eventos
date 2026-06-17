@@ -2,11 +2,66 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Calendar, TrendingUp, Loader2, QrCode, ExternalLink, Trash2, PauseCircle, CopyPlus, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Loader2, QrCode, ExternalLink, Trash2, PauseCircle, CopyPlus, AlertCircle, CheckCircle2, X, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
+import { useLanguage } from '../../../context/LanguageContext';
+
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    pageTitle: "Panel de Control",
+    pageSubtitle: "Resumen general de eventos y registros históricos.",
+    btnNewEvent: "Nuevo Evento",
+    activeEvents: "Eventos Activos",
+    historicBase: "Base Histórica",
+    newRegs: "Nuevos Registros",
+    thisWeek: "esta semana",
+    yourActiveEvents: "Tus Eventos Activos",
+    noActiveEvents: "No hay eventos activos.",
+    paused: "PAUSADO",
+    createdAt: "Creado el",
+    btnPublic: "Público",
+    btnManage: "Gestionar",
+    modalArchiveTitle: "Archivar Evento",
+    modalArchiveDesc1: "¿Estás seguro de enviar",
+    modalArchiveDesc2: "a la papelera? Esta acción desactivará los registros públicos.",
+    modalDuplicateTitle: "Duplicar Evento",
+    modalDuplicateDesc1: "¿Deseas crear una copia idéntica de",
+    modalDuplicateDesc2: "incluyendo todas sus preguntas y configuraciones?",
+    btnCancel: "Cancelar",
+    btnConfirm: "Confirmar Acción",
+    langSystem: "Idioma de Sistema"
+  },
+  en: {
+    pageTitle: "Dashboard",
+    pageSubtitle: "Overview of events and historical registrations.",
+    btnNewEvent: "New Event",
+    activeEvents: "Active Events",
+    historicBase: "Historical Database",
+    newRegs: "New Registrations",
+    thisWeek: "this week",
+    yourActiveEvents: "Your Active Events",
+    noActiveEvents: "No active events.",
+    paused: "PAUSED",
+    createdAt: "Created on",
+    btnPublic: "Public",
+    btnManage: "Manage",
+    modalArchiveTitle: "Archive Event",
+    modalArchiveDesc1: "Are you sure you want to move",
+    modalArchiveDesc2: "to the trash? This will disable public registrations.",
+    modalDuplicateTitle: "Duplicate Event",
+    modalDuplicateDesc1: "Do you want to create an exact copy of",
+    modalDuplicateDesc2: "including all questions and settings?",
+    btnCancel: "Cancel",
+    btnConfirm: "Confirm Action",
+    langSystem: "System Language"
+  }
+};
 
 export default function DashboardPage() {
+  const { language, setLanguage } = useLanguage();
+  const t = systemTranslations[language];
+
   const [stats, setStats] = useState({ events: 0, users: 0, newUsers: 0 });
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +69,8 @@ export default function DashboardPage() {
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES (Reemplazo de alert y confirm)
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'success' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'archive' | 'duplicate'; event: any } | null>(null);
+  
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   const showToast = (title: string, desc: string, type: 'error' | 'success' = 'success') => {
     setToast({ title, desc, type });
@@ -123,22 +180,22 @@ export default function DashboardPage() {
             >
               <div className={`absolute top-0 left-0 w-full h-1 ${confirmModal.type === 'archive' ? 'bg-red-500' : 'bg-accent'}`}></div>
               <h2 className="text-2xl font-bold text-white mb-3">
-                {confirmModal.type === 'archive' ? 'Archivar Evento' : 'Duplicar Evento'}
+                {confirmModal.type === 'archive' ? t.modalArchiveTitle : t.modalDuplicateTitle}
               </h2>
               <p className="text-gray-300 mb-8">
                 {confirmModal.type === 'archive' 
-                  ? `¿Estás seguro de enviar "${confirmModal.event.name}" a la papelera? Esta acción desactivará los registros públicos.`
-                  : `¿Deseas crear una copia idéntica de "${confirmModal.event.name}" incluyendo todas sus preguntas y configuraciones?`}
+                  ? `${t.modalArchiveDesc1} "${confirmModal.event.name}" ${t.modalArchiveDesc2}`
+                  : `${t.modalDuplicateDesc1} "${confirmModal.event.name}" ${t.modalDuplicateDesc2}`}
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
                 <button 
                   onClick={executeAction} 
                   className={`px-5 py-2.5 rounded-lg text-white font-bold transition-transform active:scale-95 shadow-4d-static cursor-pointer ${
                     confirmModal.type === 'archive' ? 'bg-red-500 hover:bg-red-600' : 'bg-accent hover:bg-accent/90 text-black'
                   }`}
                 >
-                  Confirmar Acción
+                  {t.btnConfirm}
                 </button>
               </div>
             </motion.div>
@@ -146,24 +203,46 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
-      <header className="flex justify-between items-center">
+      <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Panel de Control</h1>
-          <p className="text-gray-400">Resumen general de eventos y registros históricos.</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.pageTitle}</h1>
+          <p className="text-gray-400">{t.pageSubtitle}</p>
         </div>
-        <Link href="/admin/eventos/nuevo">
-          <button className="bg-accent text-black font-bold py-3 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 hover:bg-accent/90 cursor-pointer">
-            <Calendar className="h-5 w-5" /> 
-            Nuevo Evento
+        
+        <div className="flex items-center gap-3 relative">
+          {/* SWITCH DE IDIOMA DEL PANEL DE CONTROL */}
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            title={t.langSystem}
+          >
+            <Globe className="h-5 w-5" />
           </button>
-        </Link>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-40 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <Link href="/admin/eventos/nuevo">
+            <button className="bg-accent text-black font-bold py-3 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 hover:bg-accent/90 cursor-pointer">
+              <Calendar className="h-5 w-5" /> 
+              {t.btnNewEvent}
+            </button>
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-white/5 p-6 rounded-xl relative overflow-hidden">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-primary/20 rounded-lg text-primary"><Calendar className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-white">Eventos Activos</h3>
+            <h3 className="text-lg font-semibold text-white">{t.activeEvents}</h3>
           </div>
           <p className="text-4xl font-bold text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : stats.events}
@@ -173,7 +252,7 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface border border-white/5 p-6 rounded-xl relative overflow-hidden">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-accent/20 rounded-lg text-accent"><Users className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-white">Base Histórica</h3>
+            <h3 className="text-lg font-semibold text-white">{t.historicBase}</h3>
           </div>
           <p className="text-4xl font-bold text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-accent" /> : stats.users}
@@ -183,22 +262,22 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-surface border border-white/5 p-6 rounded-xl relative overflow-hidden">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-green-500/20 rounded-lg text-green-400"><TrendingUp className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-white">Nuevos Registros</h3>
+            <h3 className="text-lg font-semibold text-white">{t.newRegs}</h3>
           </div>
           <p className="text-4xl font-bold text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-green-400" /> : stats.newUsers}
-            {!loading && <span className="text-sm font-normal text-gray-400 ml-2">esta semana</span>}
+            {!loading && <span className="text-sm font-normal text-gray-400 ml-2">{t.thisWeek}</span>}
           </p>
         </motion.div>
       </div>
 
       <div>
-        <h2 className="text-xl font-bold text-white mb-4">Tus Eventos Activos</h2>
+        <h2 className="text-xl font-bold text-white mb-4">{t.yourActiveEvents}</h2>
         <div className="bg-surface border border-white/5 rounded-xl overflow-hidden">
           {loading && !confirmModal ? (
             <div className="p-10 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : recentEvents.length === 0 ? (
-            <div className="p-10 text-center text-gray-500">No hay eventos activos.</div>
+            <div className="p-10 text-center text-gray-500">{t.noActiveEvents}</div>
           ) : (
             <div className="divide-y divide-white/5">
               {recentEvents.map((evento) => (
@@ -215,7 +294,6 @@ export default function DashboardPage() {
                     )}
                     <div>
                       <div className="flex items-center gap-3">
-                        {/* ENLACE DIRECTO EN EL NOMBRE DEL EVENTO (PUNTO 7) */}
                         <Link href={`/admin/eventos/${evento.id}`}>
                           <h3 className="text-lg font-bold text-white hover:text-primary transition-colors cursor-pointer">
                             {evento.name}
@@ -223,36 +301,36 @@ export default function DashboardPage() {
                         </Link>
                         {!evento.is_active && (
                           <span className="bg-yellow-500/10 text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
-                            <PauseCircle className="h-3 w-3" /> PAUSADO
+                            <PauseCircle className="h-3 w-3" /> {t.paused}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-400">Creado el {new Date(evento.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-400">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
                       <button className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10 cursor-pointer">
-                        <ExternalLink className="h-4 w-4" /> Público
+                        <ExternalLink className="h-4 w-4" /> {t.btnPublic}
                       </button>
                     </Link>
                     <Link href={`/admin/eventos/${evento.id}`}>
                       <button className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-colors text-sm font-medium border border-primary/20 cursor-pointer">
-                        <QrCode className="h-4 w-4" /> Gestionar
+                        <QrCode className="h-4 w-4" /> {t.btnManage}
                       </button>
                     </Link>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'duplicate', event: evento })} 
                       className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
-                      title="Duplicar Evento"
+                      title={t.modalDuplicateTitle}
                     >
                       <CopyPlus className="h-4 w-4" />
                     </button>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'archive', event: evento })} 
                       className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20 cursor-pointer" 
-                      title="Mover a la papelera"
+                      title={t.modalArchiveTitle}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

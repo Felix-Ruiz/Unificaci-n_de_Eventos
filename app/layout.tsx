@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "./ThemeProvider";
+import { LanguageProvider } from "../context/LanguageContext";
 
 export const metadata: Metadata = {
   title: "ACOFI Eventos | Registro Oficial",
@@ -23,7 +24,9 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body suppressHydrationWarning className="antialiased">
         <ThemeProvider>
-          {children}
+          <LanguageProvider>
+            {children}
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

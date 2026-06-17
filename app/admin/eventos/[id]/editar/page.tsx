@@ -6,12 +6,12 @@ import {
   Plus, Trash2, Settings, FileSpreadsheet, Image as ImageIcon, 
   CheckCircle2, GitBranch, X, ShieldAlert, Clock, Users, 
   Palette, ImagePlus, AlignLeft, Link2, ShieldCheck, Loader2, 
-  AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, ThumbsUp, Save, Bot
+  AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, ThumbsUp, Save, Bot, Globe, MessageSquare
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../../lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
-
+import { useLanguage } from '../../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../../components/FeedbackAdminPanel';
 
 interface FormField {
@@ -23,7 +23,44 @@ interface FormField {
   isDefault: boolean;
   logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
   _ui_showLogic?: boolean;
+  allowOther?: boolean;
+  system_key?: string;
+  description?: string;
+  _ui_showDescription?: boolean;
 }
+
+const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
+  es: {
+    tipo_doc: { label: 'Tipo de Documento', options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
+    documento_identidad: { label: 'Número de Documento' },
+    nombre: { label: 'Nombre(s)' },
+    apellido: { label: 'Apellido(s)' },
+    email: { label: 'Correo Electrónico' },
+    email_conf: { label: 'Confirmar Correo' },
+    telefono: { label: 'Número de Teléfono' },
+    genero: { label: 'Género', options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] },
+    direccion: { label: 'Dirección' },
+    institucion: { label: 'Institución' },
+    cargo: { label: 'Cargo' },
+    pais: { label: 'País' },
+    ciudad: { label: 'Ciudad' }
+  },
+  en: {
+    tipo_doc: { label: 'Document Type', options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] },
+    documento_identidad: { label: 'Document Number / ID' },
+    nombre: { label: 'First Name(s)' },
+    apellido: { label: 'Last Name(s)' },
+    email: { label: 'Email Address' },
+    email_conf: { label: 'Confirm Email' },
+    telefono: { label: 'Phone Number' },
+    genero: { label: 'Gender', options: ['Male', 'Female', 'Other', 'Prefer not to say'] },
+    direccion: { label: 'Address' },
+    institucion: { label: 'Institution / Company' },
+    cargo: { label: 'Job Title / Role' },
+    pais: { label: 'Country' },
+    ciudad: { label: 'City' }
+  }
+};
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
   return (
@@ -60,6 +97,8 @@ export default function EditarEventoPage() {
   const params = useParams();
   const eventId = params?.id as string;
 
+  const { language: systemLang, setLanguage: setSystemLanguage } = useLanguage();
+
   const [isLoadingInit, setIsLoadingInit] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
@@ -70,6 +109,7 @@ export default function EditarEventoPage() {
   };
   
   const [openSection, setOpenSection] = useState<string>('detalles');
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   // ESTADOS DEL EVENTO
   const [eventName, setEventName] = useState('');
@@ -77,7 +117,7 @@ export default function EditarEventoPage() {
   const [eventSlug, setEventSlug] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#4f46e5');
   const [accentColor, setAccentColor] = useState('#0ea5e9');
-  const [bgColor, setBgColor] = useState('#09090b'); // RECUPERACIÓN DE COLOR DE FONDO
+  const [bgColor, setBgColor] = useState('#09090b');
   
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -99,6 +139,7 @@ export default function EditarEventoPage() {
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
+  const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
   const [fields, setFields] = useState<FormField[]>([]);
   const [originalFieldIds, setOriginalFieldIds] = useState<string[]>([]);
 
@@ -118,7 +159,6 @@ export default function EditarEventoPage() {
         setEventSlug(eventData.slug || '');
         setEventDescription(eventData.description || '');
         
-        // RECUPERACIÓN DE COLORES
         setPrimaryColor(eventData.primary_color || '#4f46e5');
         setAccentColor(eventData.accent_color || '#0ea5e9');
         setBgColor(eventData.bg_color || '#09090b');
@@ -158,7 +198,11 @@ export default function EditarEventoPage() {
               isDefault: f.is_default,
               options: opts.choices || [],
               logic: opts.logic || null,
-              _ui_showLogic: !!opts.logic
+              _ui_showLogic: !!opts.logic,
+              allowOther: opts.allowOther ?? true,
+              system_key: opts.system_key || null,
+              description: opts.description || '',
+              _ui_showDescription: !!opts.description
             };
           }));
         }
@@ -173,6 +217,20 @@ export default function EditarEventoPage() {
   }, [eventId]);
 
   const toggleSection = (section: string) => setOpenSection(openSection === section ? '' : section);
+
+  const handleLanguageToggle = (lang: 'es' | 'en') => {
+    setFormLanguage(lang);
+    setFields(prev => prev.map(f => {
+      if (f.isDefault && f.system_key && defaultTranslations[lang][f.system_key]) {
+         return {
+           ...f,
+           label: defaultTranslations[lang][f.system_key].label || f.label,
+           options: defaultTranslations[lang][f.system_key].options || f.options
+         };
+      }
+      return f;
+    }));
+  };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -201,12 +259,27 @@ export default function EditarEventoPage() {
   };
 
   const handleAddField = () => {
-    const newField: FormField = { id: `f-custom-${Date.now()}`, label: 'Nueva Pregunta', type: 'text', isRequired: false, options: [], isDefault: false, logic: null, _ui_showLogic: false };
+    const newField: FormField = { 
+      id: `f-custom-${Date.now()}`, 
+      label: 'Nueva Pregunta', 
+      type: 'text', 
+      isRequired: false, 
+      options: [], 
+      isDefault: false, 
+      logic: null, 
+      _ui_showLogic: false, 
+      allowOther: true,
+      description: '',
+      _ui_showDescription: false
+    };
     setFields([...fields, newField]);
   };
 
   const handleRemoveField = (id: string) => setFields(fields.filter(f => f.id !== id));
-  const updateField = (id: string, key: keyof FormField, value: any) => setFields(fields.map(f => f.id === id ? { ...f, [key]: value } : f));
+  
+  const updateField = (id: string, key: keyof FormField, value: any) => {
+    setFields(fields.map(f => f.id === id ? { ...f, [key]: value } : f));
+  };
   
   const updateFieldLogic = (id: string, logicKey: 'dependsOnId' | 'dependsOnValue' | 'action', value: string) => {
     setFields(fields.map(f => {
@@ -215,6 +288,7 @@ export default function EditarEventoPage() {
       return { ...f, logic: { ...currentLogic, [logicKey]: value } };
     }));
   };
+  
   const clearFieldLogic = (id: string) => setFields(fields.map(f => f.id === id ? { ...f, logic: null, _ui_showLogic: false } : f));
 
   const handleExcelForOptions = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,7 +306,6 @@ export default function EditarEventoPage() {
 
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
-        if (!uniqueOptions.includes('Otra')) uniqueOptions.push('Otra');
 
         updateField(id, 'options', uniqueOptions);
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde Excel.`, 'success');
@@ -251,9 +324,7 @@ export default function EditarEventoPage() {
       if (val) {
         const field = fields.find(f => f.id === id);
         if (field && !field.options.includes(val)) {
-          let newOptions = field.options.filter(o => o !== 'Otra');
-          newOptions.push(val);
-          newOptions.push('Otra');
+          const newOptions = [...field.options, val];
           updateField(id, 'options', newOptions);
         }
         e.currentTarget.value = '';
@@ -286,7 +357,6 @@ export default function EditarEventoPage() {
         if (!error) finalBannerUrl = supabase.storage.from('logos').getPublicUrl(fileName).data.publicUrl;
       }
 
-      // SE ACTUALIZA INCLUYENDO EL bg_color
       const { error: eventError } = await supabase.from('events').update({
         name: eventName, slug: eventSlug || null, description: eventDescription,
         logo_url: finalLogoUrl, banner_url: finalBannerUrl,
@@ -302,7 +372,6 @@ export default function EditarEventoPage() {
 
       if (eventError) throw eventError;
 
-      // GESTIÓN INTELIGENTE DE PREGUNTAS (Borrar viejas, actualizar/insertar nuevas)
       const currentFieldIds = fields.map(f => f.id);
       const idsToDelete = originalFieldIds.filter(id => !currentFieldIds.includes(id));
 
@@ -315,7 +384,13 @@ export default function EditarEventoPage() {
         const payload: any = {
           event_id: eventId, field_name: f.label, field_type: f.type,
           is_required: f.isRequired, is_default: f.isDefault,
-          options: JSON.stringify({ choices: f.options, logic: f.logic || null }),
+          options: JSON.stringify({ 
+            choices: f.options, 
+            logic: f.logic || null, 
+            allowOther: f.allowOther ?? true, 
+            system_key: f.system_key || null,
+            description: f.description || '' 
+          }),
           order_index: index
         };
         if (!isNew) payload.id = f.id;
@@ -370,13 +445,34 @@ export default function EditarEventoPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Editar Evento</h1>
           <p className="text-gray-600 dark:text-gray-400">Modifica la información o estructura. <span className="font-bold text-primary">Los registros no se perderán.</span></p>
         </div>
-        <button 
-          onClick={handleUpdateEvent}
-          disabled={isSaving}
-          className={`bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-all shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          {isSaving ? <><Loader2 className="h-5 w-5 animate-spin" /> Actualizando...</> : <><Save className="h-5 w-5" /> Guardar Cambios</>}
-        </button>
+        <div className="flex items-center gap-3 relative">
+          
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            title="Configuración de Idioma Global"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-40 top-14 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Idioma de Sistema</p>
+                <button onClick={() => { setSystemLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${systemLang === 'es' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setSystemLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${systemLang === 'en' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button 
+            onClick={handleUpdateEvent}
+            disabled={isSaving}
+            className={`bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-all shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {isSaving ? <><Loader2 className="h-5 w-5 animate-spin" /> Actualizando...</> : <><Save className="h-5 w-5" /> Guardar Cambios</>}
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -554,9 +650,28 @@ export default function EditarEventoPage() {
             
             <div className="flex justify-between items-center mb-8 border-b border-gray-200 dark:border-white/5 pb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Diseño del Formulario de Inscripción</h2>
-              <span className="text-xs bg-primary/10 dark:bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">
-                {fields.length} Preguntas
-              </span>
+              <div className="flex items-center gap-4">
+                {/* SWITCH DE IDIOMAS DEL FORMULARIO */}
+                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
+                  <button 
+                    type="button"
+                    onClick={() => handleLanguageToggle('es')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    <Globe className="h-3 w-3" /> ES
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleLanguageToggle('en')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    <Globe className="h-3 w-3" /> EN
+                  </button>
+                </div>
+                <span className="text-xs bg-primary/10 dark:bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">
+                  {fields.length} Preguntas
+                </span>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -571,26 +686,78 @@ export default function EditarEventoPage() {
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} 
                       className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-400 dark:hover:border-gray-600 transition-all relative`}
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                        <div className="md:col-span-4">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                        <div className="md:col-span-4 flex flex-col gap-1">
                           <input type="text" value={field.label} onChange={(e) => updateField(field.id, 'label', e.target.value)} className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-700 focus:border-accent outline-none text-gray-900 dark:text-white font-bold px-1 py-1 transition-colors" placeholder="Escribe la pregunta o etiqueta..." />
+                          {field.system_key && (
+                            <span className="text-[9px] font-mono text-gray-400 ml-1 opacity-50 uppercase tracking-widest">
+                              DATA_KEY: {field.system_key}
+                            </span>
+                          )}
+                          
+                          {/* CAMPO DE DESCRIPCIÓN (Plegable) */}
+                          <AnimatePresence>
+                            {field._ui_showDescription && (
+                              <motion.div 
+                                initial={{ height: 0, opacity: 0 }} 
+                                animate={{ height: 'auto', opacity: 1 }} 
+                                exit={{ height: 0, opacity: 0 }}
+                              >
+                                <input 
+                                  type="text" 
+                                  value={field.description || ''} 
+                                  onChange={(e) => updateField(field.id, 'description', e.target.value)} 
+                                  placeholder="Escribe una descripción o ayuda..." 
+                                  className="w-full mt-2 bg-black/10 dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg py-2 px-3 text-xs text-gray-700 dark:text-gray-300 focus:border-primary outline-none transition-colors"
+                                />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
+
                         <div className="md:col-span-3">
-                          <select value={field.type} onChange={(e) => updateField(field.id, 'type', e.target.value)} className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer">
+                          <select value={field.type} onChange={(e) => updateField(field.id, 'type', e.target.value)} className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer mt-1">
                             <option value="text">Texto Corto</option><option value="textarea">Párrafo Largo</option><option value="email">Correo</option><option value="number">Número</option><option value="date">Fecha</option><option value="select">Lista Desplegable</option><option value="radio">Única Respuesta</option><option value="checkbox-group">Selección Múltiple</option><option value="checkbox">Casilla Verificación</option>
                           </select>
                         </div>
-                        <div className="md:col-span-3 flex items-center justify-end gap-3">
-                          <span className="text-xs text-gray-500 font-bold">Obligatorio</span>
+
+                        <div className="md:col-span-2 flex items-center justify-end gap-3 mt-2">
+                          <span className="text-xs text-gray-500 font-bold">Req.</span>
                           <button type="button" role="switch" aria-checked={field.isRequired} onClick={() => updateField(field.id, 'isRequired', !field.isRequired)} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.isRequired ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'}`}>
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${field.isRequired ? 'translate-x-4' : 'translate-x-0'}`} />
                           </button>
                         </div>
-                        <div className="md:col-span-2 flex justify-end gap-1">
+
+                        <div className="md:col-span-3 flex justify-end gap-1 mt-1">
+                          {/* BOTÓN: Añadir Descripción */}
+                          <button 
+                            type="button" 
+                            onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} 
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${field._ui_showDescription || field.description ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
+                            title="Añadir Descripción / Ayuda"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
                           <button type="button" onClick={() => updateField(field.id, '_ui_showLogic', !field._ui_showLogic)} className={`p-2 rounded-lg transition-colors cursor-pointer ${field.logic ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`} title="Lógica Condicional"><GitBranch className="h-4 w-4" /></button>
                           <button type="button" onClick={() => handleRemoveField(field.id)} className="text-gray-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
+
+                      {/* TOGGLE PERMITIR OPCIÓN OTRA */}
+                      {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
+                        <div className="flex items-center gap-3 mt-3 ml-1">
+                          <span className="text-xs text-gray-500 font-bold">Permitir opción "Otra"</span>
+                          <button 
+                            type="button" 
+                            role="switch"
+                            aria-checked={field.allowOther ?? true}
+                            onClick={() => updateField(field.id, 'allowOther', !(field.allowOther ?? true))} 
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.allowOther ?? true ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-700'}`}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${field.allowOther ?? true ? 'translate-x-3' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      )}
 
                       {field._ui_showLogic && (
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 bg-primary/5 -mx-5 px-5 pb-2 rounded-b-xl overflow-hidden">

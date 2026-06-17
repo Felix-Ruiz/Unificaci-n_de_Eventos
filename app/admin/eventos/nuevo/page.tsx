@@ -28,12 +28,13 @@ import {
   Smartphone,
   ThumbsUp,
   Bot,
-  Globe
+  Globe,
+  MessageSquare
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
 import { useRouter } from 'next/navigation';
-
+import { useLanguage } from '../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../components/FeedbackAdminPanel';
 
 interface FormField {
@@ -46,10 +47,11 @@ interface FormField {
   logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
   _ui_showLogic?: boolean;
   allowOther?: boolean;
-  system_key?: string; // NUEVO: Llave inmutable para conectar con BD sin importar el idioma o texto
+  system_key?: string;
+  description?: string;
+  _ui_showDescription?: boolean;
 }
 
-// DICCIONARIO DE TRADUCCIONES PARA CAMPOS BASE
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
   es: {
     tipo_doc: { label: 'Tipo de Documento', options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
@@ -118,6 +120,14 @@ const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }:
 
 export default function NuevoEventoPage() {
   const router = useRouter();
+  
+  // CONTEXTO DE IDIOMA GLOBAL (SISTEMA)
+  const { language: systemLang, setLanguage: setSystemLanguage } = useLanguage();
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+
+  // ESTADO DE IDIOMA LOCAL DEL FORMULARIO
+  const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
+
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
 
@@ -171,23 +181,20 @@ export default function NuevoEventoPage() {
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
-  // ESTADO DE IDIOMA Y CAMPOS
-  const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
-  
   const [fields, setFields] = useState<FormField[]>([
-    { id: 'f-tipo-doc', system_key: 'tipo_doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: defaultTranslations.es.tipo_doc.options!, isDefault: true, allowOther: false },
-    { id: 'f-doc', system_key: 'documento_identidad', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-nom', system_key: 'nombre', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-ape', system_key: 'apellido', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-email', system_key: 'email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true },
-    { id: 'f-email-conf', system_key: 'email_conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true },
-    { id: 'f-tel', system_key: 'telefono', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-gen', system_key: 'genero', label: 'Género', type: 'select', isRequired: true, options: defaultTranslations.es.genero.options!, isDefault: true, allowOther: false },
-    { id: 'f-dir', system_key: 'direccion', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true },
-    { id: 'f-inst', system_key: 'institucion', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
-    { id: 'f-cargo', system_key: 'cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
-    { id: 'f-pais', system_key: 'pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
-    { id: 'f-ciudad', system_key: 'ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true },
+    { id: 'f-tipo-doc', system_key: 'tipo_doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: defaultTranslations.es.tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false },
+    { id: 'f-doc', system_key: 'documento_identidad', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-nom', system_key: 'nombre', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-ape', system_key: 'apellido', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-email', system_key: 'email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-email-conf', system_key: 'email_conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-tel', system_key: 'telefono', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-gen', system_key: 'genero', label: 'Género', type: 'select', isRequired: true, options: defaultTranslations.es.genero.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false },
+    { id: 'f-dir', system_key: 'direccion', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
+    { id: 'f-inst', system_key: 'institucion', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
+    { id: 'f-cargo', system_key: 'cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
+    { id: 'f-pais', system_key: 'pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
+    { id: 'f-ciudad', system_key: 'ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -253,7 +260,9 @@ export default function NuevoEventoPage() {
       isDefault: false,
       logic: null,
       _ui_showLogic: false,
-      allowOther: true
+      allowOther: true,
+      description: '',
+      _ui_showDescription: false
     };
     setFields([...fields, newField]);
   };
@@ -408,8 +417,13 @@ export default function NuevoEventoPage() {
         field_type: f.type,
         is_required: f.isRequired,
         is_default: f.isDefault,
-        // GUARDAMOS LA SYSTEM KEY INTACTA EN LA BASE DE DATOS
-        options: JSON.stringify({ choices: f.options, logic: f.logic || null, allowOther: f.allowOther ?? true, system_key: f.system_key || null }),
+        options: JSON.stringify({ 
+          choices: f.options, 
+          logic: f.logic || null, 
+          allowOther: f.allowOther ?? true, 
+          system_key: f.system_key || null,
+          description: f.description || '' 
+        }),
         order_index: index
       }));
 
@@ -468,25 +482,46 @@ export default function NuevoEventoPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Crear Nuevo Evento</h1>
           <p className="text-gray-600 dark:text-gray-400">Configura la información y diseña el formulario de inscripción.</p>
         </div>
-        <button 
-          onClick={handleSaveEvent}
-          disabled={isSaving}
-          className={`bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-all shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer ${
-            isSaving ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" /> 
-              Guardando...
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-5 w-5" /> 
-              Publicar Evento
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-3 relative">
+          
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            title="Configuración de Idioma Global"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-40 top-14 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Idioma de Sistema</p>
+                <button onClick={() => { setSystemLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${systemLang === 'es' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setSystemLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${systemLang === 'en' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button 
+            onClick={handleSaveEvent}
+            disabled={isSaving}
+            className={`bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-lg flex items-center justify-center gap-2 transition-all shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer ${
+              isSaving ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" /> 
+                Guardando...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-5 w-5" /> 
+                Publicar Evento
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -884,19 +919,19 @@ export default function NuevoEventoPage() {
             <div className="flex justify-between items-center mb-8 border-b border-gray-200 dark:border-white/5 pb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Diseño del Formulario de Inscripción</h2>
               <div className="flex items-center gap-4">
-                {/* SWITCH DE IDIOMAS */}
+                {/* SWITCH DE IDIOMAS DEL FORMULARIO */}
                 <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
                   <button 
                     type="button"
                     onClick={() => handleLanguageToggle('es')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
                   >
                     <Globe className="h-3 w-3" /> ES
                   </button>
                   <button 
                     type="button"
                     onClick={() => handleLanguageToggle('en')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
                   >
                     <Globe className="h-3 w-3" /> EN
                   </button>
@@ -921,7 +956,7 @@ export default function NuevoEventoPage() {
                       exit={{ opacity: 0, scale: 0.95 }} 
                       className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-400 dark:hover:border-gray-600 transition-all relative`}
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                         
                         <div className="md:col-span-4 flex flex-col gap-1">
                           <input 
@@ -936,13 +971,32 @@ export default function NuevoEventoPage() {
                               DATA_KEY: {field.system_key}
                             </span>
                           )}
+                          
+                          {/* CAMPO DE DESCRIPCIÓN (Plegable) */}
+                          <AnimatePresence>
+                            {field._ui_showDescription && (
+                              <motion.div 
+                                initial={{ height: 0, opacity: 0 }} 
+                                animate={{ height: 'auto', opacity: 1 }} 
+                                exit={{ height: 0, opacity: 0 }}
+                              >
+                                <input 
+                                  type="text" 
+                                  value={field.description || ''} 
+                                  onChange={(e) => updateField(field.id, 'description', e.target.value)} 
+                                  placeholder="Escribe una descripción o ayuda..." 
+                                  className="w-full mt-2 bg-black/10 dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg py-2 px-3 text-xs text-gray-700 dark:text-gray-300 focus:border-primary outline-none transition-colors"
+                                />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         <div className="md:col-span-3">
                           <select 
                             value={field.type} 
                             onChange={(e) => updateField(field.id, 'type', e.target.value)} 
-                            className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer"
+                            className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 rounded-lg p-2 focus:outline-none focus:border-accent cursor-pointer mt-1"
                           >
                             <option value="text">Texto Corto</option>
                             <option value="textarea">Párrafo Largo</option>
@@ -956,8 +1010,8 @@ export default function NuevoEventoPage() {
                           </select>
                         </div>
 
-                        <div className="md:col-span-3 flex items-center justify-end gap-3">
-                          <span className="text-xs text-gray-500 font-bold">Obligatorio</span>
+                        <div className="md:col-span-2 flex items-center justify-end gap-3 mt-2">
+                          <span className="text-xs text-gray-500 font-bold">Req.</span>
                           <button 
                             type="button" 
                             role="switch"
@@ -969,7 +1023,17 @@ export default function NuevoEventoPage() {
                           </button>
                         </div>
 
-                        <div className="md:col-span-2 flex justify-end gap-1">
+                        <div className="md:col-span-3 flex justify-end gap-1 mt-1">
+                          {/* BOTÓN: Añadir Descripción */}
+                          <button 
+                            type="button" 
+                            onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} 
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${field._ui_showDescription || field.description ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
+                            title="Añadir Descripción / Ayuda"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+                          
                           <button 
                             type="button" 
                             onClick={() => updateField(field.id, '_ui_showLogic', !field._ui_showLogic)} 
@@ -983,6 +1047,7 @@ export default function NuevoEventoPage() {
                             type="button" 
                             onClick={() => handleRemoveField(field.id)} 
                             className="text-gray-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer"
+                            title="Eliminar Pregunta"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1077,9 +1142,11 @@ export default function NuevoEventoPage() {
                               {field.options.map(opt => (
                                 <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
                                   <span>{opt}</span>
-                                  <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
-                                    <X className="h-3 w-3" />
-                                  </button>
+                                  {opt !== 'Otra' && (
+                                    <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>

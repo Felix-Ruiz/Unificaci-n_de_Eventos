@@ -55,7 +55,6 @@ export default function AutoCheckInPage() {
   const [status, setStatus] = useState<'waiting' | 'processing' | 'success' | 'error'>('waiting');
   const [welcomeName, setWelcomeName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [nameFieldId, setNameFieldId] = useState<string>('');
 
   // ESTADOS: CONTROL MULTIZONA
   const [activeZone, setActiveZone] = useState('Entrada Principal');
@@ -248,9 +247,6 @@ export default function AutoCheckInPage() {
 
       const { data: fieldsData } = await supabase.from('event_fields').select('*').eq('event_id', eventId);
       setFields(fieldsData || []);
-      
-      const nameF = fieldsData?.find((f: any) => f.field_name.toLowerCase().includes('nombre'));
-      if (nameF) setNameFieldId(nameF.id);
 
       const { data: regsData } = await supabase.from('registrations').select('*').eq('event_id', eventId);
       const { data: logsData } = await supabase.from('attendance_logs').select('*').eq('event_id', eventId);
@@ -398,16 +394,28 @@ export default function AutoCheckInPage() {
         if (activeZone === 'Entrada Principal') reg.attended = true;
       }
 
-      const name = nameFieldId && reg.form_data[nameFieldId] ? reg.form_data[nameFieldId] : 'Invitado';
-      const firstName = name.split(' ')[0];
+      // EXTRACCIÓN INTELIGENTE DE DATOS
+      const getFieldValue = (form_data: any, keyword: string) => {
+        const field = fields.find((f: any) => {
+          let opts: any = {};
+          try { opts = JSON.parse(f.options || '{}'); } catch(e){}
+          return opts.system_key === keyword || f.field_name?.toLowerCase().includes(keyword.toLowerCase());
+        });
+        return field ? form_data[field.id] : '';
+      };
+
+      const nombre = getFieldValue(reg.form_data, 'nombre');
+      const apellido = getFieldValue(reg.form_data, 'apellido');
+      const fullName = [nombre, apellido].filter(Boolean).join(' ') || 'Invitado';
+      const firstName = nombre ? nombre.split(' ')[0] : fullName.split(' ')[0];
       
-      const cargoId = fields.find(f => f.field_name.toLowerCase().includes('cargo'))?.id;
-      const instId = fields.find(f => f.field_name.toLowerCase().includes('institu'))?.id;
-      
+      const cargo = getFieldValue(reg.form_data, 'cargo');
+      const inst = getFieldValue(reg.form_data, 'institu');
+
       setPrintData({
-        nombre: name,
-        cargo: cargoId ? (reg.form_data[cargoId] || '') : '',
-        institucion: instId ? (reg.form_data[instId] || '') : ''
+        nombre: fullName,
+        cargo: cargo,
+        institucion: inst
       });
 
       setWelcomeName(firstName);
@@ -536,7 +544,7 @@ export default function AutoCheckInPage() {
                   <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
                 </div>
                 
-                <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+                <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
                   <X className="h-4 w-4" />
                 </button>
               </motion.div>
@@ -575,14 +583,14 @@ export default function AutoCheckInPage() {
                       setShowNewZoneModal(false);
                       setActiveZone('Entrada Principal');
                     }} 
-                    className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium"
+                    className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button 
                     onClick={confirmNewZone} 
                     disabled={!newZoneInput.trim()}
-                    className="px-5 py-2.5 rounded-lg text-black bg-accent font-bold transition-transform active:scale-95 shadow-4d-static disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-lg text-black bg-accent font-bold transition-transform active:scale-95 shadow-4d-static disabled:opacity-50 cursor-pointer"
                   >
                     Añadir Zona
                   </button>
