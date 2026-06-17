@@ -2,11 +2,39 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, CheckCircle2, Moon, Sun, Info, X } from 'lucide-react';
+import { Palette, CheckCircle2, Moon, Sun, Info, X, Globe } from 'lucide-react';
 import { useTheme } from '../../ThemeProvider';
+import { useLanguage } from '../../../context/LanguageContext';
+
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    pageTitle: "Configuración del Sistema",
+    pageSubtitle: "Personaliza la apariencia y el comportamiento de la plataforma.",
+    sectionAppearance: "Apariencia y Tema",
+    themeDarkTitle: "Oscuro Neón",
+    themeDarkDesc: "Diseño vanguardista (Por defecto)",
+    themeLightTitle: "Claro Premium",
+    themeLightDesc: "Estética limpia y corporativa",
+    langSystem: "Idioma de Sistema"
+  },
+  en: {
+    pageTitle: "System Settings",
+    pageSubtitle: "Customize the appearance and behavior of the platform.",
+    sectionAppearance: "Appearance & Theme",
+    themeDarkTitle: "Neon Dark",
+    themeDarkDesc: "Avant-garde design (Default)",
+    themeLightTitle: "Premium Light",
+    themeLightDesc: "Clean corporate aesthetics",
+    langSystem: "System Language"
+  }
+};
 
 export default function ConfiguracionPage() {
   const { theme, setTheme } = useTheme();
+  
+  const { language, setLanguage } = useLanguage();
+  const t = systemTranslations[language];
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   
   // SISTEMA DE NOTIFICACIONES (TOASTS)
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'info' | 'success' } | null>(null);
@@ -19,8 +47,10 @@ export default function ConfiguracionPage() {
   const handleThemeChange = (newTheme: 'dark' | 'light') => {
     setTheme(newTheme);
     showToast(
-      'Tema Actualizado', 
-      `Has cambiado la apariencia del sistema al modo ${newTheme === 'dark' ? 'Oscuro Neón' : 'Claro Premium'}.`, 
+      language === 'es' ? 'Tema Actualizado' : 'Theme Updated', 
+      language === 'es' 
+        ? `Has cambiado la apariencia del sistema al modo ${newTheme === 'dark' ? 'Oscuro Neón' : 'Claro Premium'}.`
+        : `You have changed the system appearance to ${newTheme === 'dark' ? 'Neon Dark' : 'Premium Light'} mode.`, 
       'success'
     );
   };
@@ -46,7 +76,7 @@ export default function ConfiguracionPage() {
                 <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
                 <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
               </div>
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -54,9 +84,30 @@ export default function ConfiguracionPage() {
         </AnimatePresence>
       </div>
 
-      <header>
-        <h1 className="text-3xl font-bold text-white mb-2">Configuración del Sistema</h1>
-        <p className="text-gray-400">Personaliza la apariencia y el comportamiento de la plataforma.</p>
+      <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.pageTitle}</h1>
+          <p className="text-gray-400">{t.pageSubtitle}</p>
+        </div>
+        
+        <div className="relative z-50">
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </header>
 
       <section className="bg-surface border border-white/5 rounded-2xl p-8 relative overflow-hidden shadow-xl">
@@ -64,7 +115,7 @@ export default function ConfiguracionPage() {
         
         <div className="flex items-center gap-3 mb-8 relative z-10">
           <Palette className="h-6 w-6 text-primary" />
-          <h2 className="text-xl font-bold text-white">Apariencia y Tema</h2>
+          <h2 className="text-xl font-bold text-white">{t.sectionAppearance}</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
@@ -94,8 +145,8 @@ export default function ConfiguracionPage() {
                   <Moon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">Oscuro Neón</h3>
-                  <p className="text-xs text-gray-400">Diseño vanguardista (Por defecto)</p>
+                  <h3 className="font-bold text-white">{t.themeDarkTitle}</h3>
+                  <p className="text-xs text-gray-400">{t.themeDarkDesc}</p>
                 </div>
               </div>
               {theme === 'dark' && <CheckCircle2 className="h-6 w-6 text-accent" />}
@@ -127,8 +178,8 @@ export default function ConfiguracionPage() {
                   <Sun className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">Claro Premium</h3>
-                  <p className="text-xs text-gray-400">Estética limpia y corporativa</p>
+                  <h3 className="font-bold text-white">{t.themeLightTitle}</h3>
+                  <p className="text-xs text-gray-400">{t.themeLightDesc}</p>
                 </div>
               </div>
               {theme === 'light' && <CheckCircle2 className="h-6 w-6 text-primary" />}

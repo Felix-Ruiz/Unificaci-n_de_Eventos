@@ -2,13 +2,37 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { ClipboardCheck, Loader2, Calendar, QrCode, AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { ClipboardCheck, Loader2, Calendar, QrCode, AlertCircle, CheckCircle2, Info, X, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../../../context/LanguageContext';
+
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    pageTitle: "Control de Asistencia",
+    pageSubtitle: "Selecciona el evento activo para iniciar el check-in presencial.",
+    noEvents: "No hay eventos activos en este momento.",
+    btnStart: "Iniciar Check-In",
+    createdAt: "Creado el",
+    langSystem: "Idioma de Sistema"
+  },
+  en: {
+    pageTitle: "Attendance Control",
+    pageSubtitle: "Select the active event to start in-person check-in.",
+    noEvents: "There are no active events at this time.",
+    btnStart: "Start Check-In",
+    createdAt: "Created on",
+    langSystem: "System Language"
+  }
+};
 
 export default function AsistenciaListaPage() {
+  const { language, setLanguage } = useLanguage();
+  const t = systemTranslations[language];
+
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   // ==========================================
   // SISTEMA DE NOTIFICACIONES (TOASTS NATIVOS)
@@ -33,7 +57,7 @@ export default function AsistenciaListaPage() {
         if (error) throw error;
         setEvents(data || []);
       } catch (error: any) {
-        showToast('Error de Carga', 'No se pudieron obtener los eventos activos. Verifica tu conexión a internet.', 'error');
+        showToast('Error', 'No se pudieron obtener los eventos. Verifica tu conexión a internet.', 'error');
       } finally {
         setLoading(false);
       }
@@ -77,12 +101,33 @@ export default function AsistenciaListaPage() {
         </AnimatePresence>
       </div>
 
-      <header>
-        <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-          <ClipboardCheck className="h-8 w-8 text-accent" /> 
-          Control de Asistencia
-        </h1>
-        <p className="text-gray-400">Selecciona el evento activo para iniciar el check-in presencial.</p>
+      <header className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+            <ClipboardCheck className="h-8 w-8 text-accent" /> 
+            {t.pageTitle}
+          </h1>
+          <p className="text-gray-400">{t.pageSubtitle}</p>
+        </div>
+
+        <div className="relative z-50">
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </header>
 
       <div className="bg-surface border border-white/5 rounded-xl overflow-hidden">
@@ -91,8 +136,8 @@ export default function AsistenciaListaPage() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : events.length === 0 ? (
-          <div className="p-10 text-center text-gray-500">
-            No hay eventos activos en este momento.
+          <div className="p-10 text-center text-gray-500 font-medium">
+            {t.noEvents}
           </div>
         ) : (
           <div className="divide-y divide-white/5">
@@ -114,7 +159,7 @@ export default function AsistenciaListaPage() {
                   <div>
                     <h3 className="text-lg font-bold text-white">{evento.name}</h3>
                     <p className="text-sm text-gray-400">
-                      Creado el {new Date(evento.created_at).toLocaleDateString()}
+                      {t.createdAt} {new Date(evento.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -122,7 +167,7 @@ export default function AsistenciaListaPage() {
                 <Link href={`/admin/asistencia/${evento.id}`}>
                   <button className="flex items-center justify-center w-full md:w-auto gap-2 px-5 py-2.5 bg-accent text-black hover:bg-accent/90 rounded-lg transition-transform font-bold shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer">
                     <QrCode className="h-5 w-5" /> 
-                    Iniciar Check-In
+                    {t.btnStart}
                   </button>
                 </Link>
               </div>

@@ -17,13 +17,39 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLanguage } from '../../context/LanguageContext';
+
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    menuOverview: "Vista General",
+    menuAttendance: "Control Asistencia",
+    menuCreate: "Crear Evento",
+    menuHistory: "Historial Eventos",
+    menuBase: "Base Histórica",
+    menuUsers: "Gestor Usuarios",
+    menuConfig: "Configuración",
+    btnLogout: "Cerrar Sesión"
+  },
+  en: {
+    menuOverview: "Dashboard",
+    menuAttendance: "Attendance Control",
+    menuCreate: "Create Event",
+    menuHistory: "Events History",
+    menuBase: "Historical DB",
+    menuUsers: "User Manager",
+    menuConfig: "Settings",
+    btnLogout: "Log Out"
+  }
+};
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
+  const { language } = useLanguage();
+  const t = systemTranslations[language];
+
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   
-  // NUEVO ESTADO PARA MÓVILES
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -41,7 +67,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Cerrar el menú móvil cuando cambia la ruta
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
@@ -89,7 +114,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-bold text-accent">ACOFI</h2>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-white/5 rounded-lg">
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-white/5 rounded-lg cursor-pointer">
           {isMobileMenuOpen ? <X className="h-6 w-6 text-white" /> : <Menu className="h-6 w-6 text-white" />}
         </button>
       </div>
@@ -112,10 +137,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="overflow-y-auto custom-scrollbar">
           <div className="h-20 flex flex-col items-center justify-center border-b border-white/5 relative">
             
-            {/* Botón de cerrar en versión móvil dentro del menú */}
             <button 
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 md:hidden p-2 text-gray-400 hover:text-white"
+              className="absolute right-4 top-1/2 -translate-y-1/2 md:hidden p-2 text-gray-400 hover:text-white cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
@@ -137,7 +161,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {canViewDashboard && (
               <Link 
                 href="/admin/dashboard" 
-                title={isCollapsed ? "Vista General" : ""}
+                title={isCollapsed ? t.menuOverview : ""}
                 className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                   isActive('/admin/dashboard') 
                   ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
@@ -145,14 +169,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 } ${isCollapsed ? 'md:justify-center' : ''}`}
               >
                 <LayoutDashboard className={`shrink-0 ${isActive('/admin/dashboard') ? 'h-5 w-5' : 'h-5 w-5'}`} /> 
-                <span className={isCollapsed ? 'md:hidden' : ''}>Vista General</span>
+                <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuOverview}</span>
               </Link>
             )}
 
             {canDoCheckIn && (
               <Link 
                 href="/admin/asistencia" 
-                title={isCollapsed ? "Control Asistencia" : ""}
+                title={isCollapsed ? t.menuAttendance : ""}
                 className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                   isActive('/admin/asistencia') 
                   ? 'bg-accent/20 text-accent border border-accent/30 shadow-[0_0_15px_rgba(14,165,233,0.15)] font-bold' 
@@ -160,7 +184,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 } ${isCollapsed ? 'md:justify-center' : ''}`}
               >
                 <ClipboardCheck className={`shrink-0 ${isActive('/admin/asistencia') ? 'h-5 w-5' : 'h-5 w-5'}`} /> 
-                <span className={isCollapsed ? 'md:hidden' : ''}>Control Asistencia</span>
+                <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuAttendance}</span>
               </Link>
             )}
 
@@ -169,7 +193,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="my-2 pt-2 border-t border-white/5"></div>
                 <Link 
                   href="/admin/eventos/nuevo" 
-                  title={isCollapsed ? "Crear Evento" : ""}
+                  title={isCollapsed ? t.menuCreate : ""}
                   className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                     isActive('/admin/eventos/nuevo') 
                     ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
@@ -177,11 +201,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   } ${isCollapsed ? 'md:justify-center' : ''}`}
                 >
                   <CalendarPlus className="shrink-0 h-5 w-5" /> 
-                  <span className={isCollapsed ? 'md:hidden' : ''}>Crear Evento</span>
+                  <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuCreate}</span>
                 </Link>
                 <Link 
                   href="/admin/eventos/historial" 
-                  title={isCollapsed ? "Historial Eventos" : ""}
+                  title={isCollapsed ? t.menuHistory : ""}
                   className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                     isActive('/admin/eventos/historial') 
                     ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
@@ -189,7 +213,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   } ${isCollapsed ? 'md:justify-center' : ''}`}
                 >
                   <Archive className="shrink-0 h-5 w-5" /> 
-                  <span className={isCollapsed ? 'md:hidden' : ''}>Historial Eventos</span>
+                  <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuHistory}</span>
                 </Link>
               </>
             )}
@@ -199,7 +223,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="my-2 pt-2 border-t border-white/5"></div>
                 <Link 
                   href="/admin/historico" 
-                  title={isCollapsed ? "Base Histórica" : ""}
+                  title={isCollapsed ? t.menuBase : ""}
                   className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                     isActive('/admin/historico') 
                     ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
@@ -207,7 +231,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   } ${isCollapsed ? 'md:justify-center' : ''}`}
                 >
                   <Users className="shrink-0 h-5 w-5" /> 
-                  <span className={isCollapsed ? 'md:hidden' : ''}>Base Histórica</span>
+                  <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuBase}</span>
                 </Link>
               </>
             )}
@@ -215,7 +239,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {canManageUsers && (
               <Link 
                 href="/admin/usuarios" 
-                title={isCollapsed ? "Gestor Usuarios" : ""}
+                title={isCollapsed ? t.menuUsers : ""}
                 className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                   isActive('/admin/usuarios') 
                   ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
@@ -223,15 +247,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 } ${isCollapsed ? 'md:justify-center' : ''}`}
               >
                 <ShieldCheck className="shrink-0 h-5 w-5" /> 
-                <span className={isCollapsed ? 'md:hidden' : ''}>Gestor Usuarios</span>
+                <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuUsers}</span>
               </Link>
             )}
 
-            {/* RESTAURADO: BOTÓN DE CONFIGURACIÓN DEL SISTEMA */}
             <div className="my-2 pt-2 border-t border-white/5"></div>
             <Link 
               href="/admin/configuracion" 
-              title={isCollapsed ? "Configuración" : ""}
+              title={isCollapsed ? t.menuConfig : ""}
               className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                 isActive('/admin/configuracion') 
                 ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_15px_rgba(79,70,229,0.15)] font-bold' 
@@ -239,7 +262,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               } ${isCollapsed ? 'md:justify-center' : ''}`}
             >
               <Settings className="shrink-0 h-5 w-5" /> 
-              <span className={isCollapsed ? 'md:hidden' : ''}>Configuración</span>
+              <span className={isCollapsed ? 'md:hidden' : ''}>{t.menuConfig}</span>
             </Link>
 
           </nav>
@@ -249,7 +272,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`hidden md:flex absolute -right-4 -top-5 bg-primary text-white p-1.5 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] hover:scale-110 transition-transform z-50 items-center justify-center`}
+            className={`hidden md:flex absolute -right-4 -top-5 bg-primary text-white p-1.5 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] hover:scale-110 transition-transform z-50 items-center justify-center cursor-pointer`}
           >
             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
@@ -262,18 +285,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           
           <button 
             onClick={handleLogout}
-            title={isCollapsed ? "Cerrar Sesión" : ""}
-            className={`flex items-center gap-3 px-3 py-3 rounded-xl text-red-400 hover:bg-red-400/10 transition-colors border border-transparent hover:border-red-400/20 ${isCollapsed ? 'md:justify-center' : 'w-full'}`}
+            title={isCollapsed ? t.btnLogout : ""}
+            className={`flex items-center gap-3 px-3 py-3 rounded-xl text-red-400 hover:bg-red-400/10 transition-colors border border-transparent hover:border-red-400/20 cursor-pointer ${isCollapsed ? 'md:justify-center' : 'w-full'}`}
           >
             <LogOut className="shrink-0 h-5 w-5" />
-            <span className={`font-bold ${isCollapsed ? 'md:hidden' : ''}`}>Cerrar Sesión</span>
+            <span className={`font-bold ${isCollapsed ? 'md:hidden' : ''}`}>{t.btnLogout}</span>
           </button>
         </div>
       </aside>
 
       {/* Contenido Principal */}
       <main className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
-        {/* CORRECCIÓN: w-125 h-125 cambiado a valores válidos de Tailwind */}
         <div className="absolute top-0 right-0 w-125 h-125 bg-primary/10 rounded-full blur-[150px] pointer-events-none hidden md:block"></div>
         <div className="p-4 md:p-10 relative z-10 w-full min-h-full">
           {children}

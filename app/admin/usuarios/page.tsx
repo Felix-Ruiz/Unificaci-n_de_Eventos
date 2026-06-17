@@ -4,13 +4,83 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { 
   ShieldCheck, UserPlus, Loader2, Edit, Trash2, X, CheckSquare, 
-  Square, AlertCircle, CheckCircle2, Info 
+  Square, AlertCircle, CheckCircle2, Info, Globe 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '../../../context/LanguageContext';
+
+const systemTranslations: Record<string, Record<string, string>> = {
+  es: {
+    pageTitle: "Control de Personal",
+    pageSubtitle: "Administra los roles y permisos de acceso para tu equipo.",
+    btnNewUser: "Nuevo Usuario",
+    tableColName: "Nombre del Staff",
+    tableColEmail: "Correo (Usuario)",
+    tableColRole: "Rol",
+    tableColActions: "Acciones",
+    emptyUsers: "No hay usuarios registrados.",
+    modalTitleEdit: "Editar Accesos",
+    modalTitleCreate: "Crear Perfil de Usuario",
+    labelName: "Nombre",
+    labelRole: "Nivel de Rol",
+    labelEmail: "Correo de Acceso",
+    labelPassword: "Contraseña",
+    labelPerms: "Permisos Específicos",
+    btnCancel: "Cancelar",
+    btnSave: "Guardar Usuario",
+    btnSaving: "Guardando...",
+    modalDelTitle: "Revocar Acceso",
+    modalDelDesc1: "¿Estás seguro de eliminar permanentemente al usuario",
+    modalDelDesc2: "? Esta persona perderá acceso inmediato a la plataforma.",
+    btnConfirmDel: "Confirmar Eliminación",
+    roleMaster: "Administrador Master",
+    roleStaff: "Equipo Staff",
+    permEvents: "Gestión Completa de Eventos (Crear, Editar, Ver Inscritos)",
+    permAttendance: "Control de Asistencia (Módulo Check-In y Escáner QR)",
+    permHistory: "Base de Datos Histórica Global",
+    permUsers: "Gestión de Usuarios (Admin Master)",
+    langSystem: "Idioma de Sistema"
+  },
+  en: {
+    pageTitle: "Staff Control",
+    pageSubtitle: "Manage roles and access permissions for your team.",
+    btnNewUser: "New User",
+    tableColName: "Staff Name",
+    tableColEmail: "Email (User)",
+    tableColRole: "Role",
+    tableColActions: "Actions",
+    emptyUsers: "No users registered.",
+    modalTitleEdit: "Edit Access",
+    modalTitleCreate: "Create User Profile",
+    labelName: "Name",
+    labelRole: "Role Level",
+    labelEmail: "Access Email",
+    labelPassword: "Password",
+    labelPerms: "Specific Permissions",
+    btnCancel: "Cancel",
+    btnSave: "Save User",
+    btnSaving: "Saving...",
+    modalDelTitle: "Revoke Access",
+    modalDelDesc1: "Are you sure you want to permanently delete user",
+    modalDelDesc2: "? This person will lose immediate access to the platform.",
+    btnConfirmDel: "Confirm Deletion",
+    roleMaster: "Master Administrator",
+    roleStaff: "Staff Team",
+    permEvents: "Full Event Management (Create, Edit, View Attendees)",
+    permAttendance: "Attendance Control (Check-In Module and QR Scanner)",
+    permHistory: "Global Historical Database",
+    permUsers: "User Management (Master Admin)",
+    langSystem: "System Language"
+  }
+};
 
 export default function GestionUsuariosPage() {
+  const { language, setLanguage } = useLanguage();
+  const t = systemTranslations[language];
+
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   
   const [showModal, setShowModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -25,10 +95,10 @@ export default function GestionUsuariosPage() {
   });
 
   const availablePermissions = [
-    { id: 'eventos', label: 'Gestión Completa de Eventos (Crear, Editar, Ver Inscritos)' },
-    { id: 'asistencia', label: 'Control de Asistencia (Módulo Check-In y Escáner QR)' },
-    { id: 'historico', label: 'Base de Datos Histórica Global' },
-    { id: 'usuarios', label: 'Gestión de Usuarios (Admin Master)' }
+    { id: 'eventos', label: t.permEvents },
+    { id: 'asistencia', label: t.permAttendance },
+    { id: 'historico', label: t.permHistory },
+    { id: 'usuarios', label: t.permUsers }
   ];
 
   // ==========================================
@@ -192,7 +262,7 @@ export default function GestionUsuariosPage() {
                 <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -212,17 +282,17 @@ export default function GestionUsuariosPage() {
               className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-              <h2 className="text-2xl font-bold text-white mb-3">Revocar Acceso</h2>
+              <h2 className="text-2xl font-bold text-white mb-3">{t.modalDelTitle}</h2>
               <p className="text-gray-300 mb-8">
-                ¿Estás seguro de eliminar permanentemente al usuario <strong>{confirmModal.name}</strong>? Esta persona perderá acceso inmediato a la plataforma.
+                {t.modalDelDesc1} <strong>{confirmModal.name}</strong>{t.modalDelDesc2}
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium">Cancelar</button>
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
                 <button 
                   onClick={confirmDelete} 
-                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static"
+                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
                 >
-                  Confirmar Eliminación
+                  {t.btnConfirmDel}
                 </button>
               </div>
             </motion.div>
@@ -234,26 +304,46 @@ export default function GestionUsuariosPage() {
         <div>
           <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
             <ShieldCheck className="h-8 w-8 text-primary" />
-            Control de Personal
+            {t.pageTitle}
           </h1>
-          <p className="text-gray-400">Administra los roles y permisos de acceso para tu equipo.</p>
+          <p className="text-gray-400">{t.pageSubtitle}</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()} 
-          className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none"
-        >
-          <UserPlus className="h-5 w-5" /> Nuevo Usuario
-        </button>
+        
+        <div className="flex flex-wrap items-center gap-3 relative">
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
+            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+          >
+            <Globe className="h-5 w-5" />
+          </button>
+
+          <AnimatePresence>
+            {showSettingsPanel && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-40 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button 
+            onClick={() => handleOpenModal()} 
+            className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-lg flex items-center justify-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none cursor-pointer"
+          >
+            <UserPlus className="h-5 w-5" /> {t.btnNewUser}
+          </button>
+        </div>
       </header>
 
       <div className="bg-surface border border-white/5 rounded-2xl overflow-x-auto">
         <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap min-w-150">
           <thead className="bg-black/30 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-6 py-4 font-bold">Nombre del Staff</th>
-              <th className="px-6 py-4 font-bold">Correo (Usuario)</th>
-              <th className="px-6 py-4 font-bold">Rol</th>
-              <th className="px-6 py-4 font-bold text-right">Acciones</th>
+              <th className="px-6 py-4 font-bold">{t.tableColName}</th>
+              <th className="px-6 py-4 font-bold">{t.tableColEmail}</th>
+              <th className="px-6 py-4 font-bold">{t.tableColRole}</th>
+              <th className="px-6 py-4 font-bold text-right">{t.tableColActions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -267,21 +357,21 @@ export default function GestionUsuariosPage() {
                       ? 'bg-primary/20 text-primary border-primary/30' 
                       : 'bg-accent/10 text-accent border-accent/20'
                   }`}>
-                    {u.role}
+                    {u.role === 'MASTER' ? t.roleMaster : t.roleStaff}
                   </span>
                 </td>
                 
                 <td className="px-6 py-4 flex justify-end gap-2">
                   <button 
                     onClick={() => handleOpenModal(u)} 
-                    className="p-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10"
+                    className="p-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10 cursor-pointer"
                     title="Editar Permisos"
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button 
                     onClick={() => handleDeleteClick(u.id, u.name)} 
-                    className="p-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-colors border border-red-500/20"
+                    className="p-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-colors border border-red-500/20 cursor-pointer"
                     title="Eliminar Acceso"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -292,7 +382,7 @@ export default function GestionUsuariosPage() {
             {users.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
-                  No hay usuarios registrados.
+                  {t.emptyUsers}
                 </td>
               </tr>
             )}
@@ -318,20 +408,20 @@ export default function GestionUsuariosPage() {
               
               <button 
                 onClick={() => setShowModal(false)} 
-                className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"
+                className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="h-6 w-6"/>
               </button>
               
               <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
                 <ShieldCheck className="h-6 w-6 text-primary"/> 
-                {editId ? 'Editar Accesos' : 'Crear Perfil de Usuario'}
+                {editId ? t.modalTitleEdit : t.modalTitleCreate}
               </h2>
               
               <form onSubmit={handleSave} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Nombre</label>
+                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">{t.labelName}</label>
                     <input 
                       type="text" 
                       required 
@@ -342,21 +432,21 @@ export default function GestionUsuariosPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Nivel de Rol</label>
+                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">{t.labelRole}</label>
                     <select 
                       value={formData.role} 
                       onChange={e => setFormData({...formData, role: e.target.value})} 
                       className="w-full bg-black/50 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-primary cursor-pointer appearance-none"
                     >
-                      <option value="STAFF">Equipo Staff</option>
-                      <option value="MASTER">Administrador Master</option>
+                      <option value="STAFF">{t.roleStaff}</option>
+                      <option value="MASTER">{t.roleMaster}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Correo de Acceso</label>
+                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">{t.labelEmail}</label>
                     <input 
                       type="email" 
                       required 
@@ -367,10 +457,10 @@ export default function GestionUsuariosPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Contraseña</label>
+                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">{t.labelPassword}</label>
                     <input 
                       type="text" 
-                      required 
+                      required={!editId} 
                       value={formData.password} 
                       onChange={e => setFormData({...formData, password: e.target.value})} 
                       className="w-full bg-black/50 border border-gray-700 text-white rounded-xl p-3 outline-none focus:border-primary" 
@@ -381,7 +471,7 @@ export default function GestionUsuariosPage() {
 
                 {formData.role === 'STAFF' && (
                   <div className="pt-4 border-t border-white/5">
-                    <label className="block text-xs font-bold uppercase text-primary mb-3">Permisos Específicos</label>
+                    <label className="block text-xs font-bold uppercase text-primary mb-3">{t.labelPerms}</label>
                     <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                       {availablePermissions.map((perm: any) => {
                         const isChecked = formData.permissions.includes(perm.id);
@@ -406,9 +496,9 @@ export default function GestionUsuariosPage() {
                   <button 
                     type="submit" 
                     disabled={isSaving} 
-                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
+                    className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer"
                   >
-                    {isSaving ? <><Loader2 className="h-5 w-5 animate-spin" /> Guardando...</> : 'Guardar Usuario'}
+                    {isSaving ? <><Loader2 className="h-5 w-5 animate-spin" /> {t.btnSaving}</> : t.btnSave}
                   </button>
                 </div>
               </form>
