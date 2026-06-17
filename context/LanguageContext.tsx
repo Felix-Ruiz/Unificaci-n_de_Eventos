@@ -12,29 +12,40 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  // Asumimos 'es' por defecto para que el Servidor de Vercel pueda construir la app sin problemas
   const [language, setLanguageState] = useState<Language>('es');
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    // Al cargar la app, revisamos si el usuario ya tenía un idioma guardado
+    // Esto solo se ejecuta en el navegador (Cliente)
     const savedLang = localStorage.getItem('acofi_admin_lang') as Language;
     if (savedLang && (savedLang === 'es' || savedLang === 'en')) {
       setLanguageState(savedLang);
     }
-    setIsLoaded(true);
+    setIsMounted(true);
   }, []);
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('acofi_admin_lang', lang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('acofi_admin_lang', lang);
+    }
   };
 
-  // Evitamos parpadeos de idioma antes de montar el componente
-  if (!isLoaded) return <div style={{ display: 'none' }}>{children}</div>;
-
+  // 🚨 CRÍTICO: Siempre debemos retornar el Provider, incluso durante el SSR.
+  // Usamos opacity para evitar parpadeos visuales molestos mientras lee el localStorage
   return (
     <LanguageContext.Provider value={{ language, setLanguage }}>
-      {children}
+      <div 
+        style={{ 
+          opacity: isMounted ? 1 : 0, 
+          transition: 'opacity 0.2s ease-in-out',
+          height: '100%',
+          width: '100%'
+        }}
+      >
+        {children}
+      </div>
     </LanguageContext.Provider>
   );
 }
