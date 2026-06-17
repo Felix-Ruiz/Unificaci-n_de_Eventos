@@ -107,10 +107,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen admin-wrapper text-gray-900 dark:text-white overflow-hidden bg-gray-50 dark:bg-background transition-colors duration-300">
+    <div className="flex flex-col md:flex-row h-screen admin-wrapper text-gray-900 dark:text-white overflow-hidden bg-gray-50 dark:bg-[#050505] transition-colors duration-300">
       
       {/* BARRA SUPERIOR MÓVIL */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-white dark:bg-surface border-b border-gray-200 dark:border-white/5 z-30 transition-colors">
+      <div className="md:hidden flex items-center justify-between p-4 bg-white dark:bg-[#0a0a0a] border-b border-gray-200 dark:border-white/10 z-30 transition-colors">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-bold text-primary dark:text-accent">ACOFI</h2>
         </div>
@@ -129,13 +129,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Menú Lateral (Responsivo) */}
       <aside 
-        className={`fixed md:relative top-0 left-0 h-full bg-white dark:bg-surface border-r border-gray-200 dark:border-white/5 z-50 flex flex-col justify-between transition-all duration-300 ease-in-out
+        className={`fixed md:relative top-0 left-0 h-full bg-white dark:bg-[#0a0a0a] border-r border-gray-200 dark:border-white/10 z-50 flex flex-col justify-between transition-all duration-300 ease-in-out
           ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} 
           ${isCollapsed ? 'md:w-20' : 'md:w-64'}
         `}
       >
         <div className="overflow-y-auto custom-scrollbar">
-          <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 dark:border-white/5 relative">
+          <div className="h-20 flex flex-col items-center justify-center border-b border-gray-200 dark:border-white/10 relative">
             
             <button 
               onClick={() => setIsMobileMenuOpen(false)}
@@ -190,7 +190,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
             {canManageEvents && (
               <>
-                <div className="my-2 pt-2 border-t border-gray-200 dark:border-white/5"></div>
+                <div className="my-2 pt-2 border-t border-gray-200 dark:border-white/10"></div>
                 <Link 
                   href="/admin/eventos/nuevo" 
                   title={isCollapsed ? t.menuCreate : ""}
@@ -220,7 +220,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
             {canViewHistory && (
               <>
-                <div className="my-2 pt-2 border-t border-gray-200 dark:border-white/5"></div>
+                <div className="my-2 pt-2 border-t border-gray-200 dark:border-white/10"></div>
                 <Link 
                   href="/admin/historico" 
                   title={isCollapsed ? t.menuBase : ""}
@@ -251,7 +251,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </Link>
             )}
 
-            <div className="my-2 pt-2 border-t border-gray-200 dark:border-white/5"></div>
+            <div className="my-2 pt-2 border-t border-gray-200 dark:border-white/10"></div>
             <Link 
               href="/admin/configuracion" 
               title={isCollapsed ? t.menuConfig : ""}
@@ -268,7 +268,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </nav>
         </div>
 
-        <div className="p-3 border-t border-gray-200 dark:border-white/5 flex flex-col gap-2 relative mt-auto">
+        <div className="p-3 border-t border-gray-200 dark:border-white/10 flex flex-col gap-2 relative mt-auto">
           
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}

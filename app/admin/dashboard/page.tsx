@@ -172,11 +172,11 @@ export default function DashboardPage() {
         {confirmModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 dark:bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-gray-900/60 dark:bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
+              className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
             >
               <div className={`absolute top-0 left-0 w-full h-1 ${confirmModal.type === 'archive' ? 'bg-red-500' : 'bg-accent'}`}></div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
@@ -191,8 +191,8 @@ export default function DashboardPage() {
                 <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
                 <button 
                   onClick={executeAction} 
-                  className={`px-5 py-2.5 rounded-lg text-white font-bold transition-transform active:scale-95 shadow-4d-static cursor-pointer ${
-                    confirmModal.type === 'archive' ? 'bg-red-500 hover:bg-red-600' : 'bg-accent hover:bg-accent/90 text-black'
+                  className={`px-5 py-2.5 rounded-lg text-gray-900 dark:text-black font-bold transition-transform active:scale-95 shadow-4d-static cursor-pointer ${
+                    confirmModal.type === 'archive' ? 'bg-red-500 hover:bg-red-600 text-white dark:text-white' : 'bg-accent hover:bg-accent/90'
                   }`}
                 >
                   {t.btnConfirm}
@@ -212,7 +212,7 @@ export default function DashboardPage() {
           
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
-            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
+            className="p-3 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
             title={t.langSystem}
           >
             <Globe className="h-5 w-5" />
@@ -220,7 +220,7 @@ export default function DashboardPage() {
 
           <AnimatePresence>
             {showSettingsPanel && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-36 top-14 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-36 top-14 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
                 <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>Español (ES)</button>
                 <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>English (EN)</button>
@@ -229,7 +229,7 @@ export default function DashboardPage() {
           </AnimatePresence>
 
           <Link href="/admin/eventos/nuevo">
-            <button className="bg-accent text-black font-bold py-3 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 hover:bg-accent/90 cursor-pointer">
+            <button className="bg-accent text-gray-900 dark:text-black font-bold py-3 px-6 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 hover:bg-accent/90 cursor-pointer">
               <Calendar className="h-5 w-5" /> 
               {t.btnNewEvent}
             </button>
@@ -238,7 +238,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-primary/10 dark:bg-primary/20 rounded-lg text-primary"><Calendar className="h-6 w-6" /></div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.activeEvents}</h3>
@@ -248,7 +248,7 @@ export default function DashboardPage() {
           </p>
         </motion.div>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-accent/10 dark:bg-accent/20 rounded-lg text-accent"><Users className="h-6 w-6" /></div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.historicBase}</h3>
@@ -258,13 +258,13 @@ export default function DashboardPage() {
           </p>
         </motion.div>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-green-500/10 dark:bg-green-500/20 rounded-lg text-green-500 dark:text-green-400"><TrendingUp className="h-6 w-6" /></div>
+            <div className="p-3 bg-green-500/10 dark:bg-green-500/20 rounded-lg text-green-600 dark:text-green-400"><TrendingUp className="h-6 w-6" /></div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.newRegs}</h3>
           </div>
           <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-green-500 dark:text-green-400" /> : stats.newUsers}
+            {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-green-600 dark:text-green-400" /> : stats.newUsers}
             {!loading && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">{t.thisWeek}</span>}
           </p>
         </motion.div>
@@ -272,7 +272,7 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t.yourActiveEvents}</h2>
-        <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+        <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
           {loading && !confirmModal ? (
             <div className="p-10 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : recentEvents.length === 0 ? (
@@ -321,15 +321,15 @@ export default function DashboardPage() {
                     </Link>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'duplicate', event: evento })} 
-                      className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
-                      title="Duplicar Evento"
+                      className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-gray-900 dark:hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
+                      title={t.modalDuplicateTitle}
                     >
                       <CopyPlus className="h-4 w-4" />
                     </button>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'archive', event: evento })} 
-                      className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20 cursor-pointer" 
-                      title="Mover a la papelera"
+                      className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-500 text-red-600 hover:text-white dark:bg-red-500/10 dark:hover:bg-red-500 dark:text-red-500 rounded-lg transition-colors text-sm font-medium border border-red-200 dark:border-red-500/20 cursor-pointer" 
+                      title={t.modalArchiveTitle}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

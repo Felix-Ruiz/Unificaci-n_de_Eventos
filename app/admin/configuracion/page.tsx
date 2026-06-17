@@ -67,7 +67,7 @@ export default function ConfiguracionPage() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'
+                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
               }`}
             >
               {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 dark:text-green-400 shrink-0" />}
@@ -93,14 +93,14 @@ export default function ConfiguracionPage() {
         <div className="relative z-50">
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
-            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
+            className="p-3 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
           >
             <Globe className="h-5 w-5" />
           </button>
 
           <AnimatePresence>
             {showSettingsPanel && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl flex flex-col gap-2 w-44">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl flex flex-col gap-2 w-44">
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
                 <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>Español (ES)</button>
                 <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>English (EN)</button>
@@ -110,7 +110,7 @@ export default function ConfiguracionPage() {
         </div>
       </header>
 
-      <section className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl p-8 relative overflow-hidden shadow-sm dark:shadow-xl">
+      <section className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl p-8 relative overflow-hidden shadow-sm dark:shadow-xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] pointer-events-none"></div>
         
         <div className="flex items-center gap-3 mb-8 relative z-10">
@@ -140,7 +140,7 @@ export default function ConfiguracionPage() {
               </div>
               <div className="w-full h-8 bg-linear-to-r from-[#00f6ff] to-[#6d28d9] rounded shadow-[4px_4px_0px_0px_rgba(0,246,255,0.8)] mt-auto"></div>
             </div>
-            <div className="p-5 bg-gray-50 dark:bg-surface border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
+            <div className="p-5 bg-gray-50 dark:bg-[#0a0a0a] border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gray-200 dark:bg-black/50 rounded-lg text-gray-900 dark:text-white">
                   <Moon className="h-5 w-5" />
@@ -174,7 +174,7 @@ export default function ConfiguracionPage() {
               </div>
               <div className="w-full h-8 bg-linear-to-r from-[#4f46e5] to-[#0ea5e9] rounded shadow-[4px_4px_0px_0px_rgba(15,23,42,0.8)] mt-auto"></div>
             </div>
-            <div className="p-5 bg-gray-50 dark:bg-surface border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
+            <div className="p-5 bg-gray-50 dark:bg-[#0a0a0a] border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gray-200 dark:bg-black/50 rounded-lg text-gray-900 dark:text-white">
                   <Sun className="h-5 w-5" />
