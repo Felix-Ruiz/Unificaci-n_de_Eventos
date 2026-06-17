@@ -334,14 +334,6 @@ export default function NuevoEventoPage() {
     setIsSaving(true);
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user?.email) {
-        throw new Error("No se pudo identificar al usuario creador. Por favor, recarga la página o vuelve a ingresar.");
-      }
-      
-      const finalCreatorEmail = user.email;
-
       if (eventSlug) {
         const { data: existingSlug } = await supabase
           .from('events')
