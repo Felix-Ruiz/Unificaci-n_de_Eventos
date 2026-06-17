@@ -29,7 +29,10 @@ import {
   ThumbsUp,
   Bot,
   Globe,
-  MessageSquare
+  MessageSquare,
+  Eye,
+  EyeOff,
+  Code
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -50,6 +53,7 @@ interface FormField {
   system_key?: string;
   description?: string;
   _ui_showDescription?: boolean;
+  _ui_expandedOptions?: boolean; // NUEVO: Control visual para colapsar opciones masivas
 }
 
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
@@ -148,6 +152,10 @@ export default function NuevoEventoPage() {
   
   const [creatorEmail, setCreatorEmail] = useState<string | null>(null);
 
+  // NUEVOS ESTADOS PARA LA EDICIÓN DEL MENSAJE DE CORREO
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+
   useEffect(() => {
     async function getCreator() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -182,19 +190,19 @@ export default function NuevoEventoPage() {
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
   const [fields, setFields] = useState<FormField[]>([
-    { id: 'f-tipo-doc', system_key: 'tipo_doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: defaultTranslations.es.tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false },
-    { id: 'f-doc', system_key: 'documento_identidad', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-nom', system_key: 'nombre', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-ape', system_key: 'apellido', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-email', system_key: 'email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-email-conf', system_key: 'email_conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-tel', system_key: 'telefono', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-gen', system_key: 'genero', label: 'Género', type: 'select', isRequired: true, options: defaultTranslations.es.genero.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false },
-    { id: 'f-dir', system_key: 'direccion', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false },
-    { id: 'f-inst', system_key: 'institucion', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
-    { id: 'f-cargo', system_key: 'cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
-    { id: 'f-pais', system_key: 'pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
-    { id: 'f-ciudad', system_key: 'ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false },
+    { id: 'f-tipo-doc', system_key: 'tipo_doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: defaultTranslations.es.tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-doc', system_key: 'documento_identidad', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-nom', system_key: 'nombre', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-ape', system_key: 'apellido', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-email', system_key: 'email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-email-conf', system_key: 'email_conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-tel', system_key: 'telefono', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-gen', system_key: 'genero', label: 'Género', type: 'select', isRequired: true, options: defaultTranslations.es.genero.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-dir', system_key: 'direccion', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-inst', system_key: 'institucion', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-cargo', system_key: 'cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-pais', system_key: 'pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    { id: 'f-ciudad', system_key: 'ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -262,7 +270,8 @@ export default function NuevoEventoPage() {
       _ui_showLogic: false,
       allowOther: true,
       description: '',
-      _ui_showDescription: false
+      _ui_showDescription: false,
+      _ui_expandedOptions: false
     };
     setFields([...fields, newField]);
   };
@@ -303,7 +312,8 @@ export default function NuevoEventoPage() {
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
 
-        updateField(id, 'options', uniqueOptions);
+        // Al cargar masivamente, forzamos que inicie colapsado para no generar daño visual
+        setFields(prev => prev.map(f => f.id === id ? { ...f, options: uniqueOptions, _ui_expandedOptions: false } : f));
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde el archivo Excel.`, 'success');
       } catch (error) {
         showToast('Error de Formato', 'No se pudo leer el archivo Excel. Revisa el formato e intenta de nuevo.', 'error');
@@ -396,7 +406,9 @@ export default function NuevoEventoPage() {
           thank_you_text: thankYouText || null,
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
-          creator_email: creatorEmail?.trim() || null
+          creator_email: creatorEmail?.trim() || null,
+          email_subject: emailSubject || null, // PERSISTENCIA DEL ASUNTO
+          email_body: emailBody || null        // PERSISTENCIA DEL CUERPO
         }])
         .select()
         .single();
@@ -770,25 +782,60 @@ export default function NuevoEventoPage() {
               </button>
             </div>
 
+            {/* SECCIÓN EXPANDIDA: PERSONALIZACIÓN EXCLUSIVA DEL MENSAJE DE CORREO (PUNTO 1) */}
             <AnimatePresence>
               {sendNotifications && (
                 <motion.div 
                   initial={{ height: 0, opacity: 0 }} 
                   animate={{ height: 'auto', opacity: 1 }} 
                   exit={{ height: 0, opacity: 0 }} 
-                  className="space-y-1.5 pt-4 border-t border-gray-200 dark:border-white/5 overflow-hidden"
+                  className="space-y-4 pt-4 border-t border-gray-200 dark:border-white/5 overflow-hidden"
                 >
-                  <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
-                  </label>
-                  <input 
-                    type="email" 
-                    value={creatorEmail || ''} 
-                    onChange={(e) => setCreatorEmail(e.target.value)} 
-                    placeholder="Ej. coordinador@universidad.edu.co" 
-                    className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
-                  />
-                  <p className="text-[10px] text-gray-500">A este correo llegarán las alertas cuando alguien se inscriba al evento.</p>
+                  <div className="space-y-1.5">
+                    <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
+                    </label>
+                    <input 
+                      type="email" 
+                      value={creatorEmail || ''} 
+                      onChange={(e) => setCreatorEmail(e.target.value)} 
+                      placeholder="Ej. coordinador@universidad.edu.co" 
+                      className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
+                    />
+                  </div>
+
+                  <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-xl space-y-1.5">
+                    <span className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wider"><Code className="h-3.5 w-3.5"/> Variables Disponibles</span>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">Puedes inyectar estas etiquetas en cualquier parte del asunto o cuerpo y el sistema las reemplazará automáticamente:</p>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{nombre}}"}</span>
+                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{apellido}}"}</span>
+                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{evento}}"}</span>
+                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{documento}}"}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Asunto Personalizado del Correo</label>
+                    <input 
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Ej: ¡Confirmado! Tu entrada oficial para {{evento}}"
+                      className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-sm text-gray-900 dark:text-white focus:border-primary outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Cuerpo Personalizado del Correo</label>
+                    <textarea 
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                      rows={5}
+                      placeholder="Ej: Hola {{nombre}},\n\nTu inscripción se procesó con éxito. Adjunto encontrarás tu credencial oficial con el número {{documento}}."
+                      className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-xs text-gray-900 dark:text-white focus:border-primary outline-none resize-none leading-relaxed"
+                    />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1016,7 +1063,6 @@ export default function NuevoEventoPage() {
                         </div>
 
                         <div className="md:col-span-3 flex justify-end gap-1 mt-1">
-                          {/* BOTÓN: Añadir Descripción */}
                           <button 
                             type="button" 
                             onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} 
@@ -1130,17 +1176,37 @@ export default function NuevoEventoPage() {
                           />
                           
                           {field.options.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {field.options.map(opt => (
-                                <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
-                                  <span>{opt}</span>
-                                  {opt !== 'Otra' && (
-                                    <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
-                                      <X className="h-3 w-3" />
-                                    </button>
+                            <div className="space-y-2 mt-1">
+                              {/* MITIGACIÓN DE DAÑO VISUAL: MOSTRAR CONTROLES INTERACTIVOS SI SUPERA LAS 5 OPCIONES */}
+                              {field.options.length > 5 && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateField(field.id, '_ui_expandedOptions', !field._ui_expandedOptions)}
+                                  className="text-xs text-primary dark:text-accent font-black tracking-wide uppercase flex items-center gap-1.5 bg-primary/5 hover:bg-primary/10 px-3 py-2 rounded-lg border border-primary/10 cursor-pointer transition-all w-max mb-2"
+                                >
+                                  {field._ui_expandedOptions ? (
+                                    <><EyeOff className="h-3.5 w-3.5"/> Ocultar opciones cargadas</>
+                                  ) : (
+                                    <><Eye className="h-3.5 w-3.5"/> Mostrar todas las opciones ({field.options.length})</>
                                   )}
+                                </button>
+                              )}
+
+                              {/* RENDERIZADO CONDICIONAL DE LA LISTA */}
+                              {(field.options.length <= 5 || field._ui_expandedOptions) && (
+                                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1 bg-black/10 dark:bg-black/30 rounded-xl border border-white/5">
+                                  {field.options.map(opt => (
+                                    <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
+                                      <span>{opt}</span>
+                                      {opt !== 'Otra' && (
+                                        <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           )}
 
