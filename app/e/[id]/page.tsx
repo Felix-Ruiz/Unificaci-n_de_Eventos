@@ -449,7 +449,9 @@ export default function FormularioPublico() {
               eventName: event.name,
               documento: documento,
               institucion: institucion || 'No especificada',
-              creatorEmail: event.creator_email
+              creatorEmail: event.creator_email,
+              emailSubject: event.email_subject, // <--- AÑADIDO
+              emailBody: event.email_body        // <--- AÑADIDO
             })
           });
         } catch (emailErr) {

@@ -6,7 +6,8 @@ import {
   Plus, Trash2, Settings, FileSpreadsheet, Image as ImageIcon, 
   CheckCircle2, GitBranch, X, ShieldAlert, Clock, Users, 
   Palette, ImagePlus, AlignLeft, Link2, ShieldCheck, Loader2, 
-  AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, ThumbsUp, Save, Bot, Globe, MessageSquare
+  AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, 
+  ThumbsUp, Save, Bot, Globe, MessageSquare, Code, Eye, EyeOff
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../../lib/supabase';
@@ -27,6 +28,7 @@ interface FormField {
   system_key?: string;
   description?: string;
   _ui_showDescription?: boolean;
+  _ui_expandedOptions?: boolean;
 }
 
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
@@ -64,10 +66,10 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
   return (
-    <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
+    <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
       <button 
-        type="button"
-        onClick={() => onToggle(id)}
+        type="button" 
+        onClick={() => onToggle(id)} 
         className="w-full flex items-center justify-between p-5 md:p-6 bg-gray-50 dark:bg-transparent hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer text-left focus:outline-none"
       >
         <div className="flex items-center gap-3">
@@ -78,10 +80,7 @@ const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }:
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div 
-            initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} 
-            transition={{ duration: 0.2, ease: "easeInOut" }} className="overflow-hidden"
-          >
+          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="overflow-hidden">
             <div className="p-5 md:p-6 pt-0 border-t border-gray-200 dark:border-white/5 mt-4 space-y-6">
               {children}
             </div>
@@ -98,6 +97,8 @@ export default function EditarEventoPage() {
   const eventId = params?.id as string;
 
   const { language: systemLang, setLanguage: setSystemLanguage } = useLanguage();
+  const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   const [isLoadingInit, setIsLoadingInit] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,7 +110,6 @@ export default function EditarEventoPage() {
   };
   
   const [openSection, setOpenSection] = useState<string>('detalles');
-  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   // ESTADOS DEL EVENTO
   const [eventName, setEventName] = useState('');
@@ -138,8 +138,13 @@ export default function EditarEventoPage() {
 
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
+  
+  const [creatorEmail, setCreatorEmail] = useState('');
+  
+  // CAMPOS DE CORREO PERSONALIZADO
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
 
-  const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
   const [fields, setFields] = useState<FormField[]>([]);
   const [originalFieldIds, setOriginalFieldIds] = useState<string[]>([]);
 
@@ -183,6 +188,12 @@ export default function EditarEventoPage() {
         setThankYouUrl(eventData.thank_you_url || '');
         setRequireHabeasData(eventData.require_habeas_data ?? true);
         setHabeasDataUrl(eventData.habeas_data_url || '');
+        
+        setCreatorEmail(eventData.creator_email || '');
+        
+        // CARGAMOS ASUNTO Y CUERPO DE CORREO
+        setEmailSubject(eventData.email_subject || '');
+        setEmailBody(eventData.email_body || '');
 
         const { data: fieldsData } = await supabase.from('event_fields').select('*').eq('event_id', eventId).order('order_index');
         
@@ -202,7 +213,8 @@ export default function EditarEventoPage() {
               allowOther: opts.allowOther ?? true,
               system_key: opts.system_key || null,
               description: opts.description || '',
-              _ui_showDescription: !!opts.description
+              _ui_showDescription: !!opts.description,
+              _ui_expandedOptions: false
             };
           }));
         }
@@ -270,7 +282,8 @@ export default function EditarEventoPage() {
       _ui_showLogic: false, 
       allowOther: true,
       description: '',
-      _ui_showDescription: false
+      _ui_showDescription: false,
+      _ui_expandedOptions: false
     };
     setFields([...fields, newField]);
   };
@@ -307,7 +320,7 @@ export default function EditarEventoPage() {
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
 
-        updateField(id, 'options', uniqueOptions);
+        setFields(prev => prev.map(f => f.id === id ? { ...f, options: uniqueOptions, _ui_expandedOptions: false } : f));
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde Excel.`, 'success');
       } catch (error) {
         showToast('Error de Formato', 'No se pudo leer el archivo Excel.', 'error');
@@ -367,7 +380,8 @@ export default function EditarEventoPage() {
         primary_color: primaryColor, accent_color: accentColor, bg_color: bgColor,
         form_password: formPassword || null, one_per_device: onePerDevice,
         thank_you_enabled: thankYouEnabled, thank_you_text: thankYouText || null, thank_you_url: thankYouUrl || null,
-        turnstile_enabled: turnstileEnabled
+        turnstile_enabled: turnstileEnabled, creator_email: creatorEmail?.trim() || null,
+        email_subject: emailSubject || null, email_body: emailBody || null
       }).eq('id', eventId);
 
       if (eventError) throw eventError;
@@ -393,7 +407,14 @@ export default function EditarEventoPage() {
           }),
           order_index: index
         };
-        if (!isNew) payload.id = f.id;
+        
+        // FIX PARA EVITAR EL ERROR DE NULL EN ID EN UPSERT
+        if (!isNew) {
+           payload.id = f.id;
+        } else {
+           payload.id = crypto.randomUUID();
+        }
+        
         return payload;
       });
 
@@ -410,30 +431,23 @@ export default function EditarEventoPage() {
     }
   };
 
-  if (isLoadingInit) {
-    return <div className="min-h-[60vh] flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
-  }
+  if (isLoadingInit) return <div className="min-h-[60vh] flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative pb-20">
+      
+      {/* CONTENEDOR DE TOASTS */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toast && (
             <motion.div 
-              initial={{ opacity: 0, x: 50, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }}
-              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
-                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
-                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
-              }`}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }} 
+              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'}`}
             >
               {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
               {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />}
               {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
-              </div>
+              <div className="flex-1"><h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4><p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p></div>
               <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"><X className="h-4 w-4" /></button>
             </motion.div>
           )}
@@ -449,7 +463,7 @@ export default function EditarEventoPage() {
           
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
-            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            className="p-3 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
             title="Configuración de Idioma Global"
           >
             <Globe className="h-5 w-5" />
@@ -476,8 +490,9 @@ export default function EditarEventoPage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* COLUMNA IZQUIERDA: ACORDEÓN */}
         <div className="lg:col-span-4 space-y-4">
-          
           <AccordionSection id="detalles" icon={Settings} title="Detalles y Diseño Base" isOpen={openSection === 'detalles'} onToggle={toggleSection}>
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">Nombre del Evento</label>
@@ -541,34 +556,21 @@ export default function EditarEventoPage() {
           <AccordionSection id="seguridad" icon={ShieldAlert} title="Acceso y Restricciones" isOpen={openSection === 'seguridad'} onToggle={toggleSection}>
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div className="flex-1 pr-2">
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                    <Bot className="h-4 w-4 text-purple-500"/> Protección Anti-Bots
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Verifica y detiene ataques automatizados con Cloudflare Turnstile.</p>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5"><Bot className="h-4 w-4 text-purple-500"/> Protección Anti-Bots</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Verifica y detiene ataques automatizados.</p>
               </div>
-              <button 
-                type="button" 
-                role="switch"
-                aria-checked={turnstileEnabled}
-                onClick={() => setTurnstileEnabled(!turnstileEnabled)} 
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  turnstileEnabled ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-700'
-                }`}
-              >
-                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-                  turnstileEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`} />
+              <button type="button" role="switch" aria-checked={turnstileEnabled} onClick={() => setTurnstileEnabled(!turnstileEnabled)} className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${turnstileEnabled ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${turnstileEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
             
             <div className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-white/5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2"><Lock className="h-4 w-4"/> Restringir con Contraseña</label>
-              <input type="text" value={formPassword} onChange={(e) => setFormPassword(e.target.value)} placeholder="Dejar vacío para formulario abierto..." className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" />
+              <input type="text" value={formPassword} onChange={(e) => setFormPassword(e.target.value)} placeholder="Dejar vacío para abierto..." className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" />
             </div>
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
               <div className="flex-1 pr-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5"><Smartphone className="h-4 w-4 text-primary"/> Una Respuesta por Equipo</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Bloquea respuestas múltiples del mismo dispositivo o IP.</p>
               </div>
               <button type="button" role="switch" aria-checked={onePerDevice} onClick={() => setOnePerDevice(!onePerDevice)} className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${onePerDevice ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'}`}>
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${onePerDevice ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -594,6 +596,39 @@ export default function EditarEventoPage() {
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${sendNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
+
+            <AnimatePresence>
+              {sendNotifications && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-4 pt-4 border-t border-gray-200 dark:border-white/5 overflow-hidden">
+                  <div className="space-y-1.5">
+                    <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2"><Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)</label>
+                    <input type="email" value={creatorEmail || ''} onChange={(e) => setCreatorEmail(e.target.value)} placeholder="Ej. coordinador@universidad.edu.co" className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" />
+                  </div>
+
+                  <div className="p-3.5 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl space-y-1.5">
+                    <span className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wider"><Code className="h-3.5 w-3.5"/> Variables Disponibles</span>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">Puedes inyectar estas etiquetas en cualquier parte del asunto o cuerpo y el sistema las reemplazará automáticamente:</p>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{nombre}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{apellido}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{evento}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{documento}}"}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Asunto Personalizado del Correo</label>
+                    <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Ej: ¡Confirmado! Tu entrada oficial para {{evento}}" className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-sm text-gray-900 dark:text-white focus:border-primary outline-none" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Cuerpo Personalizado del Correo</label>
+                    <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} rows={5} placeholder={`Ej: Hola {{nombre}},\n\nTu inscripción se procesó con éxito. Adjunto encontrarás tu credencial oficial con el número {{documento}}.`} className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-xs text-gray-900 dark:text-white focus:border-primary outline-none resize-none leading-relaxed" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-white/5">
               <div className="flex items-center justify-between">
                 <div className="flex-1 pr-2">
@@ -644,33 +679,18 @@ export default function EditarEventoPage() {
           </AccordionSection>
         </div>
 
-        {/* COLUMNA DERECHA: CONSTRUCTOR DINÁMICO DE FORMULARIOS */}
+        {/* COLUMNA DERECHA: CONSTRUCTOR DINÁMICO */}
         <div className="lg:col-span-8">
-          <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 md:p-8 rounded-2xl shadow-sm dark:shadow-none">
+          <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-6 md:p-8 rounded-2xl shadow-sm dark:shadow-none">
             
             <div className="flex justify-between items-center mb-8 border-b border-gray-200 dark:border-white/5 pb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Diseño del Formulario de Inscripción</h2>
               <div className="flex items-center gap-4">
-                {/* SWITCH DE IDIOMAS DEL FORMULARIO */}
-                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
-                  <button 
-                    type="button"
-                    onClick={() => handleLanguageToggle('es')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                    <Globe className="h-3 w-3" /> ES
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => handleLanguageToggle('en')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                    <Globe className="h-3 w-3" /> EN
-                  </button>
+                <div className="flex items-center bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg p-1">
+                  <button type="button" onClick={() => handleLanguageToggle('es')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}><Globe className="h-3 w-3" /> ES</button>
+                  <button type="button" onClick={() => handleLanguageToggle('en')} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}><Globe className="h-3 w-3" /> EN</button>
                 </div>
-                <span className="text-xs bg-primary/10 dark:bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">
-                  {fields.length} Preguntas
-                </span>
+                <span className="text-xs bg-primary/10 dark:bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">{fields.length} Preguntas</span>
               </div>
             </div>
 
@@ -681,35 +701,16 @@ export default function EditarEventoPage() {
                   const selectedParent = field.logic?.dependsOnId ? availableParentQuestions.find(f => f.id === field.logic!.dependsOnId) : null;
 
                   return (
-                    <motion.div 
-                      key={field.id} 
-                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} 
-                      className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-400 dark:hover:border-gray-600 transition-all relative`}
-                    >
+                    <motion.div key={field.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-300 dark:hover:border-gray-600 transition-all relative`}>
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                         <div className="md:col-span-4 flex flex-col gap-1">
                           <input type="text" value={field.label} onChange={(e) => updateField(field.id, 'label', e.target.value)} className="w-full bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-700 focus:border-accent outline-none text-gray-900 dark:text-white font-bold px-1 py-1 transition-colors" placeholder="Escribe la pregunta o etiqueta..." />
-                          {field.system_key && (
-                            <span className="text-[9px] font-mono text-gray-400 ml-1 opacity-50 uppercase tracking-widest">
-                              DATA_KEY: {field.system_key}
-                            </span>
-                          )}
+                          {field.system_key && <span className="text-[9px] font-mono text-gray-500 dark:text-gray-400 ml-1 opacity-50 uppercase tracking-widest">DATA_KEY: {field.system_key}</span>}
                           
-                          {/* CAMPO DE DESCRIPCIÓN (Plegable) */}
                           <AnimatePresence>
                             {field._ui_showDescription && (
-                              <motion.div 
-                                initial={{ height: 0, opacity: 0 }} 
-                                animate={{ height: 'auto', opacity: 1 }} 
-                                exit={{ height: 0, opacity: 0 }}
-                              >
-                                <input 
-                                  type="text" 
-                                  value={field.description || ''} 
-                                  onChange={(e) => updateField(field.id, 'description', e.target.value)} 
-                                  placeholder="Escribe una descripción o ayuda..." 
-                                  className="w-full mt-2 bg-black/10 dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg py-2 px-3 text-xs text-gray-700 dark:text-gray-300 focus:border-primary outline-none transition-colors"
-                                />
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+                                <input type="text" value={field.description || ''} onChange={(e) => updateField(field.id, 'description', e.target.value)} placeholder="Escribe una descripción o ayuda..." className="w-full mt-2 bg-white dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg py-2 px-3 text-xs text-gray-700 dark:text-gray-300 focus:border-primary outline-none transition-colors" />
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -729,31 +730,16 @@ export default function EditarEventoPage() {
                         </div>
 
                         <div className="md:col-span-3 flex justify-end gap-1 mt-1">
-                          {/* BOTÓN: Añadir Descripción */}
-                          <button 
-                            type="button" 
-                            onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} 
-                            className={`p-2 rounded-lg transition-colors cursor-pointer ${field._ui_showDescription || field.description ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
-                            title="Añadir Descripción / Ayuda"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                          </button>
+                          <button type="button" onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} className={`p-2 rounded-lg transition-colors cursor-pointer ${field._ui_showDescription || field.description ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`} title="Añadir Descripción"><MessageSquare className="h-4 w-4" /></button>
                           <button type="button" onClick={() => updateField(field.id, '_ui_showLogic', !field._ui_showLogic)} className={`p-2 rounded-lg transition-colors cursor-pointer ${field.logic ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`} title="Lógica Condicional"><GitBranch className="h-4 w-4" /></button>
-                          <button type="button" onClick={() => handleRemoveField(field.id)} className="text-gray-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer"><Trash2 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => handleRemoveField(field.id)} className="text-gray-500 hover:text-red-500 transition-colors p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer" title="Eliminar Pregunta"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
 
-                      {/* TOGGLE PERMITIR OPCIÓN OTRA */}
                       {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
                         <div className="flex items-center gap-3 mt-3 ml-1">
                           <span className="text-xs text-gray-500 font-bold">Permitir opción "Otra"</span>
-                          <button 
-                            type="button" 
-                            role="switch"
-                            aria-checked={field.allowOther ?? true}
-                            onClick={() => updateField(field.id, 'allowOther', !(field.allowOther ?? true))} 
-                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.allowOther ?? true ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-700'}`}
-                          >
+                          <button type="button" role="switch" aria-checked={field.allowOther ?? true} onClick={() => updateField(field.id, 'allowOther', !(field.allowOther ?? true))} className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${field.allowOther ?? true ? 'bg-accent' : 'bg-gray-300 dark:bg-gray-700'}`}>
                             <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${field.allowOther ?? true ? 'translate-x-3' : 'translate-x-0'}`} />
                           </button>
                         </div>
@@ -794,8 +780,10 @@ export default function EditarEventoPage() {
                         </motion.div>
                       )}
 
+                      {/* MITIGACIÓN VISUAL PARA LISTAS LARGAS DE EXCEL */}
                       {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-col gap-3">
+                          
                           <div className="flex justify-between items-center">
                             <label className="text-xs text-gray-500 font-bold">Opciones Disponibles</label>
                             <div className="relative shrink-0">
@@ -805,19 +793,39 @@ export default function EditarEventoPage() {
                                 </label>
                             </div>
                           </div>
+                          
                           <input type="text" onKeyDown={(e) => handleManualOptionAdd(field.id, e)} className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-900 dark:text-white rounded-lg p-2.5 outline-none focus:border-accent" placeholder="Escribe la opción y presiona ENTER..." />
+                          
                           {field.options.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {field.options.map(opt => (
-                                <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
-                                  <span>{opt}</span>
-                                  {opt !== 'Otra' && (
-                                    <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"><X className="h-3 w-3" /></button>
-                                  )}
-                                </div>
-                              ))}
+                            <div className="space-y-2 mt-1">
+                              {/* BARRA DE CONTROL DE EXPANSIÓN */}
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{field.options.length} OPCIONES CONFIGURADAS</span>
+                                {field.options.length > 5 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateField(field.id, '_ui_expandedOptions', !field._ui_expandedOptions)}
+                                    className="text-[10px] text-primary dark:text-accent font-black tracking-wide uppercase flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 px-2 py-1.5 rounded border border-primary/20 cursor-pointer transition-all"
+                                  >
+                                    {field._ui_expandedOptions ? <><EyeOff className="h-3.5 w-3.5"/> Ocultar</> : <><Eye className="h-3.5 w-3.5"/> Mostrar Todas</>}
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto custom-scrollbar p-2 bg-gray-100 dark:bg-black/30 rounded-xl border border-gray-200 dark:border-white/5">
+                                {(field._ui_expandedOptions ? field.options : field.options.slice(0, 5)).map(opt => (
+                                  <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
+                                    <span>{opt}</span>
+                                    {opt !== 'Otra' && <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer"><X className="h-3 w-3" /></button>}
+                                  </div>
+                                ))}
+                                {!field._ui_expandedOptions && field.options.length > 5 && (
+                                  <div className="text-xs text-gray-500 italic px-2 py-1.5 font-medium">... y {field.options.length - 5} opciones más ocultas.</div>
+                                )}
+                              </div>
                             </div>
                           )}
+
                         </div>
                       )}
                     </motion.div>

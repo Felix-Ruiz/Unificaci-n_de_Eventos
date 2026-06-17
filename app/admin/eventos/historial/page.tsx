@@ -119,14 +119,14 @@ export default function HistorialEventosPage() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 
-                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30' : 
-                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'
+                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
+                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
+                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
               }`}
             >
-              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 dark:text-red-400 shrink-0" />}
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 dark:text-green-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 dark:text-blue-400 shrink-0" />}
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
               
               <div className="flex-1">
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
@@ -225,7 +225,7 @@ export default function HistorialEventosPage() {
                   </button>
                   <button 
                     onClick={() => handleDeleteClick(evento.id, evento.name)}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-500 text-red-600 hover:text-white dark:bg-red-500/10 dark:text-red-500 rounded-lg transition-colors text-sm font-medium border border-red-200 dark:border-red-500/20 w-full md:w-auto cursor-pointer"
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-500 text-red-600 hover:text-white dark:bg-red-500/10 dark:hover:bg-red-500 dark:text-white rounded-lg transition-colors text-sm font-medium border border-red-200 dark:border-red-500/20 w-full md:w-auto cursor-pointer"
                   >
                     <Trash2 className="h-4 w-4" /> {t.btnDelete}
                   </button>

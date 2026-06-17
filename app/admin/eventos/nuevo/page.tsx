@@ -3,36 +3,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Plus, 
-  Trash2, 
-  Settings, 
-  FileSpreadsheet, 
-  Image as ImageIcon, 
-  CheckCircle2, 
-  GitBranch, 
-  X, 
-  ShieldAlert, 
-  Clock, 
-  Users, 
-  Palette, 
-  ImagePlus, 
-  AlignLeft,
-  Link2,
-  ShieldCheck,
-  Loader2,
-  AlertCircle,
-  Info,
-  Mail,
-  ChevronDown,
-  Lock,
-  Smartphone,
-  ThumbsUp,
-  Bot,
-  Globe,
-  MessageSquare,
-  Eye,
-  EyeOff,
-  Code
+  Plus, Trash2, Settings, FileSpreadsheet, Image as ImageIcon, 
+  CheckCircle2, GitBranch, X, ShieldAlert, Clock, Users, 
+  Palette, ImagePlus, AlignLeft, Link2, ShieldCheck, Loader2, 
+  AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, 
+  ThumbsUp, Bot, Globe, MessageSquare, Code, Eye, EyeOff
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -53,7 +28,7 @@ interface FormField {
   system_key?: string;
   description?: string;
   _ui_showDescription?: boolean;
-  _ui_expandedOptions?: boolean; // NUEVO: Control visual para colapsar opciones masivas
+  _ui_expandedOptions?: boolean;
 }
 
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
@@ -91,10 +66,10 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
   return (
-    <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
+    <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden transition-all shadow-sm dark:shadow-none">
       <button 
-        type="button"
-        onClick={() => onToggle(id)}
+        type="button" 
+        onClick={() => onToggle(id)} 
         className="w-full flex items-center justify-between p-5 md:p-6 bg-gray-50 dark:bg-transparent hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer text-left focus:outline-none"
       >
         <div className="flex items-center gap-3">
@@ -105,13 +80,7 @@ const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }:
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div 
-            initial={{ height: 0 }} 
-            animate={{ height: 'auto' }} 
-            exit={{ height: 0 }} 
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
+          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2, ease: "easeInOut" }} className="overflow-hidden">
             <div className="p-5 md:p-6 pt-0 border-t border-gray-200 dark:border-white/5 mt-4 space-y-6">
               {children}
             </div>
@@ -125,13 +94,10 @@ const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }:
 export default function NuevoEventoPage() {
   const router = useRouter();
   
-  // CONTEXTO DE IDIOMA GLOBAL (SISTEMA)
   const { language: systemLang, setLanguage: setSystemLanguage } = useLanguage();
-  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
-
-  // ESTADO DE IDIOMA LOCAL DEL FORMULARIO
   const [formLanguage, setFormLanguage] = useState<'es' | 'en'>('es');
-
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
 
@@ -152,7 +118,7 @@ export default function NuevoEventoPage() {
   
   const [creatorEmail, setCreatorEmail] = useState<string | null>(null);
 
-  // NUEVOS ESTADOS PARA LA EDICIÓN DEL MENSAJE DE CORREO
+  // CAMPOS DE PERSONALIZACIÓN DE CORREO
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
 
@@ -254,13 +220,12 @@ export default function NuevoEventoPage() {
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9\s-]/g, "")
       .replace(/\s+/g, "-");
-    
     setEventSlug(formattedSlug);
   };
 
   const handleAddField = () => {
     const newField: FormField = {
-      id: `f-custom-${Date.now()}`,
+      id: crypto.randomUUID(), // FIX PARA EVITAR EL ERROR DE NULL EN ID
       label: 'Nueva Pregunta',
       type: 'text',
       isRequired: false,
@@ -312,7 +277,7 @@ export default function NuevoEventoPage() {
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
 
-        // Al cargar masivamente, forzamos que inicie colapsado para no generar daño visual
+        // Se cargan y se fuerza _ui_expandedOptions a false para que no colapse la vista
         setFields(prev => prev.map(f => f.id === id ? { ...f, options: uniqueOptions, _ui_expandedOptions: false } : f));
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde el archivo Excel.`, 'success');
       } catch (error) {
@@ -407,8 +372,8 @@ export default function NuevoEventoPage() {
           thank_you_url: thankYouUrl || null,
           turnstile_enabled: turnstileEnabled,
           creator_email: creatorEmail?.trim() || null,
-          email_subject: emailSubject || null, // PERSISTENCIA DEL ASUNTO
-          email_body: emailBody || null        // PERSISTENCIA DEL CUERPO
+          email_subject: emailSubject || null,
+          email_body: emailBody || null
         }])
         .select()
         .single();
@@ -416,6 +381,7 @@ export default function NuevoEventoPage() {
       if (eventError) throw eventError;
 
       const fieldsToInsert = fields.map((f, index) => ({
+        id: f.id.startsWith('f-') ? crypto.randomUUID() : f.id, // FIX UUID
         event_id: eventData.id,
         field_name: f.label,
         field_type: f.type,
@@ -450,7 +416,6 @@ export default function NuevoEventoPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative pb-20">
       
-      {/* CONTENEDOR DE TOASTS */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toast && (
@@ -473,7 +438,7 @@ export default function NuevoEventoPage() {
                 <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button type="button" onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+              <button type="button" onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -490,7 +455,7 @@ export default function NuevoEventoPage() {
           
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
-            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            className="p-3 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
             title="Configuración de Idioma Global"
           >
             <Globe className="h-5 w-5" />
@@ -682,7 +647,7 @@ export default function NuevoEventoPage() {
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                     <Bot className="h-4 w-4 text-purple-500"/> Protección Anti-Bots
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Verifica y detiene ataques automatizados con Cloudflare Turnstile.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Verifica y detiene ataques automatizados.</p>
               </div>
               <button 
                 type="button" 
@@ -710,7 +675,6 @@ export default function NuevoEventoPage() {
                 placeholder="Dejar vacío para formulario abierto..." 
                 className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
               />
-              <p className="text-[10px] text-gray-500">Si digitas una clave, los usuarios deberán colocarla para poder rellenar el formulario.</p>
             </div>
 
             <div className="flex items-center justify-between bg-gray-50 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
@@ -718,7 +682,6 @@ export default function NuevoEventoPage() {
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                     <Smartphone className="h-4 w-4 text-primary"/> Una Respuesta por Equipo
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Bloquea respuestas múltiples del mismo dispositivo o IP.</p>
               </div>
               <button 
                 type="button" 
@@ -782,7 +745,6 @@ export default function NuevoEventoPage() {
               </button>
             </div>
 
-            {/* SECCIÓN EXPANDIDA: PERSONALIZACIÓN EXCLUSIVA DEL MENSAJE DE CORREO (PUNTO 1) */}
             <AnimatePresence>
               {sendNotifications && (
                 <motion.div 
@@ -806,17 +768,17 @@ export default function NuevoEventoPage() {
 
                   <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-xl space-y-1.5">
                     <span className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wider"><Code className="h-3.5 w-3.5"/> Variables Disponibles</span>
-                    <p className="text-[11px] text-gray-400 leading-relaxed">Puedes inyectar estas etiquetas en cualquier parte del asunto o cuerpo y el sistema las reemplazará automáticamente:</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">Puedes inyectar estas etiquetas en cualquier parte del asunto o cuerpo y el sistema las reemplazará automáticamente:</p>
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{nombre}}"}</span>
-                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{apellido}}"}</span>
-                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{evento}}"}</span>
-                      <span className="text-[10px] font-mono bg-black/40 text-accent px-2 py-0.5 rounded border border-white/5 font-bold">{"{{documento}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{nombre}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{apellido}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{evento}}"}</span>
+                      <span className="text-[10px] font-mono bg-white dark:bg-black/40 text-accent px-2 py-0.5 rounded border border-gray-200 dark:border-white/5 font-bold">{"{{documento}}"}</span>
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Asunto Personalizado del Correo</label>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Asunto Personalizado del Correo</label>
                     <input 
                       type="text"
                       value={emailSubject}
@@ -827,12 +789,12 @@ export default function NuevoEventoPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Cuerpo Personalizado del Correo</label>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Cuerpo Personalizado del Correo</label>
                     <textarea 
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
                       rows={5}
-                      placeholder="Ej: Hola {{nombre}},\n\nTu inscripción se procesó con éxito. Adjunto encontrarás tu credencial oficial con el número {{documento}}."
+                      placeholder={`Ej: Hola {{nombre}},\n\nTu inscripción se procesó con éxito. Adjunto encontrarás tu credencial oficial con el número {{documento}}.`}
                       className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-xs text-gray-900 dark:text-white focus:border-primary outline-none resize-none leading-relaxed"
                     />
                   </div>
@@ -846,7 +808,6 @@ export default function NuevoEventoPage() {
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                       <ThumbsUp className="h-4 w-4 text-accent"/> Pantalla de Agradecimiento
                     </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Personaliza el cierre del registro u obliga una redirección externa.</p>
                 </div>
                 <button 
                   type="button" 
@@ -877,7 +838,7 @@ export default function NuevoEventoPage() {
                       <textarea 
                         value={thankYouText} 
                         onChange={(e) => setThankYouText(e.target.value)} 
-                        placeholder="Ej: ¡Inscripción aprobada exitosamente! Conserva el código QR que enviamos a tu buzón institucional." 
+                        placeholder="Ej: ¡Inscripción aprobada exitosamente!" 
                         rows={3} 
                         className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-sm text-gray-900 dark:text-white focus:border-accent outline-none resize-none" 
                       />
@@ -888,7 +849,7 @@ export default function NuevoEventoPage() {
                         type="url" 
                         value={thankYouUrl} 
                         onChange={(e) => setThankYouUrl(e.target.value)} 
-                        placeholder="https://chat.whatsapp.com/grupo-del-evento" 
+                        placeholder="https://chat.whatsapp.com/grupo" 
                         className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-2.5 px-4 text-sm text-gray-900 dark:text-white focus:border-accent outline-none" 
                       />
                     </div>
@@ -953,24 +914,24 @@ export default function NuevoEventoPage() {
 
         {/* COLUMNA DERECHA: CONSTRUCTOR DINÁMICO DE FORMULARIOS */}
         <div className="lg:col-span-8">
-          <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 md:p-8 rounded-2xl shadow-sm dark:shadow-none">
+          <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-6 md:p-8 rounded-2xl shadow-sm dark:shadow-none">
             
             <div className="flex justify-between items-center mb-8 border-b border-gray-200 dark:border-white/5 pb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Diseño del Formulario de Inscripción</h2>
               <div className="flex items-center gap-4">
                 {/* SWITCH DE IDIOMAS DEL FORMULARIO */}
-                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
+                <div className="flex items-center bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg p-1">
                   <button 
                     type="button"
                     onClick={() => handleLanguageToggle('es')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'es' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
                   >
                     <Globe className="h-3 w-3" /> ES
                   </button>
                   <button 
                     type="button"
                     onClick={() => handleLanguageToggle('en')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-colors flex items-center gap-1 cursor-pointer ${formLanguage === 'en' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
                   >
                     <Globe className="h-3 w-3" /> EN
                   </button>
@@ -993,7 +954,7 @@ export default function NuevoEventoPage() {
                       initial={{ opacity: 0, y: 10 }} 
                       animate={{ opacity: 1, y: 0 }} 
                       exit={{ opacity: 0, scale: 0.95 }} 
-                      className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-400 dark:hover:border-gray-600 transition-all relative`}
+                      className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-300 dark:hover:border-gray-600 transition-all relative`}
                     >
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                         
@@ -1006,7 +967,7 @@ export default function NuevoEventoPage() {
                             placeholder="Escribe la pregunta o etiqueta..." 
                           />
                           {field.system_key && (
-                            <span className="text-[9px] font-mono text-gray-400 ml-1 opacity-50 uppercase tracking-widest">
+                            <span className="text-[9px] font-mono text-gray-500 dark:text-gray-400 ml-1 opacity-50 uppercase tracking-widest">
                               DATA_KEY: {field.system_key}
                             </span>
                           )}
@@ -1024,7 +985,7 @@ export default function NuevoEventoPage() {
                                   value={field.description || ''} 
                                   onChange={(e) => updateField(field.id, 'description', e.target.value)} 
                                   placeholder="Escribe una descripción o ayuda..." 
-                                  className="w-full mt-2 bg-black/10 dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg py-2 px-3 text-xs text-gray-700 dark:text-gray-300 focus:border-primary outline-none transition-colors"
+                                  className="w-full mt-2 bg-white dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg py-2 px-3 text-xs text-gray-700 dark:text-gray-300 focus:border-primary outline-none transition-colors"
                                 />
                               </motion.div>
                             )}
@@ -1045,7 +1006,7 @@ export default function NuevoEventoPage() {
                             <option value="select">Lista Desplegable</option>
                             <option value="radio">Única Respuesta</option>
                             <option value="checkbox-group">Selección Múltiple</option>
-                            <option value="checkbox">Casilla Verificación (Sí/No)</option>
+                            <option value="checkbox">Casilla Verificación</option>
                           </select>
                         </div>
 
@@ -1067,7 +1028,7 @@ export default function NuevoEventoPage() {
                             type="button" 
                             onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} 
                             className={`p-2 rounded-lg transition-colors cursor-pointer ${field._ui_showDescription || field.description ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
-                            title="Añadir Descripción / Ayuda"
+                            title="Añadir Descripción"
                           >
                             <MessageSquare className="h-4 w-4" />
                           </button>
@@ -1076,7 +1037,7 @@ export default function NuevoEventoPage() {
                             type="button" 
                             onClick={() => updateField(field.id, '_ui_showLogic', !field._ui_showLogic)} 
                             className={`p-2 rounded-lg transition-colors cursor-pointer ${field.logic ? 'bg-primary text-white' : 'text-gray-500 hover:text-accent hover:bg-accent/10'}`}
-                            title="Configurar Lógica Condicional"
+                            title="Lógica Condicional"
                           >
                             <GitBranch className="h-4 w-4" />
                           </button>
@@ -1155,6 +1116,7 @@ export default function NuevoEventoPage() {
                         </motion.div>
                       )}
 
+                      {/* MITIGACIÓN VISUAL PARA LISTAS LARGAS DE EXCEL */}
                       {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox-group') && (
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-col gap-3">
                           
@@ -1177,36 +1139,45 @@ export default function NuevoEventoPage() {
                           
                           {field.options.length > 0 && (
                             <div className="space-y-2 mt-1">
-                              {/* MITIGACIÓN DE DAÑO VISUAL: MOSTRAR CONTROLES INTERACTIVOS SI SUPERA LAS 5 OPCIONES */}
-                              {field.options.length > 5 && (
-                                <button
-                                  type="button"
-                                  onClick={() => updateField(field.id, '_ui_expandedOptions', !field._ui_expandedOptions)}
-                                  className="text-xs text-primary dark:text-accent font-black tracking-wide uppercase flex items-center gap-1.5 bg-primary/5 hover:bg-primary/10 px-3 py-2 rounded-lg border border-primary/10 cursor-pointer transition-all w-max mb-2"
-                                >
-                                  {field._ui_expandedOptions ? (
-                                    <><EyeOff className="h-3.5 w-3.5"/> Ocultar opciones cargadas</>
-                                  ) : (
-                                    <><Eye className="h-3.5 w-3.5"/> Mostrar todas las opciones ({field.options.length})</>
-                                  )}
-                                </button>
-                              )}
+                              {/* BARRA DE CONTROL DE EXPANSIÓN */}
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                  {field.options.length} OPCIONES CONFIGURADAS
+                                </span>
+                                
+                                {field.options.length > 5 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateField(field.id, '_ui_expandedOptions', !field._ui_expandedOptions)}
+                                    className="text-[10px] text-primary dark:text-accent font-black tracking-wide uppercase flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 px-2 py-1.5 rounded border border-primary/20 cursor-pointer transition-all"
+                                  >
+                                    {field._ui_expandedOptions ? (
+                                      <><EyeOff className="h-3.5 w-3.5"/> Ocultar</>
+                                    ) : (
+                                      <><Eye className="h-3.5 w-3.5"/> Mostrar Todas</>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
 
-                              {/* RENDERIZADO CONDICIONAL DE LA LISTA */}
-                              {(field.options.length <= 5 || field._ui_expandedOptions) && (
-                                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1 bg-black/10 dark:bg-black/30 rounded-xl border border-white/5">
-                                  {field.options.map(opt => (
-                                    <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
-                                      <span>{opt}</span>
-                                      {opt !== 'Otra' && (
-                                        <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto custom-scrollbar p-2 bg-gray-100 dark:bg-black/30 rounded-xl border border-gray-200 dark:border-white/5">
+                                {(field._ui_expandedOptions ? field.options : field.options.slice(0, 5)).map(opt => (
+                                  <div key={opt} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 px-2.5 py-1.5 rounded-md text-xs text-gray-700 dark:text-gray-300">
+                                    <span>{opt}</span>
+                                    {opt !== 'Otra' && (
+                                      <button type="button" onClick={() => updateField(field.id, 'options', field.options.filter(o => o !== opt))} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                
+                                {!field._ui_expandedOptions && field.options.length > 5 && (
+                                  <div className="text-xs text-gray-500 italic px-2 py-1.5 font-medium">
+                                    ... y {field.options.length - 5} opciones más ocultas.
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
 
