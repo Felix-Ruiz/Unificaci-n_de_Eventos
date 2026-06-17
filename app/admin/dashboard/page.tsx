@@ -66,7 +66,7 @@ export default function DashboardPage() {
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES (Reemplazo de alert y confirm)
+  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'success' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'archive' | 'duplicate'; event: any } | null>(null);
   
@@ -153,15 +153,15 @@ export default function DashboardPage() {
             <motion.div 
               initial={{ opacity: 0, x: 50, scale: 0.9 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 'bg-green-500/10 border-green-500/30'
+                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30'
               }`}
             >
-              {toast.type === 'error' ? <AlertCircle className="h-6 w-6 text-red-400 shrink-0" /> : <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+              {toast.type === 'error' ? <AlertCircle className="h-6 w-6 text-red-500 dark:text-red-400 shrink-0" /> : <CheckCircle2 className="h-6 w-6 text-green-500 dark:text-green-400 shrink-0" />}
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-4 w-4" /></button>
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer"><X className="h-4 w-4" /></button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -172,23 +172,23 @@ export default function DashboardPage() {
         {confirmModal && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 dark:bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+              className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
             >
               <div className={`absolute top-0 left-0 w-full h-1 ${confirmModal.type === 'archive' ? 'bg-red-500' : 'bg-accent'}`}></div>
-              <h2 className="text-2xl font-bold text-white mb-3">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
                 {confirmModal.type === 'archive' ? t.modalArchiveTitle : t.modalDuplicateTitle}
               </h2>
-              <p className="text-gray-300 mb-8">
+              <p className="text-gray-600 dark:text-gray-300 mb-8">
                 {confirmModal.type === 'archive' 
                   ? `${t.modalArchiveDesc1} "${confirmModal.event.name}" ${t.modalArchiveDesc2}`
                   : `${t.modalDuplicateDesc1} "${confirmModal.event.name}" ${t.modalDuplicateDesc2}`}
               </p>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
+                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
                 <button 
                   onClick={executeAction} 
                   className={`px-5 py-2.5 rounded-lg text-white font-bold transition-transform active:scale-95 shadow-4d-static cursor-pointer ${
@@ -205,15 +205,14 @@ export default function DashboardPage() {
 
       <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{t.pageTitle}</h1>
-          <p className="text-gray-400">{t.pageSubtitle}</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.pageTitle}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t.pageSubtitle}</p>
         </div>
-        
         <div className="flex items-center gap-3 relative">
-          {/* SWITCH DE IDIOMA DEL PANEL DE CONTROL */}
+          
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
-            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
             title={t.langSystem}
           >
             <Globe className="h-5 w-5" />
@@ -221,10 +220,10 @@ export default function DashboardPage() {
 
           <AnimatePresence>
             {showSettingsPanel && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-40 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-36 top-14 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl z-50 flex flex-col gap-2 w-44">
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
-                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
-                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>English (EN)</button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -239,79 +238,79 @@ export default function DashboardPage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-white/5 p-6 rounded-xl relative overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-primary/20 rounded-lg text-primary"><Calendar className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-white">{t.activeEvents}</h3>
+            <div className="p-3 bg-primary/10 dark:bg-primary/20 rounded-lg text-primary"><Calendar className="h-6 w-6" /></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.activeEvents}</h3>
           </div>
-          <p className="text-4xl font-bold text-white flex items-center gap-3">
+          <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : stats.events}
           </p>
         </motion.div>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface border border-white/5 p-6 rounded-xl relative overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-accent/20 rounded-lg text-accent"><Users className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-white">{t.historicBase}</h3>
+            <div className="p-3 bg-accent/10 dark:bg-accent/20 rounded-lg text-accent"><Users className="h-6 w-6" /></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.historicBase}</h3>
           </div>
-          <p className="text-4xl font-bold text-white flex items-center gap-3">
+          <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-accent" /> : stats.users}
           </p>
         </motion.div>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-surface border border-white/5 p-6 rounded-xl relative overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-green-500/20 rounded-lg text-green-400"><TrendingUp className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-white">{t.newRegs}</h3>
+            <div className="p-3 bg-green-500/10 dark:bg-green-500/20 rounded-lg text-green-500 dark:text-green-400"><TrendingUp className="h-6 w-6" /></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.newRegs}</h3>
           </div>
-          <p className="text-4xl font-bold text-white flex items-center gap-3">
-            {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-green-400" /> : stats.newUsers}
-            {!loading && <span className="text-sm font-normal text-gray-400 ml-2">{t.thisWeek}</span>}
+          <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-green-500 dark:text-green-400" /> : stats.newUsers}
+            {!loading && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">{t.thisWeek}</span>}
           </p>
         </motion.div>
       </div>
 
       <div>
-        <h2 className="text-xl font-bold text-white mb-4">{t.yourActiveEvents}</h2>
-        <div className="bg-surface border border-white/5 rounded-xl overflow-hidden">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t.yourActiveEvents}</h2>
+        <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
           {loading && !confirmModal ? (
             <div className="p-10 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : recentEvents.length === 0 ? (
             <div className="p-10 text-center text-gray-500">{t.noActiveEvents}</div>
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-gray-100 dark:divide-white/5">
               {recentEvents.map((evento) => (
-                <div key={evento.id} className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-white/5 transition-colors">
+                <div key={evento.id} className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-center gap-4">
                     {evento.logo_url ? (
-                      <div className="w-12 h-12 rounded-lg bg-black/30 p-1 flex items-center justify-center border border-white/10 shrink-0">
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-black/30 p-1 flex items-center justify-center border border-gray-200 dark:border-white/10 shrink-0">
                         <img src={evento.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
                       </div>
                     ) : (
-                      <div className="w-12 h-12 rounded-lg bg-primary/20 text-primary flex items-center justify-center border border-primary/20 shrink-0">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary flex items-center justify-center border border-primary/20 shrink-0">
                         <Calendar className="h-6 w-6" />
                       </div>
                     )}
                     <div>
                       <div className="flex items-center gap-3">
                         <Link href={`/admin/eventos/${evento.id}`}>
-                          <h3 className="text-lg font-bold text-white hover:text-primary transition-colors cursor-pointer">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer">
                             {evento.name}
                           </h3>
                         </Link>
                         {!evento.is_active && (
-                          <span className="bg-yellow-500/10 text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
+                          <span className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
                             <PauseCircle className="h-3 w-3" /> {t.paused}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-400">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
-                      <button className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors text-sm font-medium border border-white/10 cursor-pointer">
+                      <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-white/10 cursor-pointer">
                         <ExternalLink className="h-4 w-4" /> {t.btnPublic}
                       </button>
                     </Link>
@@ -323,14 +322,14 @@ export default function DashboardPage() {
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'duplicate', event: evento })} 
                       className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
-                      title={t.modalDuplicateTitle}
+                      title="Duplicar Evento"
                     >
                       <CopyPlus className="h-4 w-4" />
                     </button>
                     <button 
                       onClick={() => setConfirmModal({ isOpen: true, type: 'archive', event: evento })} 
                       className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors text-sm font-medium border border-red-500/20 cursor-pointer" 
-                      title={t.modalArchiveTitle}
+                      title="Mover a la papelera"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

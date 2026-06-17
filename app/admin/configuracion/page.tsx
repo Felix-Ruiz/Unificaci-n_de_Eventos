@@ -70,13 +70,13 @@ export default function ConfiguracionPage() {
                 toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'
               }`}
             >
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 dark:text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 dark:text-blue-400 shrink-0" />}
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -86,46 +86,47 @@ export default function ConfiguracionPage() {
 
       <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{t.pageTitle}</h1>
-          <p className="text-gray-400">{t.pageSubtitle}</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.pageTitle}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t.pageSubtitle}</p>
         </div>
         
         <div className="relative z-50">
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
-            className="p-3 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer shadow-sm"
+            className="p-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:border-white/20 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all cursor-pointer shadow-sm dark:shadow-none"
           >
             <Globe className="h-5 w-5" />
           </button>
 
           <AnimatePresence>
             {showSettingsPanel && (
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-surface border border-white/10 p-3 rounded-xl shadow-2xl flex flex-col gap-2 w-44">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="absolute right-0 top-14 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-3 rounded-xl shadow-2xl flex flex-col gap-2 w-44">
                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">{t.langSystem}</p>
-                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>Español (ES)</button>
-                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-300 hover:bg-white/5'}`}>English (EN)</button>
+                <button onClick={() => { setLanguage('es'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'es' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>Español (ES)</button>
+                <button onClick={() => { setLanguage('en'); setShowSettingsPanel(false); }} className={`flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${language === 'en' ? 'bg-primary text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}>English (EN)</button>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </header>
 
-      <section className="bg-surface border border-white/5 rounded-2xl p-8 relative overflow-hidden shadow-xl">
+      <section className="bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-2xl p-8 relative overflow-hidden shadow-sm dark:shadow-xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] pointer-events-none"></div>
         
         <div className="flex items-center gap-3 mb-8 relative z-10">
           <Palette className="h-6 w-6 text-primary" />
-          <h2 className="text-xl font-bold text-white">{t.sectionAppearance}</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t.sectionAppearance}</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
           
+          {/* BOTÓN TEMA OSCURO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleThemeChange('dark')}
             className={`cursor-pointer rounded-2xl border-2 transition-all duration-300 overflow-hidden ${
-              theme === 'dark' ? 'border-accent shadow-[0_0_30px_rgba(0,246,255,0.15)]' : 'border-white/10 opacity-70 hover:opacity-100'
+              theme === 'dark' ? 'border-accent shadow-[0_0_30px_rgba(0,246,255,0.15)]' : 'border-gray-200 dark:border-white/10 opacity-70 hover:opacity-100'
             }`}
           >
             <div className="h-40 bg-[#050505] p-6 flex flex-col justify-between relative overflow-hidden">
@@ -139,26 +140,27 @@ export default function ConfiguracionPage() {
               </div>
               <div className="w-full h-8 bg-linear-to-r from-[#00f6ff] to-[#6d28d9] rounded shadow-[4px_4px_0px_0px_rgba(0,246,255,0.8)] mt-auto"></div>
             </div>
-            <div className="p-5 bg-surface border-t border-white/5 flex items-center justify-between">
+            <div className="p-5 bg-gray-50 dark:bg-surface border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-black/50 rounded-lg text-white">
+                <div className="p-2 bg-gray-200 dark:bg-black/50 rounded-lg text-gray-900 dark:text-white">
                   <Moon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">{t.themeDarkTitle}</h3>
-                  <p className="text-xs text-gray-400">{t.themeDarkDesc}</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white">{t.themeDarkTitle}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t.themeDarkDesc}</p>
                 </div>
               </div>
               {theme === 'dark' && <CheckCircle2 className="h-6 w-6 text-accent" />}
             </div>
           </motion.div>
 
+          {/* BOTÓN TEMA CLARO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleThemeChange('light')}
             className={`cursor-pointer rounded-2xl border-2 transition-all duration-300 overflow-hidden ${
-              theme === 'light' ? 'border-primary shadow-[0_0_30px_rgba(79,70,229,0.15)]' : 'border-white/10 opacity-70 hover:opacity-100'
+              theme === 'light' ? 'border-primary shadow-[0_0_30px_rgba(79,70,229,0.15)]' : 'border-gray-200 dark:border-white/10 opacity-70 hover:opacity-100'
             }`}
           >
             <div className="h-40 bg-[#f8fafc] p-6 flex flex-col justify-between relative overflow-hidden">
@@ -172,14 +174,14 @@ export default function ConfiguracionPage() {
               </div>
               <div className="w-full h-8 bg-linear-to-r from-[#4f46e5] to-[#0ea5e9] rounded shadow-[4px_4px_0px_0px_rgba(15,23,42,0.8)] mt-auto"></div>
             </div>
-            <div className="p-5 bg-surface border-t border-white/5 flex items-center justify-between">
+            <div className="p-5 bg-gray-50 dark:bg-surface border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-black/50 rounded-lg text-white">
+                <div className="p-2 bg-gray-200 dark:bg-black/50 rounded-lg text-gray-900 dark:text-white">
                   <Sun className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">{t.themeLightTitle}</h3>
-                  <p className="text-xs text-gray-400">{t.themeLightDesc}</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white">{t.themeLightTitle}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t.themeLightDesc}</p>
                 </div>
               </div>
               {theme === 'light' && <CheckCircle2 className="h-6 w-6 text-primary" />}
