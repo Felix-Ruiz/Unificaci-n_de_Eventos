@@ -18,7 +18,7 @@ import FeedbackAdminPanel from '../../../../components/FeedbackAdminPanel';
 interface FormField {
   id: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'radio' | 'checkbox-group' | 'number' | 'textarea' | 'checkbox' | 'date';
+  type: 'text' | 'email' | 'select' | 'radio' | 'checkbox-group' | 'number' | 'textarea' | 'checkbox' | 'date' | 'file';
   isRequired: boolean;
   options: string[];
   isDefault: boolean;
@@ -63,6 +63,12 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
     ciudad: { label: 'City' }
   }
 };
+
+const defaultCountries = [
+  'Colombia', 'Argentina', 'México', 'Chile', 'Perú', 'España', 'Estados Unidos', 
+  'Ecuador', 'Venezuela', 'Brasil', 'Bolivia', 'Uruguay', 'Paraguay', 'Panamá', 
+  'Costa Rica', 'Guatemala', 'Honduras', 'El Salvador', 'República Dominicana', 'Puerto Rico'
+];
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
   return (
@@ -155,21 +161,26 @@ export default function NuevoEventoPage() {
   const [requireHabeasData, setRequireHabeasData] = useState(true);
   const [habeasDataUrl, setHabeasDataUrl] = useState('');
 
-  const [fields, setFields] = useState<FormField[]>([
-    { id: 'f-tipo-doc', system_key: 'tipo_doc', label: 'Tipo de Documento', type: 'select', isRequired: true, options: defaultTranslations.es.tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-doc', system_key: 'documento_identidad', label: 'Número de Documento', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-nom', system_key: 'nombre', label: 'Nombre(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-ape', system_key: 'apellido', label: 'Apellido(s)', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-email', system_key: 'email', label: 'Correo Electrónico', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-email-conf', system_key: 'email_conf', label: 'Confirmar Correo', type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-tel', system_key: 'telefono', label: 'Número de Teléfono', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-gen', system_key: 'genero', label: 'Género', type: 'select', isRequired: true, options: defaultTranslations.es.genero.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-dir', system_key: 'direccion', label: 'Dirección', type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-inst', system_key: 'institucion', label: 'Institución', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-cargo', system_key: 'cargo', label: 'Cargo', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-pais', system_key: 'pais', label: 'País', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-    { id: 'f-ciudad', system_key: 'ciudad', label: 'Ciudad', type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-  ]);
+  const [fields, setFields] = useState<FormField[]>([]);
+
+  // PUNTO 6 Y 7: INICIALIZACIÓN DINÁMICA CON NUEVOS PREDETERMINADOS
+  useEffect(() => {
+    setFields([
+      { id: 'f-tipo-doc', system_key: 'tipo_doc', label: defaultTranslations[formLanguage].tipo_doc.label, type: 'select', isRequired: true, options: defaultTranslations[formLanguage].tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-doc', system_key: 'documento_identidad', label: defaultTranslations[formLanguage].documento_identidad.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-nom', system_key: 'nombre', label: defaultTranslations[formLanguage].nombre.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-ape', system_key: 'apellido', label: defaultTranslations[formLanguage].apellido.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-email', system_key: 'email', label: defaultTranslations[formLanguage].email.label, type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-email-conf', system_key: 'email_conf', label: defaultTranslations[formLanguage].email_conf.label, type: 'email', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-tel', system_key: 'telefono', label: defaultTranslations[formLanguage].telefono.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-gen', system_key: 'genero', label: defaultTranslations[formLanguage].genero.label, type: 'select', isRequired: true, options: defaultTranslations[formLanguage].genero.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-dir', system_key: 'direccion', label: defaultTranslations[formLanguage].direccion.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-inst', system_key: 'institucion', label: defaultTranslations[formLanguage].institucion.label, type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-cargo', system_key: 'cargo', label: defaultTranslations[formLanguage].cargo.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-pais', system_key: 'pais', label: defaultTranslations[formLanguage].pais.label, type: 'select', isRequired: true, options: defaultCountries, isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-ciudad', system_key: 'ciudad', label: defaultTranslations[formLanguage].ciudad.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+    ]);
+  }, [formLanguage]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -180,16 +191,6 @@ export default function NuevoEventoPage() {
 
   const handleLanguageToggle = (lang: 'es' | 'en') => {
     setFormLanguage(lang);
-    setFields(prev => prev.map(f => {
-      if (f.isDefault && f.system_key && defaultTranslations[lang][f.system_key]) {
-         return {
-           ...f,
-           label: defaultTranslations[lang][f.system_key].label || f.label,
-           options: defaultTranslations[lang][f.system_key].options || f.options
-         };
-      }
-      return f;
-    }));
   };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,7 +226,7 @@ export default function NuevoEventoPage() {
 
   const handleAddField = () => {
     const newField: FormField = {
-      id: crypto.randomUUID(), // FIX PARA EVITAR EL ERROR DE NULL EN ID
+      id: crypto.randomUUID(),
       label: 'Nueva Pregunta',
       type: 'text',
       isRequired: false,
@@ -277,7 +278,6 @@ export default function NuevoEventoPage() {
         const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
 
-        // Se cargan y se fuerza _ui_expandedOptions a false para que no colapse la vista
         setFields(prev => prev.map(f => f.id === id ? { ...f, options: uniqueOptions, _ui_expandedOptions: false } : f));
         showToast('Opciones Importadas', `Se cargaron ${uniqueOptions.length} opciones desde el archivo Excel.`, 'success');
       } catch (error) {
@@ -381,7 +381,7 @@ export default function NuevoEventoPage() {
       if (eventError) throw eventError;
 
       const fieldsToInsert = fields.map((f, index) => ({
-        id: f.id.startsWith('f-') ? crypto.randomUUID() : f.id, // FIX UUID
+        id: crypto.randomUUID(), 
         event_id: eventData.id,
         field_name: f.label,
         field_type: f.type,
@@ -424,14 +424,14 @@ export default function NuevoEventoPage() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
-                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
-                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
+                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 
+                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30' : 
+                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'
               }`}
             >
-              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 dark:text-red-400 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 dark:text-green-400 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 dark:text-blue-400 shrink-0" />}
               
               <div className="flex-1">
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
@@ -766,7 +766,7 @@ export default function NuevoEventoPage() {
                     />
                   </div>
 
-                  <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-xl space-y-1.5">
+                  <div className="p-3.5 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl space-y-1.5">
                     <span className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wider"><Code className="h-3.5 w-3.5"/> Variables Disponibles</span>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">Puedes inyectar estas etiquetas en cualquier parte del asunto o cuerpo y el sistema las reemplazará automáticamente:</p>
                     <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1007,6 +1007,7 @@ export default function NuevoEventoPage() {
                             <option value="radio">Única Respuesta</option>
                             <option value="checkbox-group">Selección Múltiple</option>
                             <option value="checkbox">Casilla Verificación</option>
+                            <option value="file">Archivo (Max 1MB)</option>
                           </select>
                         </div>
 

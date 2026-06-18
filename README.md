@@ -40,20 +40,19 @@ Gemini al dar clic en el check de Política de Tratamiento de Datos Personales d
 
 
 
-Necesitamos:
+Gemini necesitamos lo siguiente y por favor códigos completos. Si en tu memoria falta algún archivo avisame para enviartelo y que lo actualices con los nuevos cambios. Y recuerda no modificar estructuras, diseños ni textos ni funcionalidades.
 
-1. Agregar a las preguntas por defecto el Número de telefono, Genero, Dirección y otro campo de verificación de correo, para que escriban el correo dos veces y no haya errores, a parte tener validación de que lo que se esta escribiendo si es un correo. Recuerda que estos campos deben traer la información del historico. 
+1. Al crear un evento en idioma ingles, cuando vamos a ver la vista pública no aparece traducido el boton confirmar registro ni los textos de ayuda de las preguntas, incluyendo los textos e listas desplegables 'seleccione una opción, incluyendo también el texto del check de tratamiento de datos y El texto que aparece en verde cuando se inscribe un participante que ya esta en el historial, el texto de Bienvenido de vuelta. También debe traducir el mensaje que llega al correo de confirmación, el texto que dice 'Registro Exitoso' 
 
-2. Debemos poder quitar la opción de OTRA en las respuestas en caso de que o queramos que escriban una respuesta diferente a las que ya cargamos.
+2. Debemos cambiar el texto de la politica de tramiento de datos por: 
+ Condiciones de registro: La Asociación Colombiana de Facultades de Ingeniería (ACOFI) utilizará los datos personales registrados exclusivamente para propósitos administrativos, de promoción de este portal, de información sobre las diferentes actividades de la Asociación y para la validación e identificación del usuario en el portal. Así mismo, podrá enviar a los usuarios registrados, a través del correo electrónico o correspondencia física, información promocional de la Asociación, información proporcionada por proveedores o instituciones que mantengan una relación comercial o institucional activa con la Asociación, invitaciones a eventos o cualquier otro tipo de información que considere de interés para sus usuarios. La Asociación no entregará la información personal de sus usuarios a terceros. Los usuarios podrán cancelar o inactivar su registro en cualquier momento.
 
-3. Poder editar los participantes de un evento, poder eliminarlos, todo. 
+ 3. Cuando se concadena logicamente una pregunta para que aparezca dependiendo de una respuesta, al llenar el formulario hay un delay muy largo para mostrar la pregunta concadenada, demora mucho en mostrarse en pantalla. Podemos mejorarlo?
 
-4. Separar de la creación de evento y de los formularios el nombre del apellido, es decir que ya no quede como nombre completo si no Nombre y apellidos por separados. 
+4. En la vista de check in para verificar la asistencia de los participantes de un evento, no esta mostrando los nombres de los participantes, todos aparecen Sin Nombre, será porque modificamos las columnas de nombres y apellidos? porque el número de identificación si lo muestra.
 
-5. El admin master o todos los usuarios tipo master deben poder descargar el archivo de participantes historicos, y poder borrar todos los historicos si queremos vaciar la lista.
+5. Es posible añadir otro tipo de pregunta al formulario? quisiera tener la opción de añadir preguntas en las que el participante pueda subir archivos, sea pdf, word, fotos, imagenes con peso menos de 1 megabyte.
 
-6. En el listado o vista de historico poder tener un boton al final de pagina para ir hasta la ultima pagina sin pasar una pagina por pagina.
+6. necesito que las preguntas predeterminadas Cargo y Ciudad aparezcan inmediatamente como preguntas de texto corto por default al crear un evento y no como lista desplegable. 
 
-7. Poder hacer clic en el nombre de un evento y que nos redirija a Gestionar evento , que funcione como el boton gestionar evento. 
-
-Recuerda que si en tu memoria te falta algun código para mejorar estas cosas , me lo pides y me entregas actualizado. Hay varios códigos que ya los tienes en memoria porque los acabamos de trabajar.
+7. a la pregunta predeterminada País quisiera dejarle registrado predeterminadamente un listado que tengo como excel con todos los paises, como hago para que ya quede registrado? 

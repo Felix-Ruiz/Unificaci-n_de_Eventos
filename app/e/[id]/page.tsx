@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Loader2, CheckCircle2, AlertCircle, UserCheck, Sparkles, 
   Lock, Clock, Users, CalendarDays, ShieldCheck, Info, X, 
-  FileText, ExternalLink, Smartphone, Globe
+  FileText, ExternalLink, Smartphone, Globe, Upload, Check
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
@@ -25,8 +25,8 @@ const publicTranslations: Record<string, Record<string, string>> = {
     optSelect: "Selecciona una opción...",
     optOtherLabel: "Específica tu respuesta...",
     optOtherWhich: "Específica cuáles otras...",
-    checkHabeasData1: "He leído y acepto la ",
-    checkHabeasData2: "Política de Tratamiento de Datos Personales",
+    checkHabeasData1: "He leído y acepto las ",
+    checkHabeasData2: "Condiciones de Registro",
     checkHabeasData3: " de ACOFI.",
     checkHabeasReq: "Requerido para procesar tu inscripción y emitir credenciales.",
     secCheck: "Verificación de Seguridad",
@@ -35,7 +35,11 @@ const publicTranslations: Record<string, Record<string, string>> = {
     btnAnother: "Realizar otro registro",
     kioskNext: "Preparando para el siguiente asistente...",
     reqError: "Por favor, marca la casilla de seguridad Cloudflare (No soy un robot) antes de continuar.",
-    policyError: "Debes leer y marcar la casilla aceptando la Política de Tratamiento de Datos Personales para continuar."
+    policyError: "Debes leer y marcar la casilla aceptando las Condiciones de Registro para continuar.",
+    fileInstruction: "Haz clic o arrastra para subir un archivo",
+    fileFormats: "PDF, Word, PNG, JPG (Max. 1MB)",
+    fileSuccess: "Archivo cargado con éxito",
+    fileError: "El archivo supera el peso máximo de 1MB."
   },
   en: {
     btnSubmit: "Confirm Registration",
@@ -46,8 +50,8 @@ const publicTranslations: Record<string, Record<string, string>> = {
     optOtherLabel: "Specify your answer...",
     optOtherWhich: "Specify which others...",
     checkHabeasData1: "I have read and accept the ",
-    checkHabeasData2: "Personal Data Treatment Policy",
-    checkHabeasData3: ".",
+    checkHabeasData2: "Registration Conditions",
+    checkHabeasData3: " of ACOFI.",
     checkHabeasReq: "Required to process your registration and issue credentials.",
     secCheck: "Security Verification",
     successTitle: "Registration Successful!",
@@ -55,7 +59,11 @@ const publicTranslations: Record<string, Record<string, string>> = {
     btnAnother: "Register another person",
     kioskNext: "Preparing for the next attendee...",
     reqError: "Please check the Cloudflare security box (I am not a robot) before continuing.",
-    policyError: "You must read and check the box accepting the Personal Data Treatment Policy to continue."
+    policyError: "You must read and check the box accepting the Registration Conditions to continue.",
+    fileInstruction: "Click or drag to upload a file",
+    fileFormats: "PDF, Word, PNG, JPG (Max. 1MB)",
+    fileSuccess: "File uploaded successfully",
+    fileError: "The file exceeds the maximum limit of 1MB."
   }
 };
 
@@ -200,7 +208,14 @@ export default function FormularioPublico() {
           .eq('event_id', eventData.id)
           .order('order_index', { ascending: true });
           
-        setFields(fieldsData || []);
+        // PERFORMANCE FIX (PUNTO 3): Pre-parsear JSON para eliminar el delay en pantalla
+        const preParsedFields = (fieldsData || []).map(f => {
+          let parsed = {};
+          try { parsed = JSON.parse(f.options || '{}'); } catch(e) {}
+          return { ...f, preParsedOptions: parsed };
+        });
+
+        setFields(preParsedFields);
         
       } catch (error) {
         setEvent(null);
@@ -258,8 +273,7 @@ export default function FormularioPublico() {
         let prefilledData: Record<string, string> = {};
         
         fields.forEach(f => {
-          let parsedOpts: any = {};
-          try { parsedOpts = JSON.parse(f.options || '{}'); } catch(e) {}
+          const parsedOpts = f.preParsedOptions || {};
           const sk = parsedOpts.system_key || '';
           const fn = (f.field_name || '').toLowerCase();
           
@@ -290,40 +304,35 @@ export default function FormularioPublico() {
     }
   };
 
+  // PERFORMANCE OPTIMIZATION: Lógica calculada instantáneamente sin JSON.parse repetitivos
   const shouldShowField = (field: any) => {
-    if (!field.options) return true;
-    try {
-      const parsed = JSON.parse(field.options);
-      if (!parsed.logic || !parsed.logic.dependsOnId) return true;
-      const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
-      if (!parentField) return true;
-      const parentVal = formData[parentField.id] || '';
-      const isMatch = parentField.field_type === 'checkbox-group' 
-        ? parentVal.split(', ').includes(parsed.logic.dependsOnValue)
-        : parentVal === parsed.logic.dependsOnValue;
-      const action = parsed.logic.action || 'show';
-      if (action === 'hide') return !isMatch;
-      if (action === 'show') return isMatch;
-      return true;
-    } catch { return true; }
+    const parsed = field.preParsedOptions || {};
+    if (!parsed.logic || !parsed.logic.dependsOnId) return true;
+    const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
+    if (!parentField) return true;
+    const parentVal = formData[parentField.id] || '';
+    const isMatch = parentField.field_type === 'checkbox-group' 
+      ? parentVal.split(', ').includes(parsed.logic.dependsOnValue)
+      : parentVal === parsed.logic.dependsOnValue;
+    const action = parsed.logic.action || 'show';
+    if (action === 'hide') return !isMatch;
+    if (action === 'show') return isMatch;
+    return true;
   };
 
   const isFieldRequired = (field: any) => {
     if (field.is_required) return true; 
-    if (!field.options) return false;
-    try {
-      const parsed = JSON.parse(field.options);
-      if (parsed.logic && parsed.logic.action === 'require' && parsed.logic.dependsOnId) {
-        const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
-        const parentVal = formData[parsed.logic.dependsOnId] || '';
-        if (parentField?.field_type === 'checkbox-group') {
-          return parentVal.split(', ').includes(parsed.logic.dependsOnValue);
-        } else {
-          return parentVal === parsed.logic.dependsOnValue;
-        }
+    const parsed = field.preParsedOptions || {};
+    if (parsed.logic && parsed.logic.action === 'require' && parsed.logic.dependsOnId) {
+      const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
+      const parentVal = formData[parsed.logic.dependsOnId] || '';
+      if (parentField?.field_type === 'checkbox-group') {
+        return parentVal.split(', ').includes(parsed.logic.dependsOnValue);
+      } else {
+        return parentVal === parsed.logic.dependsOnValue;
       }
-      return false;
-    } catch { return false; }
+    }
+    return false;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -357,8 +366,7 @@ export default function FormularioPublico() {
           return;
         }
 
-        let parsedOpts: any = {};
-        try { parsedOpts = JSON.parse(f.options || '{}'); } catch(e) {}
+        const parsedOpts = f.preParsedOptions || {};
         const sk = parsedOpts.system_key || '';
         const fn = (f.field_name || '').toLowerCase();
         const val = formData[f.id] || '';
@@ -450,8 +458,9 @@ export default function FormularioPublico() {
               documento: documento,
               institucion: institucion || 'No especificada',
               creatorEmail: event.creator_email,
-              emailSubject: event.email_subject, // <--- AÑADIDO
-              emailBody: event.email_body        // <--- AÑADIDO
+              emailSubject: event.email_subject,
+              emailBody: event.email_body,
+              lang: language // PASAMOS EL IDIOMA PARA TRADUCIR EL CORREO (PUNTO 1)
             })
           });
         } catch (emailErr) {
@@ -628,7 +637,7 @@ export default function FormularioPublico() {
       <DynamicStyleBlock />
       
       {/* BOTÓN DE IDIOMA PÚBLICO FLOTANTE */}
-      <div className="absolute top-4 right-4 z-900">
+      <div className="absolute top-4 right-4 z-50">
         <button 
           onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
           className="bg-black/30 hover:bg-black/50 backdrop-blur-md border border-white/20 text-white p-2.5 rounded-full transition-colors cursor-pointer flex items-center justify-center shadow-lg"
@@ -657,11 +666,11 @@ export default function FormularioPublico() {
               {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
               
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
+                <h4 className="text-sm font-bold text-gray-900 mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-600 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+              <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -685,22 +694,20 @@ export default function FormularioPublico() {
             >
               <div className="p-5 bg-gray-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
                 <h2 className="text-gray-900 dark:text-white font-black uppercase tracking-widest text-sm flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-accent"/> Política de Tratamiento de Datos
+                  <FileText className="h-5 w-5 text-accent"/> {language === 'es' ? 'Condiciones de Registro' : 'Registration Conditions'}
                 </h2>
                 <button onClick={() => setShowHabeasModal(false)} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none cursor-pointer">×</button>
               </div>
               
-              <div className="overflow-y-auto custom-scrollbar p-8 text-gray-700 dark:text-gray-300 text-sm leading-relaxed space-y-4">
+              <div className="overflow-y-auto custom-scrollbar p-8 text-gray-700 dark:text-gray-300 text-sm leading-relaxed space-y-4 text-justify">
                   {event.habeas_data_url ? (
                     <div className="h-[50vh] w-full">
                        <iframe src={event.habeas_data_url} className="w-full h-full border-0 rounded-lg bg-white"></iframe>
                     </div>
                   ) : (
                     <>
-                      <p><strong>1. MARCO LEGAL Y OBJETIVO</strong><br/>De conformidad con lo dispuesto en la Ley Estatutaria 1581 de 2012 y el Decreto Reglamentario 1377 de 2013 de la República de Colombia, la Asociación Colombiana de Facultades de Ingeniería (ACOFI) informa su política de recolección, almacenamiento y tratamiento de datos personales.</p>
-                      <p><strong>2. FINALIDAD DEL TRATAMIENTO</strong><br/>Los datos personales recolectados en esta plataforma son utilizados estricta y exclusivamente para los siguientes fines:<br/>- Registro de asistencia a eventos institucionales de ACOFI.<br/>- Emisión, registro y entrega de credenciales e insignias digitales institucionales.<br/>- Comunicación directa referente a certificaciones o actualizaciones del evento.</p>
-                      <p><strong>3. ACCESO PÚBLICO Y VERIFICACIÓN</strong><br/>Al aceptar la emisión de una credencial digital, el titular autoriza que su nombre, programa certificado y número de identificación estén disponibles en el directorio público de verificación para consulta de terceros.</p>
-                      <p><strong>4. DERECHOS DEL TITULAR</strong><br/>El titular de los datos tiene derecho a conocer, actualizar, rectificar y solicitar la supresión de sus datos personales. Para ejercer estos derechos, puede comunicarse a los canales oficiales de ACOFI.</p>
+                      {/* TEXTO DE POLÍTICA ACTUALIZADO (PUNTO 2) */}
+                      <p><strong>Condiciones de registro:</strong> La Asociación Colombiana de Facultades de Ingeniería (ACOFI) utilizará los datos personales registrados exclusivamente para propósitos administrativos, de promoción de este portal, de información sobre las diferentes actividades de la Asociación y para la validación e identificación del usuario en el portal. Así mismo, podrá enviar a los usuarios registrados, a través del correo electrónico o correspondencia física, información promocional de la Asociación, información proporcionada por proveedores o instituciones que mantengan una relación comercial o institucional activa con la Asociación, invitaciones a eventos o cualquier otro tipo de información que considere de interés para sus usuarios. La Asociación no entregará la información personal de sus usuarios a terceros. Los usuarios podrán cancelar o inactivar su registro en cualquier momento.</p>
                     </>
                   )}
               </div>
@@ -820,23 +827,15 @@ export default function FormularioPublico() {
                   let description = '';
                   let optionsList: string[] = [];
                   
+                  // LECTURA PRE-PARSEADA (OPTIMIZADA)
+                  const parsedOpts = field.preParsedOptions || {};
+                  description = parsedOpts.description || '';
+                  systemKey = parsedOpts.system_key || null;
+                  
                   if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
-                    try {
-                      const parsed = JSON.parse(field.options);
-                      optionsList = [...(parsed.choices || [])];
-                      allowOther = parsed.allowOther ?? true;
-                      systemKey = parsed.system_key || null;
-                      description = parsed.description || '';
-                      if (allowOther && !optionsList.includes('Otra')) optionsList.push('Otra');
-                    } catch {
-                      optionsList = ['Otra'];
-                    }
-                  } else {
-                    try {
-                      const parsed = JSON.parse(field.options);
-                      systemKey = parsed.system_key || null;
-                      description = parsed.description || '';
-                    } catch {}
+                    optionsList = [...(parsedOpts.choices || [])];
+                    allowOther = parsedOpts.allowOther ?? true;
+                    if (allowOther && !optionsList.includes('Otra')) optionsList.push('Otra');
                   }
 
                   const isDocField = systemKey === 'documento_identidad' || (fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo'));
@@ -1025,7 +1024,49 @@ export default function FormularioPublico() {
                             )}
                           </div>
                         </div>
+
+                      ) : field.field_type === 'file' ? (
                         
+                        // ==========================================
+                        // CAMPO DE SUBIDA DE ARCHIVOS (PUNTO 5)
+                        // ==========================================
+                        <div className="space-y-2">
+                          <div className="relative flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-primary rounded-xl p-4 bg-gray-50 dark:bg-black/20 transition-colors group">
+                            <input 
+                              type="file" 
+                              required={isRequiredNow && !currentValue}
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  // Validación estricta de 1MB = 1048576 bytes
+                                  if (file.size > 1024 * 1024) {
+                                    showToast('Error', t.fileError, 'error');
+                                    e.target.value = '';
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    handleFieldChange(field.id, reader.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                            <div className="text-center space-y-1 text-gray-500 dark:text-gray-400">
+                              <Upload className="h-6 w-6 mx-auto group-hover:text-primary transition-colors" />
+                              <p className="text-xs font-semibold">{t.fileInstruction}</p>
+                              <p className="text-[10px] text-gray-400">{t.fileFormats}</p>
+                            </div>
+                          </div>
+                          {currentValue && (
+                            <p className="text-xs text-green-500 font-bold flex items-center gap-1.5 px-1 py-0.5">
+                              <Check className="h-4 w-4 stroke-3" /> {t.fileSuccess}
+                            </p>
+                          )}
+                        </div>
+
                       ) : (
                         
                         <div className="relative">

@@ -31,7 +31,11 @@ export default function CheckInEventPage() {
   const [event, setEvent] = useState<any>(null);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [fields, setFields] = useState<any[]>([]);
+  
+  // ESTADOS PARA IDENTIFICAR LOS CAMPOS CLAVE
   const [nameFieldId, setNameFieldId] = useState<string>('');
+  const [lastNameFieldId, setLastNameFieldId] = useState<string>('');
+  
   const [loading, setLoading] = useState(true);
   
   // ESTADOS DEL ESCÁNER FÍSICO
@@ -167,9 +171,26 @@ export default function CheckInEventPage() {
       
     setFields(fieldsData || []);
 
-    const nameF = fieldsData?.find((f: any) => f.field_name.toLowerCase().includes('nombre'));
-    if (nameF) {
-      setNameFieldId(nameF.id);
+    // FIX NOMBRES Y APELLIDOS: Búsqueda basada en el system_key oculto para evitar fallos por idioma
+    if (fieldsData) {
+      const nameF = fieldsData.find((f: any) => {
+        try {
+          const opts = JSON.parse(f.options || '{}');
+          if (opts.system_key === 'nombre') return true;
+        } catch(e) {}
+        return f.field_name.toLowerCase().includes('nombre') || f.field_name.toLowerCase().includes('first name');
+      });
+      
+      const lastNameF = fieldsData.find((f: any) => {
+        try {
+          const opts = JSON.parse(f.options || '{}');
+          if (opts.system_key === 'apellido') return true;
+        } catch(e) {}
+        return f.field_name.toLowerCase().includes('apellido') || f.field_name.toLowerCase().includes('last name');
+      });
+
+      if (nameF) setNameFieldId(nameF.id);
+      if (lastNameF) setLastNameFieldId(lastNameF.id);
     }
 
     const { data: regsData } = await supabase
@@ -264,8 +285,12 @@ export default function CheckInEventPage() {
       
       const finalFormData = { ...manualFormData };
 
+      // Lectura robusta mediante system_key
       fields.forEach((f: any) => {
         const fn = (f.field_name || '').toLowerCase();
+        let sk = '';
+        try { sk = JSON.parse(f.options || '{}').system_key || ''; } catch(e) {}
+        
         const val = manualFormData[f.id] || '';
         
         if (f.field_type === 'select' && val === 'Otra' && manualFormData[`${f.id}_otra`]) {
@@ -274,13 +299,13 @@ export default function CheckInEventPage() {
         
         const finalVal = finalFormData[f.id] || val;
         
-        if (fn.includes('documento') && !fn.includes('tipo')) doc = finalVal;
-        if (fn.includes('nombre')) nombre = finalVal;
-        if (fn.includes('correo')) email = finalVal;
-        if (fn.includes('institución') || fn.includes('institucion')) institucion = finalVal;
-        if (fn.includes('cargo')) cargo = finalVal;
-        if (fn.includes('país') || fn.includes('pais')) pais = finalVal;
-        if (fn.includes('ciudad')) ciudad = finalVal;
+        if (sk === 'documento_identidad' || (fn.includes('documento') && !fn.includes('tipo'))) doc = finalVal;
+        if (sk === 'nombre' || fn.includes('nombre') || fn.includes('first name')) nombre = finalVal;
+        if (sk === 'email' || fn.includes('correo') || fn.includes('email')) email = finalVal;
+        if (sk === 'institucion' || fn.includes('institución') || fn.includes('institucion') || fn.includes('company')) institucion = finalVal;
+        if (sk === 'cargo' || fn.includes('cargo') || fn.includes('job title')) cargo = finalVal;
+        if (sk === 'pais' || fn.includes('país') || fn.includes('pais') || fn.includes('country')) pais = finalVal;
+        if (sk === 'ciudad' || fn.includes('ciudad') || fn.includes('city')) ciudad = finalVal;
       });
 
       if (!doc) {
@@ -401,14 +426,20 @@ export default function CheckInEventPage() {
     showToast('Reporte Descargado', 'El archivo Excel de auditoría fue generado correctamente.', 'success');
   };
 
+  // FIX BUSCADOR: Incluye la lógica avanzada de Nombres y Apellidos
   const filteredRegistrations = useMemo(() => {
     if (!searchTerm) return registrations;
+    const lowerSearch = searchTerm.toLowerCase();
+    
     return registrations.filter((reg: any) => {
-      const docMatch = reg.historic_user_doc.includes(searchTerm);
-      const nameMatch = nameFieldId && reg.form_data[nameFieldId] && String(reg.form_data[nameFieldId]).toLowerCase().includes(searchTerm.toLowerCase());
-      return docMatch || nameMatch;
+      const docMatch = String(reg.historic_user_doc || '').toLowerCase().includes(lowerSearch);
+      const fName = nameFieldId ? String(reg.form_data[nameFieldId] || '').toLowerCase() : '';
+      const lName = lastNameFieldId ? String(reg.form_data[lastNameFieldId] || '').toLowerCase() : '';
+      const fullNameMatch = `${fName} ${lName}`.includes(lowerSearch);
+      
+      return docMatch || fullNameMatch || fName.includes(lowerSearch) || lName.includes(lowerSearch);
     });
-  }, [registrations, searchTerm, nameFieldId]);
+  }, [registrations, searchTerm, nameFieldId, lastNameFieldId]);
 
   const total = registrations.length;
   const arrived = registrations.filter((r: any) => r.attended).length;
@@ -424,7 +455,7 @@ export default function CheckInEventPage() {
 
   if (!event) {
     return (
-      <div className="p-10 text-center text-white">Evento no encontrado.</div>
+      <div className="p-10 text-center text-gray-900 dark:text-white">Evento no encontrado.</div>
     );
   }
 
@@ -442,21 +473,21 @@ export default function CheckInEventPage() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
-                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
-                'bg-blue-500/10 border-blue-500/30'
+                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
+                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
+                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
               }`}
             >
-              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
               
               <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -471,113 +502,113 @@ export default function CheckInEventPage() {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 dark:bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
               exit={{ scale: 0.9, y: 20 }} 
-              className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <div className="p-6 border-b border-gray-200 dark:border-white/5 flex justify-between items-center bg-white dark:bg-[#111111] sticky top-0 z-10">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <Download className="h-5 w-5 text-accent"/> Configurar Reporte
                 </h2>
                 <button 
                   onClick={() => setShowExportModal(false)} 
-                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
+                  className="text-gray-500 hover:text-gray-900 dark:hover:text-white p-1 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer"
                 >
                   <X className="h-6 w-6"/>
                 </button>
               </div>
               
               <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
-                <p className="text-sm text-gray-400 mb-2">Selecciona las columnas que deseas incluir en el archivo Excel:</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Selecciona las columnas que deseas incluir en el archivo Excel:</p>
                 
                 <div className="flex gap-2 mb-4">
                   <button 
                     onClick={selectAllColumns} 
-                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30 cursor-pointer"
+                    className="flex-1 text-xs bg-primary/10 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/20 cursor-pointer"
                   >
                     Seleccionar Todas
                   </button>
                   <button 
                     onClick={deselectAllColumns} 
-                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10 cursor-pointer"
+                    className="flex-1 text-xs bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white font-bold transition-colors border border-gray-200 dark:border-white/10 cursor-pointer"
                   >
                     Desmarcar Todas
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                  <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                     <div className="flex items-center h-5">
                       <input 
                         type="checkbox" 
                         checked={selectedColumns.includes('doc')} 
                         onChange={() => toggleColumn('doc')} 
-                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
                       />
                     </div>
-                    <span className="text-sm font-medium text-gray-200">Documento / Cédula</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Documento / Cédula</span>
                   </label>
                   
-                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                  <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                     <div className="flex items-center h-5">
                       <input 
                         type="checkbox" 
                         checked={selectedColumns.includes('asistencia')} 
                         onChange={() => toggleColumn('asistencia')} 
-                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
                       />
                     </div>
                     <span className="text-sm font-bold text-accent">Estado de Asistencia (SÍ / NO)</span>
                   </label>
 
-                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                  <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                     <div className="flex items-center h-5">
                       <input 
                         type="checkbox" 
                         checked={selectedColumns.includes('zonas')} 
                         onChange={() => toggleColumn('zonas')} 
-                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
                       />
                     </div>
                     <span className="text-sm font-bold text-accent">Historial de Zonas y Staff (Auditoría)</span>
                   </label>
 
-                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                  <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                     <div className="flex items-center h-5">
                       <input 
                         type="checkbox" 
                         checked={selectedColumns.includes('fecha')} 
                         onChange={() => toggleColumn('fecha')} 
-                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                        className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
                       />
                     </div>
-                    <span className="text-sm font-medium text-gray-200">Fecha de Registro</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Fecha de Registro</span>
                   </label>
 
                   {fields.map(f => (
-                    <label key={f.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                    <label key={f.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
                       <div className="flex items-center h-5">
                         <input 
                           type="checkbox" 
                           checked={selectedColumns.includes(f.id)} 
                           onChange={() => toggleColumn(f.id)} 
-                          className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
+                          className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs" 
                         />
                       </div>
-                      <span className="text-sm font-medium text-gray-200">{f.field_name}</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{f.field_name}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
-              <div className="p-6 border-t border-white/5 bg-surface">
+              <div className="p-6 border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#111111]">
                 <button 
                   onClick={confirmExport} 
-                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 cursor-pointer"
+                  className="w-full bg-accent hover:bg-accent/90 text-gray-900 dark:text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 cursor-pointer"
                 >
                   <Download className="h-5 w-5"/> Descargar Reporte de Asistencia
                 </button>
@@ -594,31 +625,31 @@ export default function CheckInEventPage() {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-gray-900/90 dark:bg-black/90 backdrop-blur-md p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
               exit={{ scale: 0.9, y: 20 }} 
-              className="bg-surface border border-white/10 rounded-3xl w-full max-w-md p-6 relative shadow-2xl flex flex-col items-center"
+              className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-3xl w-full max-w-md p-6 relative shadow-2xl flex flex-col items-center"
             >
               <button 
                 onClick={() => setIsCameraOpen(false)} 
-                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors bg-black/50 rounded-full p-2 z-10 cursor-pointer"
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors bg-gray-100 dark:bg-black/50 rounded-full p-2 z-10 cursor-pointer"
               >
                 <X className="h-6 w-6"/>
               </button>
               
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                 <Camera className="h-5 w-5 text-accent"/> 
                 Apunta al Código QR
               </h2>
               
-              <div className="w-full bg-black border-2 border-white/10 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center min-h-75">
+              <div className="w-full bg-gray-100 dark:bg-black border-2 border-gray-300 dark:border-white/10 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center min-h-75">
                 <div id="qr-reader-puerta" className="w-full h-full object-cover"></div>
               </div>
               
-              <p className="text-sm text-gray-400 mt-6 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-6 text-center">
                 La cámara detectará el QR automáticamente y registrará la asistencia.
               </p>
             </motion.div>
@@ -633,22 +664,22 @@ export default function CheckInEventPage() {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-1000 flex items-center justify-center bg-gray-900/80 dark:bg-black/80 backdrop-blur-sm p-4"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
               exit={{ scale: 0.9, y: 20 }} 
-              className="bg-surface border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative"
+              className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative"
             >
-              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <div className="p-6 border-b border-gray-200 dark:border-white/5 flex justify-between items-center bg-white dark:bg-[#111111] sticky top-0 z-10">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <UserPlus className="h-5 w-5 text-accent"/> 
                   Registro Rápido en Puerta
                 </h2>
                 <button 
                   onClick={() => setShowAddModal(false)} 
-                  className="text-gray-500 hover:text-white transition-colors p-1 cursor-pointer"
+                  className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors p-1 cursor-pointer"
                 >
                   <X className="h-6 w-6"/>
                 </button>
@@ -661,7 +692,7 @@ export default function CheckInEventPage() {
                     return (
                       <div key={field.id} className="relative">
                         {field.field_type !== 'checkbox' && (
-                          <label className="block text-xs font-bold uppercase text-gray-400 mb-1.5">
+                          <label className="block text-xs font-bold uppercase text-gray-600 dark:text-gray-400 mb-1.5">
                             {field.field_name} {field.is_required && <span className="text-accent">*</span>}
                           </label>
                         )}
@@ -671,7 +702,7 @@ export default function CheckInEventPage() {
                               required={field.is_required} 
                               value={currentValue} 
                               onChange={(e) => handleManualFieldChange(field.id, e.target.value)} 
-                              className="w-full bg-black/50 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-accent cursor-pointer"
+                              className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-accent cursor-pointer"
                             >
                               <option value="" disabled>Seleccionar...</option>
                               {(() => {
@@ -689,7 +720,7 @@ export default function CheckInEventPage() {
                                 required 
                                 value={manualFormData[`${field.id}_otra`] || ''} 
                                 onChange={(e) => handleManualFieldChange(`${field.id}_otra`, e.target.value)} 
-                                className="w-full bg-primary/10 border border-primary/30 text-white rounded-lg p-3 outline-none focus:border-accent mt-2" 
+                                className="w-full bg-primary/10 border border-primary/30 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-accent mt-2" 
                                 placeholder={`Específica tu ${field.field_name.toLowerCase()}...`} 
                               />
                             )}
@@ -700,10 +731,10 @@ export default function CheckInEventPage() {
                             value={currentValue} 
                             onChange={(e) => handleManualFieldChange(field.id, e.target.value)} 
                             rows={3} 
-                            className="w-full bg-black/50 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-accent resize-none" 
+                            className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-accent resize-none" 
                           />
                         ) : field.field_type === 'checkbox' ? (
-                          <div className="flex items-center gap-3 bg-black/30 p-3 rounded-lg border border-gray-700">
+                          <div className="flex items-center gap-3 bg-gray-50 dark:bg-black/30 p-3 rounded-lg border border-gray-300 dark:border-gray-700">
                             <input 
                               type="checkbox" 
                               required={field.is_required} 
@@ -712,7 +743,7 @@ export default function CheckInEventPage() {
                               className="w-5 h-5 accent-primary cursor-pointer"
                             />
                             <label 
-                              className="text-sm text-gray-300 cursor-pointer" 
+                              className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer" 
                               onClick={() => handleManualFieldChange(field.id, currentValue === 'true' ? 'false' : 'true')}
                             >
                               {field.field_name} {field.is_required && <span className="text-accent">*</span>}
@@ -724,7 +755,7 @@ export default function CheckInEventPage() {
                             required={field.is_required} 
                             value={currentValue} 
                             onChange={(e) => handleManualFieldChange(field.id, e.target.value)} 
-                            className="w-full bg-black/50 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-accent" 
+                            className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg p-3 outline-none focus:border-accent" 
                           />
                         )}
                       </div>
@@ -733,12 +764,12 @@ export default function CheckInEventPage() {
                 </form>
               </div>
 
-              <div className="p-6 border-t border-white/5 bg-surface">
+              <div className="p-6 border-t border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#111111]">
                 <button 
                   type="submit" 
                   form="manual-form"
                   disabled={isAddingManual} 
-                  className="w-full bg-accent text-black font-bold py-3 rounded-lg shadow-4d-static active:translate-y-1 transition-transform disabled:opacity-50 cursor-pointer"
+                  className="w-full bg-accent text-gray-900 dark:text-black font-bold py-3 rounded-lg shadow-4d-static active:translate-y-1 transition-transform disabled:opacity-50 cursor-pointer"
                 >
                   {isAddingManual ? "Procesando..." : "Inscribir y Dar Acceso Inmediato"}
                 </button>
@@ -750,10 +781,10 @@ export default function CheckInEventPage() {
 
       <header className="flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3">
             Check-In: {event.name}
           </h1>
-          <p className="text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400">
             Escanea la credencial, usa el buscador o inscribe manualmente al llegar.
           </p>
         </div>
@@ -768,7 +799,7 @@ export default function CheckInEventPage() {
 
           <button 
             onClick={() => setShowAddModal(true)} 
-            className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary hover:text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm cursor-pointer"
+            className="bg-primary/10 dark:bg-primary/20 text-primary border border-primary/20 dark:border-primary/30 hover:bg-primary hover:text-white font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm cursor-pointer"
           >
             <UserPlus className="h-4 w-4" /> 
             Añadir Manual
@@ -776,7 +807,7 @@ export default function CheckInEventPage() {
           
           <button 
             onClick={openExportModal} 
-            className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm cursor-pointer"
+            className="bg-accent hover:bg-accent/90 text-gray-900 dark:text-black font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm cursor-pointer"
           >
             <Download className="h-4 w-4" /> 
             Reporte
@@ -788,7 +819,7 @@ export default function CheckInEventPage() {
         
         <div className="lg:col-span-4 bg-accent/10 border border-accent/20 p-6 rounded-2xl flex flex-col justify-center relative overflow-hidden">
           <div className="absolute top-0 w-full h-1 bg-accent"></div>
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Focus className="h-5 w-5 text-accent"/> 
             Escáner de Puerta
           </h3>
@@ -802,18 +833,18 @@ export default function CheckInEventPage() {
               onChange={(e) => setScannerInput(e.target.value)} 
               onKeyDown={handleScan} 
               placeholder="Usar láser físico aquí..." 
-              className="w-full bg-accent/20 border-2 border-accent/50 rounded-xl py-4 px-4 text-center text-white font-bold tracking-widest focus:outline-none focus:border-accent focus:bg-accent/30 placeholder:text-accent/50 transition-colors"
+              className="w-full bg-white dark:bg-accent/20 border-2 border-accent/30 dark:border-accent/50 rounded-xl py-4 px-4 text-center text-gray-900 dark:text-white font-bold tracking-widest focus:outline-none focus:border-accent focus:bg-accent/10 dark:focus:bg-accent/30 placeholder:text-gray-400 dark:placeholder:text-accent/50 transition-colors"
             />
             
             <div className="flex items-center gap-2">
-              <div className="h-px bg-white/10 flex-1"></div>
+              <div className="h-px bg-gray-300 dark:bg-white/10 flex-1"></div>
               <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">O</span>
-              <div className="h-px bg-white/10 flex-1"></div>
+              <div className="h-px bg-gray-300 dark:bg-white/10 flex-1"></div>
             </div>
 
             <button 
               onClick={() => setIsCameraOpen(true)}
-              className="w-full bg-black/50 border border-white/10 hover:bg-white/10 hover:border-white/30 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full bg-gray-100 dark:bg-black/50 border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/30 text-gray-900 dark:text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Camera className="h-5 w-5" /> Escanear con Cámara
             </button>
@@ -821,31 +852,31 @@ export default function CheckInEventPage() {
         </div>
 
         <div className="lg:col-span-8 grid grid-cols-3 gap-4">
-          <div className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
+          <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/5 p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm dark:shadow-none">
             <Users className="h-8 w-8 text-primary mb-2 opacity-50" />
-            <p className="text-3xl font-black text-white">{total}</p>
+            <p className="text-3xl font-black text-gray-900 dark:text-white">{total}</p>
             <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mt-1">Total Inscritos</p>
           </div>
           
-          <div className="bg-green-500/10 border border-green-500/20 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
+          <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
             <UserCheck className="h-8 w-8 text-green-500 mb-2 opacity-50" />
-            <p className="text-3xl font-black text-green-400">{arrived}</p>
-            <p className="text-xs text-green-500/70 uppercase tracking-widest font-bold mt-1">Han Llegado</p>
+            <p className="text-3xl font-black text-green-600 dark:text-green-400">{arrived}</p>
+            <p className="text-xs text-green-600/70 dark:text-green-500/70 uppercase tracking-widest font-bold mt-1">Han Llegado</p>
           </div>
           
-          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
             <UserMinus className="h-8 w-8 text-red-500 mb-2 opacity-50" />
-            <p className="text-3xl font-black text-red-400">{missing}</p>
-            <p className="text-xs text-red-500/70 uppercase tracking-widest font-bold mt-1">Faltan</p>
+            <p className="text-3xl font-black text-red-600 dark:text-red-400">{missing}</p>
+            <p className="text-xs text-red-600/70 dark:text-red-500/70 uppercase tracking-widest font-bold mt-1">Faltan</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-surface border border-white/5 rounded-2xl overflow-hidden flex flex-col h-full min-h-125">
+      <div className="bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/5 rounded-2xl overflow-hidden flex flex-col h-full min-h-125 shadow-sm dark:shadow-none">
         
-        <div className="p-6 border-b border-white/5 space-y-4">
+        <div className="p-6 border-b border-gray-200 dark:border-white/5 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-white">Listado de Acceso</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Listado de Acceso</h2>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <input 
@@ -853,7 +884,7 @@ export default function CheckInEventPage() {
                 placeholder="Buscar nombre o cédula..." 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
-                className="w-full bg-black/40 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-primary placeholder:text-gray-400"
               />
             </div>
           </div>
@@ -866,35 +897,41 @@ export default function CheckInEventPage() {
               <p>No se encontraron asistentes con ese dato.</p>
             </div>
           ) : (
-            <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
-              <thead className="bg-black/30 text-xs uppercase text-gray-500">
+            <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              <thead className="bg-gray-50 dark:bg-black/30 text-xs uppercase text-gray-500 font-bold">
                 <tr>
-                  <th className="px-6 py-4 font-bold w-16">N°</th>
-                  <th className="px-6 py-4 font-bold">Documento</th>
-                  <th className="px-6 py-4 font-bold">Nombre Completo</th>
-                  <th className="px-6 py-4 font-bold text-center">Estado Principal</th>
-                  <th className="px-6 py-4 font-bold text-right">Acción Principal</th>
+                  <th className="px-6 py-4 w-16">N°</th>
+                  <th className="px-6 py-4">Documento</th>
+                  <th className="px-6 py-4">Nombre Completo</th>
+                  <th className="px-6 py-4 text-center">Estado Principal</th>
+                  <th className="px-6 py-4 text-right">Acción Principal</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                 {filteredRegistrations.map((reg: any, idx: number) => {
                   const isAttended = reg.attended;
-                  const name = nameFieldId && reg.form_data[nameFieldId] ? reg.form_data[nameFieldId] : 'Sin Nombre';
+                  
+                  // LECTURA DINÁMICA DE NOMBRE COMPLETO
+                  const fName = nameFieldId && reg.form_data[nameFieldId] ? reg.form_data[nameFieldId] : '';
+                  const lName = lastNameFieldId && reg.form_data[lastNameFieldId] ? reg.form_data[lastNameFieldId] : '';
+                  let name = `${fName} ${lName}`.trim();
+                  if (!name) name = 'Sin Nombre';
+
                   return (
                     <tr 
                       key={reg.id} 
-                      className={`transition-colors ${isAttended ? 'bg-green-500/5 hover:bg-green-500/10' : 'hover:bg-white/5'}`}
+                      className={`transition-colors ${isAttended ? 'bg-green-50 dark:bg-green-500/5 hover:bg-green-100 dark:hover:bg-green-500/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
                     >
                       <td className="px-6 py-4 text-gray-500 font-medium">{idx + 1}</td>
-                      <td className="px-6 py-4 font-mono text-gray-400">{reg.historic_user_doc}</td>
-                      <td className="px-6 py-4 font-bold text-white max-w-62.5 truncate" title={name}>{name}</td>
+                      <td className="px-6 py-4 font-mono text-gray-600 dark:text-gray-400">{reg.historic_user_doc}</td>
+                      <td className="px-6 py-4 font-bold text-gray-900 dark:text-white max-w-62.5 truncate" title={name}>{name}</td>
                       <td className="px-6 py-4 text-center">
                         {isAttended ? (
-                          <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-500/20">
+                          <span className="inline-flex items-center gap-1.5 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-200 dark:border-green-500/20">
                             <CheckCircle2 className="h-3.5 w-3.5" /> Adentro
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-xs font-bold border border-red-500/20">
+                          <span className="inline-flex items-center gap-1.5 bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 px-3 py-1 rounded-full text-xs font-bold border border-red-200 dark:border-red-500/20">
                             <XCircle className="h-3.5 w-3.5" /> Ausente
                           </span>
                         )}
@@ -902,7 +939,7 @@ export default function CheckInEventPage() {
                       <td className="px-6 py-4 text-right">
                         <button 
                           onClick={() => toggleAttendance(reg.id, isAttended)} 
-                          className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isAttended ? 'bg-green-500' : 'bg-gray-700'}`}
+                          className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isAttended ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
                         >
                           <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isAttended ? 'translate-x-7' : 'translate-x-0'}`} />
                         </button>

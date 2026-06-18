@@ -246,7 +246,14 @@ export default function AutoCheckInPage() {
       setEvent(eventData);
 
       const { data: fieldsData } = await supabase.from('event_fields').select('*').eq('event_id', eventId);
-      setFields(fieldsData || []);
+      
+      // FIX PERFORMANCE: Pre-parseamos los campos para lectura instantánea sin delay en el Kiosco
+      const preParsedFields = (fieldsData || []).map(f => {
+        let parsed = {};
+        try { parsed = JSON.parse(f.options || '{}'); } catch(e) {}
+        return { ...f, preParsedOptions: parsed };
+      });
+      setFields(preParsedFields);
 
       const { data: regsData } = await supabase.from('registrations').select('*').eq('event_id', eventId);
       const { data: logsData } = await supabase.from('attendance_logs').select('*').eq('event_id', eventId);
@@ -394,23 +401,24 @@ export default function AutoCheckInPage() {
         if (activeZone === 'Entrada Principal') reg.attended = true;
       }
 
-      // EXTRACCIÓN INTELIGENTE DE DATOS
-      const getFieldValue = (form_data: any, keyword: string) => {
+      // EXTRACCIÓN INTELIGENTE DE DATOS (FIX NOMBRES)
+      const getFieldValue = (form_data: any, systemKey: string, fallbacks: string[]) => {
         const field = fields.find((f: any) => {
-          let opts: any = {};
-          try { opts = JSON.parse(f.options || '{}'); } catch(e){}
-          return opts.system_key === keyword || f.field_name?.toLowerCase().includes(keyword.toLowerCase());
+          const opts = f.preParsedOptions || {};
+          if (opts.system_key === systemKey) return true;
+          const lowerName = (f.field_name || '').toLowerCase();
+          return fallbacks.some(fb => lowerName.includes(fb));
         });
         return field ? form_data[field.id] : '';
       };
 
-      const nombre = getFieldValue(reg.form_data, 'nombre');
-      const apellido = getFieldValue(reg.form_data, 'apellido');
-      const fullName = [nombre, apellido].filter(Boolean).join(' ') || 'Invitado';
+      const nombre = getFieldValue(reg.form_data, 'nombre', ['nombre', 'first name']);
+      const apellido = getFieldValue(reg.form_data, 'apellido', ['apellido', 'last name']);
+      const fullName = [nombre, apellido].filter(Boolean).join(' ').trim() || 'Invitado';
       const firstName = nombre ? nombre.split(' ')[0] : fullName.split(' ')[0];
       
-      const cargo = getFieldValue(reg.form_data, 'cargo');
-      const inst = getFieldValue(reg.form_data, 'institu');
+      const cargo = getFieldValue(reg.form_data, 'cargo', ['cargo', 'job title']);
+      const inst = getFieldValue(reg.form_data, 'institucion', ['institución', 'institucion', 'company']);
 
       setPrintData({
         nombre: fullName,

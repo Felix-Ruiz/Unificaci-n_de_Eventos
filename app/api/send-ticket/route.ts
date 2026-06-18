@@ -5,6 +5,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     // Extraemos creatorEmail; si viene vacío (evento viejo), será undefined
     // Extraemos emailSubject y emailBody personalizados que vienen del formulario público
+    // AÑADIDO: Extraemos 'lang' para saber en qué idioma estaba el usuario al inscribirse
     const { 
       email, 
       nombre, 
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
       institucion = 'No especificada', 
       creatorEmail,
       emailSubject,
-      emailBody
+      emailBody,
+      lang = 'es' // Por defecto español si no se envía
     } = body;
 
     if (!email || !nombre || !eventName || !documento) {
@@ -38,9 +40,32 @@ export async function POST(request: Request) {
     const qrUrl = `https://quickchart.io/qr?text=${documento}&dark=0f172a&light=ffffff&margin=2&size=300&ecLevel=H`;
 
     // ==========================================
+    // TRADUCCIONES AUTOMÁTICAS DINÁMICAS
+    // ==========================================
+    const defaultSubjectFallback = lang === 'en' 
+      ? `Successful Registration: ${eventName}` 
+      : `Registro Exitoso: ${eventName}`;
+      
+    const defaultTitle = lang === 'en' 
+      ? 'Registration Successful!' 
+      : '¡Registro Exitoso!';
+      
+    const defaultBodyFallback = lang === 'en' 
+      ? `Hello <strong style="color: #ffffff;">${nombre}</strong>, your official access for the event <strong>${eventName}</strong> is confirmed.`
+      : `Hola <strong style="color: #ffffff;">${nombre}</strong>, tu acceso oficial para el evento <strong>${eventName}</strong> está confirmado.`;
+      
+    const passText = lang === 'en' 
+      ? 'Your Unique Digital Pass' 
+      : 'Tu Pase Digital Único';
+      
+    const footerText = lang === 'en'
+      ? 'Please keep this email. Upon arrival at the event, simply present this QR code from your mobile screen.'
+      : 'Por favor, conserva este correo. Al llegar al evento, simplemente presenta este código QR desde la pantalla de tu celular.';
+
+    // ==========================================
     // PROCESAMIENTO DINÁMICO DEL ASUNTO (SUBJECT)
     // ==========================================
-    let finalSubject = `Registro Exitoso: ${eventName}`;
+    let finalSubject = defaultSubjectFallback;
     if (emailSubject && emailSubject.trim() !== '') {
       finalSubject = emailSubject
         .replace(/{{nombre}}/g, nombre)
@@ -51,7 +76,7 @@ export async function POST(request: Request) {
     // ==========================================
     // PROCESAMIENTO DINÁMICO DEL CUERPO (BODY)
     // ==========================================
-    let finalBodyText = `Hola <strong style="color: #ffffff;">${nombre}</strong>, tu acceso oficial para el evento <strong>${eventName}</strong> está confirmado.`;
+    let finalBodyText = defaultBodyFallback;
     if (emailBody && emailBody.trim() !== '') {
       finalBodyText = emailBody
         .replace(/{{nombre}}/g, nombre)
@@ -69,14 +94,14 @@ export async function POST(request: Request) {
           <tr>
             <td style="padding: 40px 30px; text-align: center;">
               
-              <h2 style="margin: 0 0 15px 0; font-size: 28px; font-weight: 900; color: #ffffff;">¡Registro Exitoso!</h2>
+              <h2 style="margin: 0 0 15px 0; font-size: 28px; font-weight: 900; color: #ffffff;">${defaultTitle}</h2>
               
               <p style="color: #94a3b8; font-size: 16px; margin-bottom: 35px; line-height: 1.6; text-align: left;">
                 ${finalBodyText}
               </p>
               
               <div style="background-color: #020617; border: 2px dashed #4f46e5; border-radius: 20px; padding: 35px 20px; text-align: center;">
-                <p style="color: #818cf8; font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 0; margin-bottom: 25px;">Tu Pase Digital Único</p>
+                <p style="color: #818cf8; font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 0; margin-bottom: 25px;">${passText}</p>
                 
                 <img src="${qrUrl}" alt="QR Code" style="width: 200px; height: 200px; display: block; margin: 0 auto; border-radius: 12px; border: 4px solid #4f46e5;" />
                 
@@ -84,7 +109,7 @@ export async function POST(request: Request) {
               </div>
               
               <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 35px; line-height: 1.6;">
-                Por favor, conserva este correo. Al llegar al evento, simplemente presenta este código QR desde la pantalla de tu celular.
+                ${footerText}
               </p>
               
             </td>
