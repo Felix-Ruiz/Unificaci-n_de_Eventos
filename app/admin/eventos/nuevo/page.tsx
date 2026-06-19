@@ -124,7 +124,6 @@ export default function NuevoEventoPage() {
   
   const [creatorEmail, setCreatorEmail] = useState<string | null>(null);
 
-  // CAMPOS DE PERSONALIZACIÓN DE CORREO
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
 
@@ -163,7 +162,7 @@ export default function NuevoEventoPage() {
 
   const [fields, setFields] = useState<FormField[]>([]);
 
-  // PUNTO 6 Y 7: INICIALIZACIÓN DINÁMICA CON NUEVOS PREDETERMINADOS
+  // INICIALIZACIÓN DINÁMICA CON PREDETERMINADOS (Cargo/Ciudad en Text, País en Select con data)
   useEffect(() => {
     setFields([
       { id: 'f-tipo-doc', system_key: 'tipo_doc', label: defaultTranslations[formLanguage].tipo_doc.label, type: 'select', isRequired: true, options: defaultTranslations[formLanguage].tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
@@ -175,7 +174,7 @@ export default function NuevoEventoPage() {
       { id: 'f-tel', system_key: 'telefono', label: defaultTranslations[formLanguage].telefono.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
       { id: 'f-gen', system_key: 'genero', label: defaultTranslations[formLanguage].genero.label, type: 'select', isRequired: true, options: defaultTranslations[formLanguage].genero.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
       { id: 'f-dir', system_key: 'direccion', label: defaultTranslations[formLanguage].direccion.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
-      { id: 'f-inst', system_key: 'institucion', label: defaultTranslations[formLanguage].institucion.label, type: 'select', isRequired: true, options: [], isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
+      { id: 'f-inst', system_key: 'institucion', label: defaultTranslations[formLanguage].institucion.label, type: 'text', isRequired: true, options: [], isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
       { id: 'f-cargo', system_key: 'cargo', label: defaultTranslations[formLanguage].cargo.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
       { id: 'f-pais', system_key: 'pais', label: defaultTranslations[formLanguage].pais.label, type: 'select', isRequired: true, options: defaultCountries, isDefault: true, allowOther: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
       { id: 'f-ciudad', system_key: 'ciudad', label: defaultTranslations[formLanguage].ciudad.label, type: 'text', isRequired: true, options: [], isDefault: true, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
@@ -226,7 +225,7 @@ export default function NuevoEventoPage() {
 
   const handleAddField = () => {
     const newField: FormField = {
-      id: crypto.randomUUID(),
+      id: crypto.randomUUID(), 
       label: 'Nueva Pregunta',
       type: 'text',
       isRequired: false,
@@ -424,14 +423,14 @@ export default function NuevoEventoPage() {
               animate={{ opacity: 1, x: 0, scale: 1 }} 
               exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 
-                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30' : 
-                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'
+                toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
+                toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
+                'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-900 dark:text-blue-200'
               }`}
             >
-              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 dark:text-red-400 shrink-0" />}
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 dark:text-green-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 dark:text-blue-400 shrink-0" />}
+              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-500 shrink-0" />}
+              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />}
+              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-500 shrink-0" />}
               
               <div className="flex-1">
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{toast.title}</h4>
@@ -766,7 +765,7 @@ export default function NuevoEventoPage() {
                     />
                   </div>
 
-                  <div className="p-3.5 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-xl space-y-1.5">
+                  <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-xl space-y-1.5">
                     <span className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wider"><Code className="h-3.5 w-3.5"/> Variables Disponibles</span>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">Puedes inyectar estas etiquetas en cualquier parte del asunto o cuerpo y el sistema las reemplazará automáticamente:</p>
                     <div className="flex flex-wrap gap-1.5 pt-1">

@@ -27,7 +27,8 @@ import {
   Pencil,
   Save,
   Globe,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -461,6 +462,7 @@ export default function EventoDetalleAdmin() {
       
       fields.forEach((f: any) => { 
         if (selectedColumns.includes(f.id)) {
+          // Si el dato es un enlace HTTP (un archivo), exportamos el link crudo
           row[f.field_name] = reg.form_data[f.id] || '-'; 
         }
       });
@@ -542,7 +544,7 @@ export default function EventoDetalleAdmin() {
     const counts: Record<string, number> = {};
     registrations.forEach((r: any) => {
       const val = r.form_data[field.id];
-      if (val && val !== 'Otra') {
+      if (val && val !== 'Otra' && !val.startsWith('http')) {
         counts[val] = (counts[val] || 0) + 1;
       }
     });
@@ -551,7 +553,6 @@ export default function EventoDetalleAdmin() {
       .sort((a: any, b: any) => b[1] - a[1])
       .slice(0, 5);
   };
-
   if (loading && !confirmModal) {
     return (
       <div className="p-10 flex justify-center">
@@ -758,12 +759,25 @@ export default function EventoDetalleAdmin() {
                           className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary resize-none"
                         />
                       ) : (
-                        <input 
-                          type="text" 
-                          value={editingParticipant.form_data[f.id] || ''} 
-                          onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
-                        />
+                        <div>
+                          <input 
+                            type="text" 
+                            value={editingParticipant.form_data[f.id] || ''} 
+                            onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
+                          />
+                          {/* DETECCIÓN VISUAL DE URL (ARCHIVOS) EN MODO EDICIÓN */}
+                          {editingParticipant.form_data[f.id]?.startsWith('http') && (
+                            <a 
+                              href={editingParticipant.form_data[f.id]} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-xs text-blue-400 hover:underline mt-1.5 flex items-center gap-1 w-max"
+                            >
+                              <ExternalLink className="h-3 w-3" /> Ver archivo actual adjunto
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1163,9 +1177,9 @@ export default function EventoDetalleAdmin() {
                         <th className="px-4 py-4 w-12 text-center">
                           <input 
                             type="checkbox" 
-                            checked={currentItems.length > 0 && currentItems.every(item => selectedRegIds.includes(item.id))}
+                            checked={currentItems.length > 0 && currentItems.every((item: any) => selectedRegIds.includes(item.id))}
                             onChange={(e) => {
-                              const pageIds = currentItems.map(i => i.id);
+                              const pageIds = currentItems.map((i: any) => i.id);
                               if (e.target.checked) {
                                 setSelectedRegIds(prev => Array.from(new Set([...prev, ...pageIds])));
                               } else {
@@ -1223,15 +1237,32 @@ export default function EventoDetalleAdmin() {
                           <td className="px-6 py-4 text-xs text-gray-500">
                             {new Date(reg.created_at).toLocaleDateString()}
                           </td>
-                          {fields.map((f: any) => (
-                            <td 
-                              key={f.id} 
-                              className="px-6 py-4 max-w-50 truncate" 
-                              title={reg.form_data[f.id]}
-                            >
-                              {reg.form_data[f.id] || '-'}
-                            </td>
-                          ))}
+                          {/* DIBUJADO DE LAS RESPUESTAS (INCLUYE ARCHIVOS) */}
+                          {fields.map((f: any) => {
+                            const val = reg.form_data[f.id];
+                            const isFileUrl = typeof val === 'string' && val.startsWith('http');
+                            
+                            return (
+                              <td 
+                                key={f.id} 
+                                className="px-6 py-4 max-w-50 truncate" 
+                                title={!isFileUrl ? val : 'Archivo adjunto'}
+                              >
+                                {isFileUrl ? (
+                                  <a 
+                                    href={val} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 hover:border-blue-500/30 rounded-lg text-xs font-bold transition-all"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5"/> Ver Documento
+                                  </a>
+                                ) : (
+                                  val || '-'
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>

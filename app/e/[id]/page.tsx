@@ -38,8 +38,13 @@ const publicTranslations: Record<string, Record<string, string>> = {
     policyError: "Debes leer y marcar la casilla aceptando las Condiciones de Registro para continuar.",
     fileInstruction: "Haz clic o arrastra para subir un archivo",
     fileFormats: "PDF, Word, PNG, JPG (Max. 1MB)",
-    fileSuccess: "Archivo cargado con éxito",
-    fileError: "El archivo supera el peso máximo de 1MB."
+    fileSuccess: "Archivo adjuntado correctamente",
+    fileUploading: "Subiendo archivo...",
+    fileRemove: "Eliminar y cambiar",
+    fileErrorSize: "El archivo supera el peso máximo de 1MB.",
+    fileErrorUpload: "Hubo un problema al subir el archivo a nuestro servidor.",
+    placeholderText: "Escribe tu respuesta aquí...",
+    placeholderNum: "Ingresa tu número..."
   },
   en: {
     btnSubmit: "Confirm Registration",
@@ -62,8 +67,13 @@ const publicTranslations: Record<string, Record<string, string>> = {
     policyError: "You must read and check the box accepting the Registration Conditions to continue.",
     fileInstruction: "Click or drag to upload a file",
     fileFormats: "PDF, Word, PNG, JPG (Max. 1MB)",
-    fileSuccess: "File uploaded successfully",
-    fileError: "The file exceeds the maximum limit of 1MB."
+    fileSuccess: "File attached successfully",
+    fileUploading: "Uploading file...",
+    fileRemove: "Remove and change",
+    fileErrorSize: "The file exceeds the maximum limit of 1MB.",
+    fileErrorUpload: "There was a problem uploading the file to our server.",
+    placeholderText: "Type your answer here...",
+    placeholderNum: "Enter your number..."
   }
 };
 
@@ -85,6 +95,10 @@ export default function FormularioPublico() {
   const [passwordError, setPasswordError] = useState(false);
 
   const [formData, setFormData] = useState<Record<string, string>>({});
+  
+  // ESTADO EXCLUSIVO PARA CONTROLAR LA SUBIDA FÍSICA DE ARCHIVOS
+  const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
+
   const [honeypot, setHoneypot] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const turnstileRef = useRef<HTMLDivElement>(null);
@@ -164,7 +178,7 @@ export default function FormularioPublico() {
           detectedIp = ipData.ip;
           setClientIp(detectedIp);
         } catch (ipErr) {
-          console.error("Error resolviendo IP pública del cliente:", ipErr);
+          console.error("Error resolviendo IP:", ipErr);
         }
 
         if (eventData.one_per_device && !isKiosk && detectedIp) {
@@ -208,7 +222,6 @@ export default function FormularioPublico() {
           .eq('event_id', eventData.id)
           .order('order_index', { ascending: true });
           
-        // PERFORMANCE FIX (PUNTO 3): Pre-parsear JSON para eliminar el delay en pantalla
         const preParsedFields = (fieldsData || []).map(f => {
           let parsed = {};
           try { parsed = JSON.parse(f.options || '{}'); } catch(e) {}
@@ -245,22 +258,18 @@ export default function FormularioPublico() {
     setFormData(prev => {
       const currentVal = prev[fieldId] || '';
       let arr = currentVal ? currentVal.split(', ') : [];
-      
       if (isChecked) {
         if (!arr.includes(option)) arr.push(option);
       } else {
         arr = arr.filter(o => o !== option);
       }
-      
       return { ...prev, [fieldId]: arr.join(', ') };
     });
   };
 
   const handleVerifyDocument = async (documento: string) => {
     if (!documento.trim()) return;
-    
     setIsVerifying(true);
-    
     try {
       const { data } = await supabase
         .from('historic_users')
@@ -279,11 +288,9 @@ export default function FormularioPublico() {
           
           if (sk === 'email' || (fn.includes('correo') && !fn.includes('confirm'))) prefilledData[f.id] = data.email || '';
           if (sk === 'email_conf' || fn.includes('confirmar correo')) prefilledData[f.id] = data.email || '';
-          
           if (sk === 'nombre') prefilledData[f.id] = data.nombre || '';
           if (sk === 'apellido') prefilledData[f.id] = data.apellido || '';
           if (!sk && fn.includes('nombre') && !fn.includes('apellido')) prefilledData[f.id] = `${data.nombre || ''} ${data.apellido || ''}`.trim();
-          
           if (sk === 'institucion' || fn.includes('institución') || fn.includes('institucion')) prefilledData[f.id] = data.institucion || '';
           if (sk === 'cargo' || fn.includes('cargo')) prefilledData[f.id] = data.cargo || '';
           if (sk === 'pais' || fn.includes('país') || fn.includes('pais')) prefilledData[f.id] = data.pais || '';
@@ -292,7 +299,6 @@ export default function FormularioPublico() {
           if (sk === 'genero' || fn.includes('género') || fn.includes('genero')) prefilledData[f.id] = data.genero || '';
           if (sk === 'direccion' || fn.includes('dirección') || fn.includes('direccion')) prefilledData[f.id] = data.direccion || '';
         });
-        
         setFormData(prev => ({ ...prev, ...prefilledData }));
       } else {
         setUserFound(false);
@@ -304,7 +310,6 @@ export default function FormularioPublico() {
     }
   };
 
-  // PERFORMANCE OPTIMIZATION: Lógica calculada instantáneamente sin JSON.parse repetitivos
   const shouldShowField = (field: any) => {
     const parsed = field.preParsedOptions || {};
     if (!parsed.logic || !parsed.logic.dependsOnId) return true;
@@ -407,7 +412,7 @@ export default function FormularioPublico() {
       }
 
       if (documento) {
-        const { data: existingReg, error: checkError } = await supabase
+        const { data: existingReg } = await supabase
           .from('registrations')
           .select('id')
           .eq('event_id', event.id)
@@ -460,7 +465,7 @@ export default function FormularioPublico() {
               creatorEmail: event.creator_email,
               emailSubject: event.email_subject,
               emailBody: event.email_body,
-              lang: language // PASAMOS EL IDIOMA PARA TRADUCIR EL CORREO (PUNTO 1)
+              lang: language // PASAMOS EL IDIOMA PARA TRADUCIR EL CORREO
             })
           });
         } catch (emailErr) {
@@ -517,23 +522,17 @@ export default function FormularioPublico() {
       #acofi-form-wrapper .bg-primary { background-color: ${primaryCode} !important; }
       #acofi-form-wrapper .text-primary { color: ${primaryCode} !important; }
       #acofi-form-wrapper .border-primary { border-color: ${primaryCode} !important; }
-      
       #acofi-form-wrapper .bg-accent { background-color: ${accentCode} !important; }
       #acofi-form-wrapper .text-accent { color: ${accentCode} !important; }
       #acofi-form-wrapper .border-accent { border-color: ${accentCode} !important; }
-      
       #acofi-form-wrapper .hover\\:bg-primary\\/90:hover { background-color: ${primaryCode}E6 !important; }
-      
       #acofi-form-wrapper .focus\\:border-primary:focus { border-color: ${primaryCode} !important; }
       #acofi-form-wrapper .focus\\:ring-primary:focus { --tw-ring-color: ${primaryCode} !important; box-shadow: 0 0 0 1px ${primaryCode} !important; }
-      
       #acofi-form-wrapper .focus\\:border-accent:focus { border-color: ${accentCode} !important; }
       #acofi-form-wrapper .focus\\:ring-accent:focus { --tw-ring-color: ${accentCode} !important; box-shadow: 0 0 0 1px ${accentCode} !important; }
-      
       #acofi-form-wrapper .from-primary { --tw-gradient-from: ${primaryCode} !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
       #acofi-form-wrapper .to-accent { --tw-gradient-to: ${accentCode} !important; }
       #acofi-form-wrapper .via-accent { --tw-gradient-stops: var(--tw-gradient-from), ${accentCode}, var(--tw-gradient-to) !important; }
-      
       #acofi-form-wrapper .accent-primary { accent-color: ${primaryCode} !important; }
       #acofi-form-wrapper .checked\\:bg-accent:checked { background-color: ${accentCode} !important; border-color: ${accentCode} !important; }
       #acofi-form-wrapper .checked\\:bg-primary:checked { background-color: ${primaryCode} !important; border-color: ${primaryCode} !important; }
@@ -637,7 +636,7 @@ export default function FormularioPublico() {
       <DynamicStyleBlock />
       
       {/* BOTÓN DE IDIOMA PÚBLICO FLOTANTE */}
-      <div className="absolute top-4 right-4 z-50">
+      <div className="absolute top-4 right-4 z-900">
         <button 
           onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
           className="bg-black/30 hover:bg-black/50 backdrop-blur-md border border-white/20 text-white p-2.5 rounded-full transition-colors cursor-pointer flex items-center justify-center shadow-lg"
@@ -699,14 +698,13 @@ export default function FormularioPublico() {
                 <button onClick={() => setShowHabeasModal(false)} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none cursor-pointer">×</button>
               </div>
               
-              <div className="overflow-y-auto custom-scrollbar p-8 text-gray-700 dark:text-gray-300 text-sm leading-relaxed space-y-4 text-justify">
+              <div className="overflow-y-auto custom-scrollbar p-8 text-gray-700 dark:text-gray-300 text-sm space-y-4 leading-relaxed text-justify">
                   {event.habeas_data_url ? (
                     <div className="h-[50vh] w-full">
                        <iframe src={event.habeas_data_url} className="w-full h-full border-0 rounded-lg bg-white"></iframe>
                     </div>
                   ) : (
                     <>
-                      {/* TEXTO DE POLÍTICA ACTUALIZADO (PUNTO 2) */}
                       <p><strong>Condiciones de registro:</strong> La Asociación Colombiana de Facultades de Ingeniería (ACOFI) utilizará los datos personales registrados exclusivamente para propósitos administrativos, de promoción de este portal, de información sobre las diferentes actividades de la Asociación y para la validación e identificación del usuario en el portal. Así mismo, podrá enviar a los usuarios registrados, a través del correo electrónico o correspondencia física, información promocional de la Asociación, información proporcionada por proveedores o instituciones que mantengan una relación comercial o institucional activa con la Asociación, invitaciones a eventos o cualquier otro tipo de información que considere de interés para sus usuarios. La Asociación no entregará la información personal de sus usuarios a terceros. Los usuarios podrán cancelar o inactivar su registro en cualquier momento.</p>
                     </>
                   )}
@@ -827,11 +825,10 @@ export default function FormularioPublico() {
                   let description = '';
                   let optionsList: string[] = [];
                   
-                  // LECTURA PRE-PARSEADA (OPTIMIZADA)
                   const parsedOpts = field.preParsedOptions || {};
                   description = parsedOpts.description || '';
                   systemKey = parsedOpts.system_key || null;
-                  
+
                   if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
                     optionsList = [...(parsedOpts.choices || [])];
                     allowOther = parsedOpts.allowOther ?? true;
@@ -839,7 +836,6 @@ export default function FormularioPublico() {
                   }
 
                   const isDocField = systemKey === 'documento_identidad' || (fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo'));
-
                   const inputBaseClasses = "w-full bg-white dark:bg-black/40 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white rounded-xl py-3.5 px-4 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all hover:bg-gray-50 dark:hover:bg-black/60";
 
                   return (
@@ -1027,44 +1023,75 @@ export default function FormularioPublico() {
 
                       ) : field.field_type === 'file' ? (
                         
-                        // ==========================================
-                        // CAMPO DE SUBIDA DE ARCHIVOS (PUNTO 5)
-                        // ==========================================
                         <div className="space-y-2">
                           <div className="relative flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-primary rounded-xl p-4 bg-gray-50 dark:bg-black/20 transition-colors group">
-                            <input 
-                              type="file" 
-                              required={isRequiredNow && !currentValue}
-                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  // Validación estricta de 1MB = 1048576 bytes
-                                  if (file.size > 1024 * 1024) {
-                                    showToast('Error', t.fileError, 'error');
-                                    e.target.value = '';
-                                    return;
-                                  }
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    handleFieldChange(field.id, reader.result as string);
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
-                              }}
-                            />
-                            <div className="text-center space-y-1 text-gray-500 dark:text-gray-400">
-                              <Upload className="h-6 w-6 mx-auto group-hover:text-primary transition-colors" />
-                              <p className="text-xs font-semibold">{t.fileInstruction}</p>
-                              <p className="text-[10px] text-gray-400">{t.fileFormats}</p>
-                            </div>
+                            
+                            {uploadingFields[field.id] ? (
+                              <div className="flex flex-col items-center gap-2 text-primary py-2">
+                                <Loader2 className="h-6 w-6 animate-spin" />
+                                <span className="text-xs font-bold">{t.fileUploading}</span>
+                              </div>
+                            ) : currentValue && currentValue.startsWith('http') ? (
+                              <div className="flex flex-col items-center gap-2 text-green-500 py-2 relative z-20">
+                                <CheckCircle2 className="h-6 w-6" />
+                                <span className="text-xs font-bold">{t.fileSuccess}</span>
+                                <button 
+                                  type="button" 
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleFieldChange(field.id, '');
+                                  }} 
+                                  className="text-[10px] text-red-500 hover:text-red-700 underline mt-1 cursor-pointer"
+                                >
+                                  {t.fileRemove}
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <input 
+                                  type="file" 
+                                  required={isRequiredNow && (!currentValue || !currentValue.startsWith('http'))}
+                                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    
+                                    if (file.size > 1024 * 1024) {
+                                      showToast('Error', t.fileErrorSize, 'error');
+                                      e.target.value = '';
+                                      return;
+                                    }
+                                    
+                                    setUploadingFields(prev => ({...prev, [field.id]: true}));
+                                    
+                                    try {
+                                      const fileExt = file.name.split('.').pop();
+                                      const fileName = `inscripcion-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                                      
+                                      const { error: uploadErr } = await supabase.storage.from('archivos').upload(fileName, file);
+                                      if (uploadErr) throw uploadErr;
+                                      
+                                      const { data } = supabase.storage.from('archivos').getPublicUrl(fileName);
+                                      handleFieldChange(field.id, data.publicUrl);
+                                      
+                                    } catch (err) {
+                                      console.error("Error subiendo archivo:", err);
+                                      showToast('Error', t.fileErrorUpload, 'error');
+                                      e.target.value = '';
+                                    } finally {
+                                      setUploadingFields(prev => ({...prev, [field.id]: false}));
+                                    }
+                                  }}
+                                />
+                                <div className="text-center space-y-1 text-gray-500 dark:text-gray-400">
+                                  <Upload className="h-6 w-6 mx-auto group-hover:text-primary transition-colors" />
+                                  <p className="text-xs font-semibold">{t.fileInstruction}</p>
+                                  <p className="text-[10px] text-gray-400">{t.fileFormats}</p>
+                                </div>
+                              </>
+                            )}
                           </div>
-                          {currentValue && (
-                            <p className="text-xs text-green-500 font-bold flex items-center gap-1.5 px-1 py-0.5">
-                              <Check className="h-4 w-4 stroke-3" /> {t.fileSuccess}
-                            </p>
-                          )}
                         </div>
 
                       ) : (
@@ -1078,7 +1105,7 @@ export default function FormularioPublico() {
                             onBlur={(e) => { 
                               if (isDocField) handleVerifyDocument(e.target.value); 
                             }} 
-                            placeholder={isDocField ? "Ingresa tu número..." : ""} 
+                            placeholder={isDocField ? t.placeholderNum : t.placeholderText} 
                             className={inputBaseClasses}
                           />
                           {isDocField && isVerifying && (

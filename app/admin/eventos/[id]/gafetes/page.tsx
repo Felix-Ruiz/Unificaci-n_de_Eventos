@@ -51,12 +51,14 @@ export default function GafetesPage() {
     setLoading(false);
   }
 
-  // MOTOR INTELIGENTE PARA EXTRAER CAMPOS (SOPORTA SYSTEM_KEY)
-  const getFieldValue = (reg: any, keyword: string) => {
+  // MOTOR INTELIGENTE PARA EXTRAER CAMPOS (SOPORTA SYSTEM_KEY y MÚLTIPLES IDIOMAS)
+  const getFieldValue = (reg: any, systemKeyTarget: string, fallbacks: string[]) => {
     const field = fields.find((f: any) => {
       let opts: any = {};
       try { opts = JSON.parse(f.options || '{}'); } catch(e){}
-      return opts.system_key === keyword || f.field_name?.toLowerCase().includes(keyword.toLowerCase());
+      if (opts.system_key === systemKeyTarget) return true;
+      const lowerName = (f.field_name || '').toLowerCase();
+      return fallbacks.some(fb => lowerName.includes(fb));
     });
     return field ? reg.form_data[field.id] : '';
   };
@@ -65,11 +67,11 @@ export default function GafetesPage() {
     if (!searchTerm) return registrations;
     return registrations.filter((reg: any) => {
       const docMatch = reg.historic_user_doc.includes(searchTerm);
-      const nombre = getFieldValue(reg, 'nombre');
-      const apellido = getFieldValue(reg, 'apellido');
+      const nombre = getFieldValue(reg, 'nombre', ['nombre', 'first name']);
+      const apellido = getFieldValue(reg, 'apellido', ['apellido', 'last name']);
       const fullName = [nombre, apellido].filter(Boolean).join(' ');
       const nameMatch = fullName.toLowerCase().includes(searchTerm.toLowerCase());
-      const instMatch = getFieldValue(reg, 'institu')?.toLowerCase().includes(searchTerm.toLowerCase());
+      const instMatch = getFieldValue(reg, 'institucion', ['institución', 'institucion', 'company'])?.toLowerCase().includes(searchTerm.toLowerCase());
       return docMatch || nameMatch || instMatch;
     });
   }, [registrations, searchTerm, fields]);
@@ -172,12 +174,12 @@ export default function GafetesPage() {
          ) : (
            <div className="grid grid-cols-2 gap-6 print:gap-0 print:block">
               {itemsToPrint.map((reg: any, index: number) => {
-                 const nombre = getFieldValue(reg, 'nombre');
-                 const apellido = getFieldValue(reg, 'apellido');
-                 const fullName = [nombre, apellido].filter(Boolean).join(' ') || 'Sin Nombre';
+                 const nombre = getFieldValue(reg, 'nombre', ['nombre', 'first name']);
+                 const apellido = getFieldValue(reg, 'apellido', ['apellido', 'last name']);
+                 const fullName = [nombre, apellido].filter(Boolean).join(' ').trim() || 'Sin Nombre';
                  
-                 const cargo = getFieldValue(reg, 'cargo');
-                 const inst = getFieldValue(reg, 'institu');
+                 const cargo = getFieldValue(reg, 'cargo', ['cargo', 'job title']);
+                 const inst = getFieldValue(reg, 'institucion', ['institución', 'institucion', 'company']);
                  const isSelected = selectedIds.has(reg.id);
 
                  return (
@@ -203,7 +205,7 @@ export default function GafetesPage() {
                       <div className="p-6 flex flex-col items-center flex-1 text-center">
                         <div className="h-16 w-full flex items-center justify-center mb-6">
                           {event.logo_url ? (
-                            <img src={event.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                            <img src={event.logo_url} alt="Logo" className="max-h-full max-w-full object-contain grayscale" />
                           ) : (
                             <span className="font-bold text-gray-400 uppercase tracking-widest text-xs">ACOFI</span>
                           )}
