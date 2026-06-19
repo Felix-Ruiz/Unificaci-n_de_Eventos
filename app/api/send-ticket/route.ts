@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const qrUrl = `https://quickchart.io/qr?text=${documento}&dark=0f172a&light=ffffff&margin=2&size=300&ecLevel=H`;
 
     // ==========================================
-    // TRADUCCIONES AUTOMÁTICAS DINÁMICAS
+    // TRADUCCIONES AUTOMÁTICAS DINÁMICAS (USUARIO)
     // ==========================================
     const defaultSubjectFallback = lang === 'en' 
       ? `Successful Registration: ${eventName}` 
@@ -61,6 +61,25 @@ export async function POST(request: Request) {
     const footerText = lang === 'en'
       ? 'Please keep this email. Upon arrival at the event, simply present this QR code from your mobile screen.'
       : 'Por favor, conserva este correo. Al llegar al evento, simplemente presenta este código QR desde la pantalla de tu celular.';
+
+    const systemFooterText = lang === 'en'
+      ? 'ACOFI REGISTRATION SYSTEM'
+      : 'SISTEMA DE REGISTROS ACOFI';
+
+    // ==========================================
+    // TRADUCCIONES AUTOMÁTICAS DINÁMICAS (ADMINISTRADOR)
+    // ==========================================
+    const adminSubject = lang === 'en' ? `🚨 NEW REGISTRATION: ${eventName}` : `🚨 NUEVO REGISTRO: ${eventName}`;
+    const adminTitle = lang === 'en' ? `🚀 New Registration Received` : `🚀 Nuevo Registro Recibido`;
+    const adminDesc = lang === 'en' ? `A participant has just registered for your event <strong>${eventName}</strong>.` : `Un participante acaba de inscribirse en tu evento <strong>${eventName}</strong>.`;
+    const adminSubTitle = lang === 'en' ? `Participant Technical Data:` : `Ficha Técnica del Participante:`;
+    const adminLabelName = lang === 'en' ? `Name:` : `Nombre:`;
+    const adminLabelDoc = lang === 'en' ? `ID/Passport:` : `Cédula/ID:`;
+    const adminLabelEmail = lang === 'en' ? `Email:` : `Correo:`;
+    const adminLabelInst = lang === 'en' ? `Institution:` : `Institución:`;
+    const adminFooter = lang === 'en' ? `You are receiving this email because you are the coordinator/creator of this event.` : `Recibes este correo porque eres el coordinador/creador de este evento.`;
+    const adminSenderName = lang === 'en' ? `ACOFI Alert System` : `Sistema de Alertas ACOFI`;
+    const adminCoordinator = lang === 'en' ? `Event Coordinator` : `Coordinador del Evento`;
 
     // ==========================================
     // PROCESAMIENTO DINÁMICO DEL ASUNTO (SUBJECT)
@@ -115,7 +134,7 @@ export async function POST(request: Request) {
             </td>
           </tr>
         </table>
-        <p style="color: #475569; font-size: 11px; text-align: center; margin-top: 20px; text-transform: uppercase; letter-spacing: 1px;">SISTEMA DE REGISTROS ACOFI</p>
+        <p style="color: #475569; font-size: 11px; text-align: center; margin-top: 20px; text-transform: uppercase; letter-spacing: 1px;">${systemFooterText}</p>
       </div>
     `;
 
@@ -124,19 +143,19 @@ export async function POST(request: Request) {
     // ==========================================
     const htmlContentAdmin = `
       <div style="font-family: Arial, sans-serif; padding: 30px; background-color: #f8fafc; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0;">
-        <h2 style="color: #0f172a; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">🚀 Nuevo Registro Recibido</h2>
-        <p style="color: #475569; font-size: 16px;">Un participante acaba de inscribirse en tu evento <strong>${eventName}</strong>.</p>
+        <h2 style="color: #0f172a; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">${adminTitle}</h2>
+        <p style="color: #475569; font-size: 16px;">${adminDesc}</p>
         
         <div style="background-color: #ffffff; padding: 25px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: 20px;">
-          <h3 style="margin-top: 0; color: #1e293b; font-size: 16px; margin-bottom: 15px;">Ficha Técnica del Participante:</h3>
+          <h3 style="margin-top: 0; color: #1e293b; font-size: 16px; margin-bottom: 15px;">${adminSubTitle}</h3>
           <table width="100%" cellpadding="8" cellspacing="0" style="color: #334155; font-size: 15px;">
-            <tr><td width="30%"><strong>Nombre:</strong></td><td>${nombre}</td></tr>
-            <tr><td><strong>Cédula/ID:</strong></td><td>${documento}</td></tr>
-            <tr><td><strong>Correo:</strong></td><td><a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a></td></tr>
-            <tr><td><strong>Institución:</strong></td><td>${institucion}</td></tr>
+            <tr><td width="30%"><strong>${adminLabelName}</strong></td><td>${nombre}</td></tr>
+            <tr><td><strong>${adminLabelDoc}</strong></td><td>${documento}</td></tr>
+            <tr><td><strong>${adminLabelEmail}</strong></td><td><a href="mailto:${email}" style="color: #2563eb; text-decoration: none;">${email}</a></td></tr>
+            <tr><td><strong>${adminLabelInst}</strong></td><td>${institucion}</td></tr>
           </table>
         </div>
-        <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 30px;">Recibes este correo porque eres el coordinador/creador de este evento.</p>
+        <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 30px;">${adminFooter}</p>
       </div>
     `;
 
@@ -158,9 +177,9 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'api-key': process.env.BREVO_API_KEY },
       body: JSON.stringify({
-        sender: { name: "Sistema de Alertas ACOFI", email: senderEmail },
-        to: [{ email: adminNotificationEmail, name: 'Coordinador del Evento' }],
-        subject: `🚨 NUEVO REGISTRO: ${eventName}`,
+        sender: { name: adminSenderName, email: senderEmail },
+        to: [{ email: adminNotificationEmail, name: adminCoordinator }],
+        subject: adminSubject,
         htmlContent: htmlContentAdmin
       })
     });
