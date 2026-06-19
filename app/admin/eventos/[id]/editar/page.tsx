@@ -466,9 +466,10 @@ export default function EditarEventoPage() {
         await supabase.from('event_fields').delete().in('id', idsToDelete);
       }
 
+      // CORRECCIÓN APLICADA: SE RESPETA EL ID DEL CAMPO Y NO SE SOBREESCRIBE
       const fieldsToUpsert = fields.map((f, index) => {
-        const isNew = !originalFieldIds.includes(f.id);
         const payload: any = {
+          id: f.id,
           event_id: eventId, 
           field_name: f.label, 
           field_type: f.type,
@@ -483,12 +484,6 @@ export default function EditarEventoPage() {
           }),
           order_index: index
         };
-        
-        if (!isNew) {
-           payload.id = f.id;
-        } else {
-           payload.id = crypto.randomUUID();
-        }
         
         return payload;
       });
@@ -505,7 +500,6 @@ export default function EditarEventoPage() {
       setIsSaving(false);
     }
   };
-
   if (isLoadingInit) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
