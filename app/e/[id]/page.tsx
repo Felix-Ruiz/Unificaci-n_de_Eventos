@@ -13,9 +13,6 @@ import { useLanguage } from '../../../context/LanguageContext';
 
 import Footer from '../../../components/Footer';
 
-// ==========================================
-// TRADUCCIONES PARA EL FORMULARIO PÚBLICO
-// ==========================================
 const publicTranslations: Record<string, Record<string, string>> = {
   es: {
     btnSubmit: "Confirmar Inscripción",
@@ -95,8 +92,6 @@ export default function FormularioPublico() {
   const [passwordError, setPasswordError] = useState(false);
 
   const [formData, setFormData] = useState<Record<string, string>>({});
-  
-  // ESTADO EXCLUSIVO PARA CONTROLAR LA SUBIDA FÍSICA DE ARCHIVOS
   const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
 
   const [honeypot, setHoneypot] = useState('');
@@ -310,16 +305,33 @@ export default function FormularioPublico() {
     }
   };
 
+  // =========================================================
+  // SISTEMA DE EVALUACIÓN DE LÓGICA CONDICIONAL OPTIMIZADO
+  // =========================================================
   const shouldShowField = (field: any) => {
     const parsed = field.preParsedOptions || {};
     if (!parsed.logic || !parsed.logic.dependsOnId) return true;
+    
     const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
-    if (!parentField) return true;
+    const action = parsed.logic.action || 'show';
+    
+    // RED DE SEGURIDAD PARA EVENTOS VIEJOS CON IDS DESALINEADOS:
+    // Si la referencia está rota en la base de datos, protegemos el formulario ocultándolo por defecto
+    if (!parentField) {
+      return action === 'hide';
+    }
+    
     const parentVal = formData[parentField.id] || '';
+    
+    // Si el campo de origen no ha recibido respuesta (Formulario recién abierto)
+    if (!parentVal) {
+      return action === 'hide';
+    }
+    
     const isMatch = parentField.field_type === 'checkbox-group' 
       ? parentVal.split(', ').includes(parsed.logic.dependsOnValue)
       : parentVal === parsed.logic.dependsOnValue;
-    const action = parsed.logic.action || 'show';
+      
     if (action === 'hide') return !isMatch;
     if (action === 'show') return isMatch;
     return true;
@@ -465,7 +477,7 @@ export default function FormularioPublico() {
               creatorEmail: event.creator_email,
               emailSubject: event.email_subject,
               emailBody: event.email_body,
-              lang: language // PASAMOS EL IDIOMA PARA TRADUCIR EL CORREO
+              lang: language
             })
           });
         } catch (emailErr) {
@@ -474,7 +486,7 @@ export default function FormularioPublico() {
       }
 
       if (event.one_per_device && !isKiosk) {
-        localStorage.setItem(`acofi_reg_${event.id}`, 'true');
+        navigator.cookieEnabled ? localStorage.setItem(`acofi_reg_${event.id}`, 'true') : null;
       }
 
       if (event.thank_you_enabled && event.thank_you_url && !isKiosk) {
@@ -635,7 +647,6 @@ export default function FormularioPublico() {
     <div className="min-h-screen flex flex-col justify-between relative overflow-hidden" style={{ backgroundColor: backgroundCode }}>
       <DynamicStyleBlock />
       
-      {/* BOTÓN DE IDIOMA PÚBLICO FLOTANTE */}
       <div className="absolute top-4 right-4 z-900">
         <button 
           onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
@@ -695,7 +706,7 @@ export default function FormularioPublico() {
                 <h2 className="text-gray-900 dark:text-white font-black uppercase tracking-widest text-sm flex items-center gap-2">
                   <FileText className="h-5 w-5 text-accent"/> {language === 'es' ? 'Condiciones de Registro' : 'Registration Conditions'}
                 </h2>
-                <button onClick={() => setShowHabeasModal(false)} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none cursor-pointer">×</button>
+                <button onClick={() => { setShowHabeasModal(false); }} className="text-gray-400 hover:text-red-500 font-black text-xl leading-none cursor-pointer">×</button>
               </div>
               
               <div className="overflow-y-auto custom-scrollbar p-8 text-gray-700 dark:text-gray-300 text-sm space-y-4 leading-relaxed text-justify">
@@ -768,7 +779,7 @@ export default function FormularioPublico() {
             </div>
 
             {event.description && (
-              <div className="mb-12 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-6 rounded-2xl">
+              <div className="mb-12 bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                 <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
                   {event.description}
                 </p>
