@@ -305,9 +305,6 @@ export default function FormularioPublico() {
     }
   };
 
-  // =========================================================
-  // SISTEMA DE EVALUACIÓN DE LÓGICA CONDICIONAL OPTIMIZADO
-  // =========================================================
   const shouldShowField = (field: any) => {
     const parsed = field.preParsedOptions || {};
     if (!parsed.logic || !parsed.logic.dependsOnId) return true;
@@ -315,15 +312,12 @@ export default function FormularioPublico() {
     const parentField = fields.find(f => f.id === parsed.logic.dependsOnId);
     const action = parsed.logic.action || 'show';
     
-    // RED DE SEGURIDAD PARA EVENTOS VIEJOS CON IDS DESALINEADOS:
-    // Si la referencia está rota en la base de datos, protegemos el formulario ocultándolo por defecto
     if (!parentField) {
       return action === 'hide';
     }
     
     const parentVal = formData[parentField.id] || '';
     
-    // Si el campo de origen no ha recibido respuesta (Formulario recién abierto)
     if (!parentVal) {
       return action === 'hide';
     }
@@ -548,6 +542,14 @@ export default function FormularioPublico() {
       #acofi-form-wrapper .accent-primary { accent-color: ${primaryCode} !important; }
       #acofi-form-wrapper .checked\\:bg-accent:checked { background-color: ${accentCode} !important; border-color: ${accentCode} !important; }
       #acofi-form-wrapper .checked\\:bg-primary:checked { background-color: ${primaryCode} !important; border-color: ${primaryCode} !important; }
+      
+      /* Estilos para el texto enriquecido de la descripción */
+      .event-description-html a { color: ${accentCode}; text-decoration: underline; font-weight: bold; }
+      .event-description-html a:hover { color: ${primaryCode}; }
+      .event-description-html h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+      .event-description-html h2 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem; }
+      .event-description-html h3 { font-size: 1.125rem; font-weight: bold; margin-bottom: 0.5rem; }
+      .event-description-html p { margin-bottom: 0.5rem; }
     `}} />
   );
 
@@ -778,11 +780,13 @@ export default function FormularioPublico() {
               <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">{event.name}</h1>
             </div>
 
+            {/* INTEGRACIÓN DEL TEXTO ENRIQUECIDO EN EL LADO PÚBLICO */}
             {event.description && (
               <div className="mb-12 bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/10">
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
-                  {event.description}
-                </p>
+                <div 
+                  className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed event-description-html"
+                  dangerouslySetInnerHTML={{ __html: event.description }}
+                />
               </div>
             )}
 

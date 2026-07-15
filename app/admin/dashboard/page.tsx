@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Calendar, TrendingUp, Loader2, QrCode, ExternalLink, Trash2, PauseCircle, CopyPlus, AlertCircle, CheckCircle2, X, Globe } from 'lucide-react';
+import { Users, Calendar, TrendingUp, Loader2, QrCode, ExternalLink, Trash2, PauseCircle, CopyPlus, AlertCircle, CheckCircle2, X, Globe, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '../../../lib/supabase';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -12,12 +12,12 @@ const systemTranslations: Record<string, Record<string, string>> = {
     pageTitle: "Panel de Control",
     pageSubtitle: "Resumen general de eventos y registros históricos.",
     btnNewEvent: "Nuevo Evento",
-    activeEvents: "Eventos Activos",
+    activeEvents: "Eventos Totales",
     historicBase: "Base Histórica",
     newRegs: "Nuevos Registros",
     thisWeek: "esta semana",
     yourActiveEvents: "Tus Eventos Activos",
-    noActiveEvents: "No hay eventos activos.",
+    noActiveEvents: "No hay eventos que coincidan con la búsqueda.",
     paused: "PAUSADO",
     createdAt: "Creado el",
     btnPublic: "Público",
@@ -30,18 +30,21 @@ const systemTranslations: Record<string, Record<string, string>> = {
     modalDuplicateDesc2: "incluyendo todas sus preguntas y configuraciones?",
     btnCancel: "Cancelar",
     btnConfirm: "Confirmar Acción",
-    langSystem: "Idioma de Sistema"
+    langSystem: "Idioma de Sistema",
+    searchEvents: "Buscar eventos por nombre...",
+    page: "Página",
+    of: "de"
   },
   en: {
     pageTitle: "Dashboard",
     pageSubtitle: "Overview of events and historical registrations.",
     btnNewEvent: "New Event",
-    activeEvents: "Active Events",
+    activeEvents: "Total Events",
     historicBase: "Historical Database",
     newRegs: "New Registrations",
     thisWeek: "this week",
     yourActiveEvents: "Your Active Events",
-    noActiveEvents: "No active events.",
+    noActiveEvents: "No events match your search.",
     paused: "PAUSED",
     createdAt: "Created on",
     btnPublic: "Public",
@@ -54,7 +57,10 @@ const systemTranslations: Record<string, Record<string, string>> = {
     modalDuplicateDesc2: "including all questions and settings?",
     btnCancel: "Cancel",
     btnConfirm: "Confirm Action",
-    langSystem: "System Language"
+    langSystem: "System Language",
+    searchEvents: "Search events by name...",
+    page: "Page",
+    of: "of"
   }
 };
 
@@ -65,6 +71,11 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ events: 0, users: 0, newUsers: 0 });
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // NUEVOS ESTADOS PARA BÚSQUEDA Y PAGINACIÓN
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const eventsPerPage = 5; // Muestra 5 por página para no romper el diseño, pero permite verlos todos
 
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'success' } | null>(null);
@@ -91,7 +102,8 @@ export default function DashboardPage() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const { count: newRegistrationsCount } = await supabase.from('registrations').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo.toISOString());
       
-    const { data: eventsData } = await supabase.from('events').select('*').eq('is_deleted', false).order('created_at', { ascending: false }).limit(5);
+    // MODIFICACIÓN CRÍTICA: Se eliminó el .limit(5) para traer todos los eventos
+    const { data: eventsData } = await supabase.from('events').select('*').eq('is_deleted', false).order('created_at', { ascending: false });
 
     setStats({ events: eventsCount || 0, users: usersCount || 0, newUsers: newRegistrationsCount || 0 });
     setRecentEvents(eventsData || []);
@@ -135,6 +147,7 @@ export default function DashboardPage() {
       }
       
       await fetchData();
+      setCurrentPage(1); // Resetear a la página 1 tras una acción
     } catch (error: any) {
       showToast('Error', error.message || 'Ha ocurrido un problema ejecutando la acción.', 'error');
       setLoading(false);
@@ -142,6 +155,14 @@ export default function DashboardPage() {
       setConfirmModal(null);
     }
   };
+
+  // LÓGICA DE BÚSQUEDA Y PAGINACIÓN
+  const filteredEvents = recentEvents.filter(evento => 
+    evento.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  const totalPages = Math.ceil(filteredEvents.length / eventsPerPage) || 1;
+  const currentEvents = filteredEvents.slice((currentPage - 1) * eventsPerPage, currentPage * eventsPerPage);
 
   return (
     <div className="space-y-8 relative">
@@ -271,71 +292,116 @@ export default function DashboardPage() {
       </div>
 
       <div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t.yourActiveEvents}</h2>
-        <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t.yourActiveEvents}</h2>
+          
+          {/* BUSCADOR DE EVENTOS */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
+            <input 
+              type="text" 
+              placeholder={t.searchEvents}
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1); // Volver a página 1 al buscar
+              }}
+              className="w-full bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-primary transition-colors shadow-sm dark:shadow-none"
+            />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden shadow-sm dark:shadow-none relative min-h-75">
           {loading && !confirmModal ? (
-            <div className="p-10 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : recentEvents.length === 0 ? (
-            <div className="p-10 text-center text-gray-500">{t.noActiveEvents}</div>
+            <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          ) : currentEvents.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-500">{t.noActiveEvents}</div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-white/5">
-              {recentEvents.map((evento) => (
-                <div key={evento.id} className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                  <div className="flex items-center gap-4">
-                    {evento.logo_url ? (
-                      <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-black/30 p-1 flex items-center justify-center border border-gray-200 dark:border-white/10 shrink-0">
-                        <img src={evento.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
+            <div className="flex flex-col h-full">
+              <div className="divide-y divide-gray-100 dark:divide-white/5 flex-1">
+                {currentEvents.map((evento) => (
+                  <div key={evento.id} className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                    <div className="flex items-center gap-4">
+                      {evento.logo_url ? (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-black/30 p-1 flex items-center justify-center border border-gray-200 dark:border-white/10 shrink-0">
+                          <img src={evento.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary flex items-center justify-center border border-primary/20 shrink-0">
+                          <Calendar className="h-6 w-6" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <Link href={`/admin/eventos/${evento.id}`}>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer">
+                              {evento.name}
+                            </h3>
+                          </Link>
+                          {!evento.is_active && (
+                            <span className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
+                              <PauseCircle className="h-3 w-3" /> {t.paused}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
                       </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-primary/10 dark:bg-primary/20 text-primary flex items-center justify-center border border-primary/20 shrink-0">
-                        <Calendar className="h-6 w-6" />
-                      </div>
-                    )}
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <Link href={`/admin/eventos/${evento.id}`}>
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer">
-                            {evento.name}
-                          </h3>
-                        </Link>
-                        {!evento.is_active && (
-                          <span className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
-                            <PauseCircle className="h-3 w-3" /> {t.paused}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
+                        <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-white/10 cursor-pointer">
+                          <ExternalLink className="h-4 w-4" /> {t.btnPublic}
+                        </button>
+                      </Link>
+                      <Link href={`/admin/eventos/${evento.id}`}>
+                        <button className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-colors text-sm font-medium border border-primary/20 cursor-pointer">
+                          <QrCode className="h-4 w-4" /> {t.btnManage}
+                        </button>
+                      </Link>
+                      <button 
+                        onClick={() => setConfirmModal({ isOpen: true, type: 'duplicate', event: evento })} 
+                        className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-gray-900 dark:hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
+                        title={t.modalDuplicateTitle}
+                      >
+                        <CopyPlus className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => setConfirmModal({ isOpen: true, type: 'archive', event: evento })} 
+                        className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-500 text-red-600 hover:text-white dark:bg-red-500/10 dark:hover:bg-red-500 dark:text-red-500 rounded-lg transition-colors text-sm font-medium border border-red-200 dark:border-red-500/20 cursor-pointer" 
+                        title={t.modalArchiveTitle}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
-                      <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-white/10 cursor-pointer">
-                        <ExternalLink className="h-4 w-4" /> {t.btnPublic}
-                      </button>
-                    </Link>
-                    <Link href={`/admin/eventos/${evento.id}`}>
-                      <button className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg transition-colors text-sm font-medium border border-primary/20 cursor-pointer">
-                        <QrCode className="h-4 w-4" /> {t.btnManage}
-                      </button>
-                    </Link>
+                ))}
+              </div>
+              
+              {/* PAGINACIÓN */}
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between bg-gray-50 dark:bg-black/20">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {t.page} {currentPage} {t.of} {totalPages}
+                  </span>
+                  <div className="flex gap-2">
                     <button 
-                      onClick={() => setConfirmModal({ isOpen: true, type: 'duplicate', event: evento })} 
-                      className="flex items-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-gray-900 dark:hover:text-black rounded-lg transition-colors text-sm font-medium border border-accent/20 cursor-pointer" 
-                      title={t.modalDuplicateTitle}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                      disabled={currentPage === 1} 
+                      className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
                     >
-                      <CopyPlus className="h-4 w-4" />
+                      <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button 
-                      onClick={() => setConfirmModal({ isOpen: true, type: 'archive', event: evento })} 
-                      className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-500 text-red-600 hover:text-white dark:bg-red-500/10 dark:hover:bg-red-500 dark:text-red-500 rounded-lg transition-colors text-sm font-medium border border-red-200 dark:border-red-500/20 cursor-pointer" 
-                      title={t.modalArchiveTitle}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                      disabled={currentPage === totalPages} 
+                      className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>

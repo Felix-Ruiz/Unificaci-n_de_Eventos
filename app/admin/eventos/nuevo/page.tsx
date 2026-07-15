@@ -15,6 +15,20 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../components/FeedbackAdminPanel';
 
+import dynamic from 'next/dynamic';
+import 'react-quill/dist/quill.snow.css';
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false }) as any;
+
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'color': [] }, { 'background': [] }],
+    ['link'],
+    ['clean']
+  ],
+};
+
 interface FormField {
   id: string;
   label: string;
@@ -22,7 +36,11 @@ interface FormField {
   isRequired: boolean;
   options: string[];
   isDefault: boolean;
-  logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
+  logic?: { 
+    dependsOnId: string; 
+    dependsOnValue: string; 
+    action: 'show' | 'hide' | 'require'; 
+  } | null;
   _ui_showLogic?: boolean;
   allowOther?: boolean;
   system_key?: string;
@@ -165,16 +183,31 @@ const defaultInstitutions = [
   "Universidad Tecnológica del Chocó, Quibdó"
 ];
 
+const defaultCountries: Record<'es' | 'en', string[]> = {
+  es: [
+    'Afganistán', 'Akrotiri y Dhekelia', 'Albania', 'Alemania', 'Andorra', 'Angola', 'Anguilla', 'Antártida', 'Antigua y Barbuda', 'Arabia Saudí', 'Argelia', 'Argentina', 'Armenia', 'Aruba', 'Australia', 'Austria', 'Azerbaiyán', 'Bahamas', 'Bangladés', 'Barbados', 'Baréin', 'Belice', 'Bermudas', 'Bielorrusia', 'Bolivia', 'Bonaire, Sint Eustatius y Saba', 'Bosnia y Herzegovina', 'Botsuana', 'Brasil', 'Brunéi', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Bután', 'Bélgica', 'Cabo Verde', 'Camboya', 'Camerún', 'Canadá', 'Chad', 'Chile', 'China', 'Chipre', 'Ciudad del Vaticano', 'Colombia', 'Comores', 'Congo (Brazzaville)', 'Congo (Kinshasa)', 'Corea del Norte', 'Corea del Sur', 'Costa Rica', 'Costa de Marfil', 'Croacia', 'Cuba', 'Curazao', 'Dinamarca', 'Dominica', 'Ecuador', 'Egipto', 'El Salvador', 'Emiratos Árabes Unidos', 'Eritrea', 'Eslovaquia', 'Eslovenia', 'España', 'Estados Unidos', 'Estonia', 'Esuatini', 'Etiopía', 'Filipinas', 'Finlandia', 'Fiyi', 'Francia', 'Gabón', 'Gambia', 'Georgia', 'Georgia del Sur y las Islas Sandwich del Sur', 'Ghana', 'Gibraltar', 'Granada', 'Grecia', 'Groenlandia', 'Guadalupe', 'Guam', 'Guatemala', 'Guayana Francesa', 'Guernsey', 'Guinea', 'Guinea Ecuatorial', 'Guinea-Bisáu', 'Guyana', 'Haití', 'Honduras', 'Hong Kong', 'Hungría', 'India', 'Indonesia', 'Irak', 'Irlanda', 'Irán', 'Isla Bouvet', 'Isla Heard e Islas McDonald', 'Isla Norfolk', 'Isla de Man', 'Isla de Navidad', 'Islandia', 'Islas Caimán', 'Islas Cocos (Keeling)', 'Islas Cook', 'Islas Faroe', 'Islas Malvinas', 'Islas Marianas del Norte', 'Islas Marshall', 'Islas Menores Periféricas de Estados Unidos', 'Islas Pitcairn', 'Islas Salomón', 'Islas Turcas y Caicos', 'Islas Vírgenes (EE. UU.)', 'Islas Vírgenes Británicas', 'Islas Åland', 'Israel', 'Italia', 'Jamaica', 'Japón', 'Jersey', 'Jordan', 'Kazajistán', 'Kenia', 'Kirguistán', 'Kiribati', 'Kosovo', 'Kuwait', 'Laos', 'Lesoto', 'Letonia', 'Liberia', 'Libia', 'Liechtenstein', 'Lituania', 'Luxemburgo', 'Líbano', 'Macao', 'Macedonia del Norte', 'Madagascar', 'Malasia', 'Malaui', 'Maldivas', 'Malta', 'Malí', 'Marruecos', 'Martinica', 'Mauricio', 'Mauritania', 'Mayotte', 'Micronesia', 'Moldavia', 'Mongolia', 'Montenegro', 'Montserrat', 'Mozambique', 'Mónaco', 'México', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Nicaragua', 'Nigeria', 'Niue', 'Noruega', 'Nueva Caledonia', 'Nueva Zelanda', 'Níger', 'Omán', 'Pakistán', 'Palaos', 'Palestina', 'Panamá', 'Papúa Nueva Guinea', 'Paraguay', 'Países Bajos', 'Perú', 'Polinesia Francesa', 'Polonia', 'Portugal', 'Puerto Rico', 'Qatar', 'Reino Unido', 'República Centroafricana', 'República Checa', 'República Dominicana', 'Reunión', 'Ruanda', 'Rumanía', 'Rusia', 'Samoa', 'Samoa Americana', 'San Barthélemy', 'San Cristóbal y Nevis', 'San Marino', 'San Martín', 'San Pedro y Miquelón', 'San Vicente y las Granadinas', 'Santa Elena, Ascensión y Tristán da Cunha', 'Santa Lucía', 'Santo Tomé y Príncipe', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leona', 'Singapur', 'Sint Maarten', 'Siria', 'Somalia', 'Somalilandia', 'Sri Lanka', 'Sudáfrica', 'Sudán', 'Sudán del Sur', 'Suecia', 'Suiza', 'Surinam', 'Svalbard y Jan Mayen', 'Sáhara Occidental', 'Tailandia', 'Taiwán', 'Tanzania', 'Tayikistán', 'Territorio Británico del Océano Índico', 'Territorios del Sur Francés', 'Timor-Leste', 'Togo', 'Tokelau', 'Tonga', 'Transnistria', 'Trinidad y Tobago', 'Turkmenistán', 'Turquía', 'Tuvalu', 'Túnez', 'Ucrania', 'Uganda', 'Uruguay', 'Uzbekistán', 'Vanuatu', 'Venezuela', 'Vietnam', 'Wallis y Futuna', 'Yemen', 'Yibuti', 'Zambia', 'Zimbabue'
+  ],
+  en: [
+    'Afghanistan', 'Akrotiri and Dhekelia', 'Albania', 'Algeria', 'American Samoa', 'Andorra', 'Angola', 'Anguilla', 'Antarctica', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Aruba', 'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bermuda', 'Bhutan', 'Bolivia', 'Bonaire, Sint Eustatius and Saba', 'Bosnia and Herzegovina', 'Botswana', 'Bouvet Island', 'Brazil', 'British Indian Ocean Territory', 'British Virgin Islands', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cambodia', 'Cameroon', 'Canada', 'Cape Verde', 'Cayman Islands', 'Central African Republic', 'Chad', 'Chile', 'China', 'Christmas Island', 'Cocos (Keeling) Islands', 'Colombia', 'Comoros', 'Congo (Brazzaville)', 'Congo (Kinshasa)', 'Cook Islands', 'Costa Rica', 'Croatia', 'Cuba', 'Curaçao', 'Cyprus', 'Czech Republic', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Falkland Islands', 'Faroe Islands', 'Fiji', 'Finland', 'France', 'French Guiana', 'French Polynesia', 'French Southern Territories', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Gibraltar', 'Greece', 'Greenland', 'Grenada', 'Guadeloupe', 'Guam', 'Guatemala', 'Guernsey', 'Guinea', 'Guinea-Bissau', 'Guyana', 'Haiti', 'Heard Island and McDonald Islands', 'Honduras', 'Hong Kong', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Isle of Man', 'Israel', 'Italy', 'Ivory Coast', 'Jamaica', 'Japan', 'Jersey', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kosovo', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Macao', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Martinique', 'Mauritania', 'Mauritius', 'Mayotte', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Montserrat', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Caledonia', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'Niue', 'Norfolk Island', 'North Korea', 'North Macedonia', 'Northern Mariana Islands', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Pitcairn Islands', 'Poland', 'Portugal', 'Puerto Rico', 'Qatar', 'Reunion', 'Romania', 'Russia', 'Rwanda', 'Saint Barthélemy', 'Saint Helena, Ascension and Tristan da Cunha', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Martin', 'Saint Pierre and Miquelon', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Sint Maarten', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'Somaliland', 'South Africa', 'South Georgia and the South Sandwich Islands', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Svalbard and Jan Mayen', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tokelau', 'Tonga', 'Transnistria', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Turks and Caicos Islands', 'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'United States Minor Outlying Islands', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Wallis and Futuna', 'Western Sahara', 'Yemen', 'Zambia', 'Zimbabwe', 'Åland Islands'
+  ]
+};
+
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
   es: {
-    tipo_doc: { label: 'Tipo de Documento', options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
+    tipo_doc: { 
+      label: 'Tipo de Documento', 
+      options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] 
+    },
     documento_identidad: { label: 'Número de Documento' },
     nombre: { label: 'Nombre(s)' },
     apellido: { label: 'Apellido(s)' },
     email: { label: 'Correo Electrónico' },
     email_conf: { label: 'Confirmar Correo' },
     telefono: { label: 'Número de Teléfono' },
-    genero: { label: 'Género', options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] },
+    genero: { 
+      label: 'Género', 
+      options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] 
+    },
     direccion: { label: 'Dirección' },
     institucion: { label: 'Institución', options: defaultInstitutions },
     cargo: { label: 'Cargo' },
@@ -182,29 +215,26 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
     ciudad: { label: 'Ciudad' }
   },
   en: {
-    tipo_doc: { label: 'Document Type', options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] },
+    tipo_doc: { 
+      label: 'Document Type', 
+      options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] 
+    },
     documento_identidad: { label: 'Document Number / ID' },
     nombre: { label: 'First Name(s)' },
     apellido: { label: 'Last Name(s)' },
     email: { label: 'Email Address' },
     email_conf: { label: 'Confirm Email' },
     telefono: { label: 'Phone Number' },
-    genero: { label: 'Gender', options: ['Male', 'Female', 'Other', 'Prefer not to say'] },
+    genero: { 
+      label: 'Gender', 
+      options: ['Male', 'Female', 'Other', 'Prefer not to say'] 
+    },
     direccion: { label: 'Address' },
     institucion: { label: 'Institution / Company', options: defaultInstitutions },
     cargo: { label: 'Job Title / Role' },
     pais: { label: 'Country' },
     ciudad: { label: 'City' }
   }
-};
-
-const defaultCountries: Record<'es' | 'en', string[]> = {
-  es: [
-    'Afganistán', 'Akrotiri y Dhekelia', 'Albania', 'Alemania', 'Andorra', 'Angola', 'Anguilla', 'Antártida', 'Antigua y Barbuda', 'Arabia Saudí', 'Argelia', 'Argentina', 'Armenia', 'Aruba', 'Australia', 'Austria', 'Azerbaiyán', 'Bahamas', 'Bangladés', 'Barbados', 'Baréin', 'Belice', 'Bermudas', 'Bielorrusia', 'Bolivia', 'Bonaire, Sint Eustatius y Saba', 'Bosnia y Herzegovina', 'Botsuana', 'Brasil', 'Brunéi', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Bután', 'Bélgica', 'Cabo Verde', 'Camboya', 'Camerún', 'Canadá', 'Chad', 'Chile', 'China', 'Chipre', 'Ciudad del Vaticano', 'Colombia', 'Comores', 'Congo (Brazzaville)', 'Congo (Kinshasa)', 'Corea del Norte', 'Corea del Sur', 'Costa Rica', 'Costa de Marfil', 'Croacia', 'Cuba', 'Curazao', 'Dinamarca', 'Dominica', 'Ecuador', 'Egipto', 'El Salvador', 'Emiratos Árabes Unidos', 'Eritrea', 'Eslovaquia', 'Eslovenia', 'España', 'Estados Unidos', 'Estonia', 'Esuatini', 'Etiopía', 'Filipinas', 'Finlandia', 'Fiyi', 'Francia', 'Gabón', 'Gambia', 'Georgia', 'Georgia del Sur y las Islas Sandwich del Sur', 'Ghana', 'Gibraltar', 'Granada', 'Grecia', 'Groenlandia', 'Guadalupe', 'Guam', 'Guatemala', 'Guayana Francesa', 'Guernsey', 'Guinea', 'Guinea Ecuatorial', 'Guinea-Bisáu', 'Guyana', 'Haití', 'Honduras', 'Hong Kong', 'Hungría', 'India', 'Indonesia', 'Irak', 'Irlanda', 'Irán', 'Isla Bouvet', 'Isla Heard e Islas McDonald', 'Isla Norfolk', 'Isla de Man', 'Isla de Navidad', 'Islandia', 'Islas Caimán', 'Islas Cocos (Keeling)', 'Islas Cook', 'Islas Faroe', 'Islas Malvinas', 'Islas Marianas del Norte', 'Islas Marshall', 'Islas Menores Periféricas de Estados Unidos', 'Islas Pitcairn', 'Islas Salomón', 'Islas Turcas y Caicos', 'Islas Vírgenes (EE. UU.)', 'Islas Vírgenes Británicas', 'Islas Åland', 'Israel', 'Italia', 'Jamaica', 'Japón', 'Jersey', 'Jordan', 'Kazajistán', 'Kenia', 'Kirguistán', 'Kiribati', 'Kosovo', 'Kuwait', 'Laos', 'Lesoto', 'Letonia', 'Liberia', 'Libia', 'Liechtenstein', 'Lituania', 'Luxemburgo', 'Líbano', 'Macao', 'Macedonia del Norte', 'Madagascar', 'Malasia', 'Malaui', 'Maldivas', 'Malta', 'Malí', 'Marruecos', 'Martinica', 'Mauricio', 'Mauritania', 'Mayotte', 'Micronesia', 'Moldavia', 'Mongolia', 'Montenegro', 'Montserrat', 'Mozambique', 'Mónaco', 'México', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Nicaragua', 'Nigeria', 'Niue', 'Noruega', 'Nueva Caledonia', 'Nueva Zelanda', 'Níger', 'Omán', 'Pakistán', 'Palaos', 'Palestina', 'Panamá', 'Papúa Nueva Guinea', 'Paraguay', 'Países Bajos', 'Perú', 'Polinesia Francesa', 'Polonia', 'Portugal', 'Puerto Rico', 'Qatar', 'Reino Unido', 'República Centroafricana', 'República Checa', 'República Dominicana', 'Reunión', 'Ruanda', 'Rumanía', 'Rusia', 'Samoa', 'Samoa Americana', 'San Barthélemy', 'San Cristóbal y Nevis', 'San Marino', 'San Martín', 'San Pedro y Miquelón', 'San Vicente y las Granadinas', 'Santa Elena, Ascensión y Tristán da Cunha', 'Santa Lucía', 'Santo Tomé y Príncipe', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leona', 'Singapur', 'Sint Maarten', 'Siria', 'Somalia', 'Somalilandia', 'Sri Lanka', 'Sudáfrica', 'Sudán', 'Sudán del Sur', 'Suecia', 'Suiza', 'Surinam', 'Svalbard y Jan Mayen', 'Sáhara Occidental', 'Tailandia', 'Taiwán', 'Tanzania', 'Tayikistán', 'Territorio Británico del Océano Índico', 'Territorios del Sur Francés', 'Timor-Leste', 'Togo', 'Tokelau', 'Tonga', 'Transnistria', 'Trinidad y Tobago', 'Turkmenistán', 'Turquía', 'Tuvalu', 'Túnez', 'Ucrania', 'Uganda', 'Uruguay', 'Uzbekistán', 'Vanuatu', 'Venezuela', 'Vietnam', 'Wallis y Futuna', 'Yemen', 'Yibuti', 'Zambia', 'Zimbabue'
-  ],
-  en: [
-    'Afghanistan', 'Akrotiri and Dhekelia', 'Albania', 'Germany', 'Andorra', 'Angola', 'Anguilla', 'Antarctica', 'Antigua and Barbuda', 'Saudi Arabia', 'Algeria', 'Argentina', 'Armenia', 'Aruba', 'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bangladesh', 'Barbados', 'Bahrain', 'Belize', 'Bermuda', 'Belarus', 'Bolivia', 'Bonaire, Sint Eustatius and Saba', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Bhutan', 'Belgium', 'Cape Verde', 'Cambodia', 'Cameroon', 'Canada', 'Chad', 'Chile', 'China', 'Cyprus', 'Vatican City', 'Colombia', 'Comoros', 'Congo (Brazzaville)', 'Congo (Kinshasa)', 'North Korea', 'South Korea', 'Costa Rica', 'Ivory Coast', 'Croatia', 'Cuba', 'Curaçao', 'Denmark', 'Dominica', 'Ecuador', 'Egypt', 'El Salvador', 'United Arab Emirates', 'Eritrea', 'Slovakia', 'Slovenia', 'Spain', 'United States', 'Estonia', 'Eswatini', 'Ethiopia', 'Philippines', 'Finland', 'Fiji', 'France', 'Gabon', 'Gambia', 'Georgia', 'South Georgia and the South Sandwich Islands', 'Ghana', 'Gibraltar', 'Grenada', 'Greece', 'Greenland', 'Guadeloupe', 'Guam', 'Guatemala', 'French Guiana', 'Guernsey', 'Guinea', 'Equatorial Guinea', 'Guinea-Bissau', 'Guyana', 'Haiti', 'Honduras', 'Hong Kong', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iraq', 'Ireland', 'Iran', 'Bouvet Island', 'Heard Island and McDonald Islands', 'Norfolk Island', 'Isle of Man', 'Christmas Island', 'Cayman Islands', 'Cocos (Keeling) Islands', 'Cook Islands', 'Faroe Islands', 'Falkland Islands', 'Northern Mariana Islands', 'Marshall Islands', 'United States Minor Outlying Islands', 'Pitcairn Islands', 'Solomon Islands', 'Turks and Caicos Islands', 'Virgin Islands (U.S.)', 'British Virgin Islands', 'Åland Islands', 'Israel', 'Italy', 'Jamaica', 'Japan', 'Jersey', 'Jordan', 'Kazakhstan', 'Kenya', 'Kyrgyzstan', 'Kiribati', 'Kosovo', 'Kuwait', 'Laos', 'Lesotho', 'Latvia', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Lebanon', 'Macao', 'North Macedonia', 'Madagascar', 'Malaysia', 'Malawi', 'Maldives', 'Malta', 'Mali', 'Morocco', 'Martinique', 'Mauritius', 'Mauritania', 'Mayotte', 'Micronesia', 'Moldova', 'Mongolia', 'Montenegro', 'Montserrat', 'Mozambique', 'Monaco', 'Mexico', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Nicaragua', 'Nigeria', 'Niue', 'Norway', 'New Caledonia', 'New Zealand', 'Niger', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Netherlands', 'Peru', 'French Polynesia', 'Poland', 'Portugal', 'Puerto Rico', 'Qatar', 'United Kingdom', 'Central African Republic', 'Czech Republic', 'Dominican Republic', 'Reunion', 'Rwanda', 'Romania', 'Russia', 'Samoa', 'American Samoa', 'Saint Barthélemy', 'Saint Kitts and Nevis', 'San Marino', 'Saint Martin', 'Saint Pierre and Miquelon', 'Saint Vincent and the Grenadines', 'Saint Helena, Ascension and Tristan da Cunha', 'Saint Lucia', 'Sao Tome and Principe', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Sint Maarten', 'Syria', 'Somalia', 'Somaliland', 'Sri Lanka', 'South Africa', 'Sudan', 'South Sudan', 'Sweden', 'Switzerland', 'Suriname', 'Svalbard and Jan Mayen', 'Western Sahara', 'Thailand', 'Taiwan', 'Tanzania', 'Tajikistan', 'British Indian Ocean Territory', 'French Southern Territories', 'Timor-Leste', 'Togo', 'Tokelau', 'Tonga', 'Transnistria', 'Trinidad and Tobago', 'Turkmenistan', 'Turkey', 'Tuvalu', 'Tunisia', 'Ukraine', 'Uganda', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Venezuela', 'Vietnam', 'Wallis and Futuna', 'Yemen', 'Djibouti', 'Zambia', 'Zimbabwe'
-  ]
 };
 
 const AccordionSection = ({ id, icon: Icon, title, isOpen, onToggle, children }: any) => {
@@ -299,7 +329,6 @@ export default function NuevoEventoPage() {
 
   const [fields, setFields] = useState<FormField[]>([]);
 
-  // INICIALIZACIÓN DINÁMICA CON PREDETERMINADOS (País incluye la matriz inteligente y extensa, Institución como Select)
   useEffect(() => {
     setFields([
       { id: 'f-tipo-doc', system_key: 'tipo_doc', label: defaultTranslations[formLanguage].tipo_doc.label, type: 'select', isRequired: true, options: defaultTranslations[formLanguage].tipo_doc.options!, isDefault: true, allowOther: false, description: '', _ui_showDescription: false, _ui_expandedOptions: false },
@@ -548,6 +577,7 @@ export default function NuevoEventoPage() {
       setIsSaving(false);
     }
   };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto relative pb-20">
       
@@ -630,7 +660,6 @@ export default function NuevoEventoPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* COLUMNA IZQUIERDA: ACORDEÓN DE FUNCIONALIDADES */}
         <div className="lg:col-span-4 space-y-4">
           
           <AccordionSection id="detalles" icon={Settings} title="Detalles y Diseño Base" isOpen={openSection === 'detalles'} onToggle={toggleSection}>
@@ -664,17 +693,19 @@ export default function NuevoEventoPage() {
               <p className="text-[10px] text-gray-500">Link público: acofi.org/e/{eventSlug || '[código-automático]'}</p>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 pb-8">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
                 <AlignLeft className="h-4 w-4"/> Descripción (Landing Page)
               </label>
-              <textarea 
-                value={eventDescription} 
-                onChange={(e) => setEventDescription(e.target.value)} 
-                placeholder="Escribe aquí los detalles del evento..." 
-                rows={4}
-                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none resize-none" 
-              />
+              <div className="bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 dark:[&_.ql-toolbar]:border-gray-700 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-37.5 [&_.ql-editor]:text-gray-900 dark:[&_.ql-editor]:text-white dark:[&_.ql-picker-label]:text-white dark:[&_.ql-stroke]:stroke-white dark:[&_.ql-fill]:fill-white">
+                <ReactQuill 
+                  theme="snow"
+                  value={eventDescription}
+                  onChange={setEventDescription}
+                  modules={quillModules}
+                  placeholder="Escribe la descripción, añade enlaces, negritas..."
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
