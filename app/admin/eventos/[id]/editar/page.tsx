@@ -15,6 +15,20 @@ import { useRouter, useParams } from 'next/navigation';
 import { useLanguage } from '../../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../../components/FeedbackAdminPanel';
 
+import dynamic from 'next/dynamic';
+import 'react-quill/dist/quill.snow.css';
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false }) as any;
+
+const quillModules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'color': [] }, { 'background': [] }],
+    ['link'],
+    ['clean']
+  ],
+};
+
 interface FormField {
   id: string;
   label: string;
@@ -776,16 +790,19 @@ export default function EditarEventoPage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 pb-8">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
                 <AlignLeft className="h-4 w-4"/> Descripción (Landing Page)
               </label>
-              <textarea 
-                value={eventDescription} 
-                onChange={(e) => setEventDescription(e.target.value)} 
-                rows={4}
-                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none resize-none" 
-              />
+              <div className="bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 dark:[&_.ql-toolbar]:border-gray-700 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-37.5 [&_.ql-editor]:text-gray-900 dark:[&_.ql-editor]:text-white dark:[&_.ql-picker-label]:text-white dark:[&_.ql-stroke]:stroke-white dark:[&_.ql-fill]:fill-white">
+                <ReactQuill 
+                  theme="snow"
+                  value={eventDescription}
+                  onChange={setEventDescription}
+                  modules={quillModules}
+                  placeholder="Escribe la descripción, añade enlaces, negritas..."
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
