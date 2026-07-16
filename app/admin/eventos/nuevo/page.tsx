@@ -7,7 +7,7 @@ import {
   CheckCircle2, GitBranch, X, ShieldAlert, Clock, Users, 
   Palette, ImagePlus, AlignLeft, Link2, ShieldCheck, Loader2, 
   AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, 
-  ThumbsUp, Bot, Globe, MessageSquare, Code, Eye, EyeOff
+  ThumbsUp, Save, Bot, Globe, MessageSquare, Code, Eye, EyeOff
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -15,7 +15,6 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../components/FeedbackAdminPanel';
 
-// IMPORTACIÓN DINÁMICA DEL EDITOR DE TEXTO ENRIQUECIDO (NUEVA VERSIÓN PARA REACT 19)
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
@@ -37,7 +36,11 @@ interface FormField {
   isRequired: boolean;
   options: string[];
   isDefault: boolean;
-  logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
+  logic?: { 
+    dependsOnId: string; 
+    dependsOnValue: string; 
+    action: 'show' | 'hide' | 'require'; 
+  } | null;
   _ui_showLogic?: boolean;
   allowOther?: boolean;
   system_key?: string;
@@ -182,14 +185,20 @@ const defaultInstitutions = [
 
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
   es: {
-    tipo_doc: { label: 'Tipo de Documento', options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
+    tipo_doc: { 
+      label: 'Tipo de Documento', 
+      options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] 
+    },
     documento_identidad: { label: 'Número de Documento' },
     nombre: { label: 'Nombre(s)' },
     apellido: { label: 'Apellido(s)' },
     email: { label: 'Correo Electrónico' },
     email_conf: { label: 'Confirmar Correo' },
     telefono: { label: 'Número de Teléfono' },
-    genero: { label: 'Género', options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] },
+    genero: { 
+      label: 'Género', 
+      options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] 
+    },
     direccion: { label: 'Dirección' },
     institucion: { label: 'Institución', options: defaultInstitutions },
     cargo: { label: 'Cargo' },
@@ -197,14 +206,20 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
     ciudad: { label: 'Ciudad' }
   },
   en: {
-    tipo_doc: { label: 'Document Type', options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] },
+    tipo_doc: { 
+      label: 'Document Type', 
+      options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] 
+    },
     documento_identidad: { label: 'Document Number / ID' },
     nombre: { label: 'First Name(s)' },
     apellido: { label: 'Last Name(s)' },
     email: { label: 'Email Address' },
     email_conf: { label: 'Confirm Email' },
     telefono: { label: 'Phone Number' },
-    genero: { label: 'Gender', options: ['Male', 'Female', 'Other', 'Prefer not to say'] },
+    genero: { 
+      label: 'Gender', 
+      options: ['Male', 'Female', 'Other', 'Prefer not to say'] 
+    },
     direccion: { label: 'Address' },
     institucion: { label: 'Institution / Company', options: defaultInstitutions },
     cargo: { label: 'Job Title / Role' },
@@ -454,8 +469,21 @@ export default function NuevoEventoPage() {
   };
 
   const handleSaveEvent = async () => {
-    if (!eventName) return showToast('Campo Requerido', 'Debes asignarle un nombre al evento para poder guardarlo.', 'error');
     
+    const plainName = eventName.replace(/(<([^>]+)>)/gi, "").trim();
+    if (!plainName) return showToast('Campo Requerido', 'El nombre del evento es obligatorio.', 'error');
+    if (!eventSlug) return showToast('Campo Requerido', 'El Alias para la URL (Slug) es obligatorio.', 'error');
+    
+    if (!maxCapacity && !closeDate) {
+      return showToast('Campo Requerido', 'Debes establecer un Aforo Máximo o una Fecha de Cierre Automático.', 'error');
+    }
+
+    if (sendNotifications) {
+      if (!creatorEmail) return showToast('Campo Requerido', 'El Correo para Alertas (Coordinador) es obligatorio.', 'error');
+      if (!emailSubject) return showToast('Campo Requerido', 'El Asunto Personalizado del Correo es obligatorio.', 'error');
+      if (!emailBody) return showToast('Campo Requerido', 'El Cuerpo Personalizado del Correo es obligatorio.', 'error');
+    }
+
     setIsSaving(true);
 
     try {
@@ -649,19 +677,23 @@ export default function NuevoEventoPage() {
           
           <AccordionSection id="detalles" icon={Settings} title="Detalles y Diseño Base" isOpen={openSection === 'detalles'} onToggle={toggleSection}>
             <div className="space-y-1.5">
-              <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">Nombre del Evento</label>
-              <input 
-                type="text" 
-                value={eventName} 
-                onChange={(e) => setEventName(e.target.value)} 
-                placeholder="Ej. Congreso Nacional de Ingeniería 2026" 
-                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
-              />
+              <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">
+                Nombre del Evento <span className="text-red-500">*</span>
+              </label>
+              <div className="bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 dark:[&_.ql-toolbar]:border-gray-700 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-20 [&_.ql-editor]:text-gray-900 dark:[&_.ql-editor]:text-white">
+                <ReactQuill 
+                  theme="snow"
+                  value={eventName}
+                  onChange={setEventName}
+                  modules={quillModules}
+                  placeholder="Ej. Congreso Nacional de Ingeniería 2026"
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <Link2 className="h-4 w-4"/> Alias para la URL (Slug)
+                <Link2 className="h-4 w-4"/> Alias para la URL (Slug) <span className="text-red-500">*</span>
               </label>
               <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden group">
                   <span className="bg-gray-100 dark:bg-white/5 px-3 py-3 text-gray-500 text-sm border-r border-gray-300 dark:border-gray-700 flex items-center select-none">
@@ -697,11 +729,27 @@ export default function NuevoEventoPage() {
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-700 dark:text-gray-400 font-bold cursor-pointer">Logo Oficial</label>
                 <div 
-                  onClick={() => fileInputRef.current?.click()} 
-                  className="w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden group"
+                  onClick={() => !logoPreview && fileInputRef.current?.click()} 
+                  className={`w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center transition-colors relative overflow-hidden group ${!logoPreview ? 'cursor-pointer' : ''}`}
                 >
                   {logoPreview ? (
-                    <img src={logoPreview} alt="Preview" className="h-full w-full object-contain p-2" />
+                    <div className="relative w-full h-full flex items-center justify-center group/btn">
+                      <img src={logoPreview} alt="Preview" className="max-w-full max-h-full object-contain p-2" />
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLogoPreview(null);
+                          setLogoFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }} 
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/btn:opacity-100 transition-opacity cursor-pointer"
+                        title="Eliminar logo"
+                      >
+                        <Trash2 className="h-6 w-6 text-white mb-1" />
+                        <span className="text-white text-[10px] font-bold uppercase tracking-widest">Eliminar</span>
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <ImageIcon className="h-6 w-6 text-gray-400 mb-1 group-hover:text-primary transition-colors" />
@@ -715,11 +763,27 @@ export default function NuevoEventoPage() {
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-700 dark:text-gray-400 font-bold cursor-pointer">Banner Portada</label>
                 <div 
-                  onClick={() => bannerInputRef.current?.click()} 
-                  className="w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden group"
+                  onClick={() => !bannerPreview && bannerInputRef.current?.click()} 
+                  className={`w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center transition-colors relative overflow-hidden group ${!bannerPreview ? 'cursor-pointer' : ''}`}
                 >
                   {bannerPreview ? (
-                    <img src={bannerPreview} alt="Preview" className="h-full w-full object-cover" />
+                    <div className="relative w-full h-full flex items-center justify-center group/btn">
+                      <img src={bannerPreview} alt="Preview" className="w-full h-full object-cover" />
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBannerPreview(null);
+                          setBannerFile(null);
+                          if (bannerInputRef.current) bannerInputRef.current.value = '';
+                        }} 
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/btn:opacity-100 transition-opacity cursor-pointer"
+                        title="Eliminar portada"
+                      >
+                        <Trash2 className="h-6 w-6 text-white mb-1" />
+                        <span className="text-white text-[10px] font-bold uppercase tracking-widest">Eliminar</span>
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <ImagePlus className="h-6 w-6 text-gray-400 mb-1 group-hover:text-primary transition-colors" />
@@ -851,7 +915,7 @@ export default function NuevoEventoPage() {
 
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <Users className="h-4 w-4"/> Aforo Máximo (Capacidad)
+                <Users className="h-4 w-4"/> Aforo Máximo (Capacidad) <span className="text-red-500">*</span>
               </label>
               <input 
                 type="number" 
@@ -864,7 +928,7 @@ export default function NuevoEventoPage() {
             
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <Clock className="h-4 w-4"/> Fecha y Hora de Cierre Automático
+                <Clock className="h-4 w-4"/> Fecha y Hora de Cierre Automático <span className="text-red-500">*</span>
               </label>
               <input 
                 type="datetime-local" 
@@ -906,7 +970,7 @@ export default function NuevoEventoPage() {
                 >
                   <div className="space-y-1.5">
                     <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
+                      <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador) <span className="text-red-500">*</span>
                     </label>
                     <input 
                       type="email" 
@@ -929,7 +993,9 @@ export default function NuevoEventoPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Asunto Personalizado del Correo</label>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      Asunto Personalizado del Correo <span className="text-red-500">*</span>
+                    </label>
                     <input 
                       type="text"
                       value={emailSubject}
@@ -940,7 +1006,9 @@ export default function NuevoEventoPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Cuerpo Personalizado del Correo</label>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      Cuerpo Personalizado del Correo <span className="text-red-500">*</span>
+                    </label>
                     <textarea 
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}

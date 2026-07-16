@@ -549,9 +549,24 @@ export default function EditarEventoPage() {
   };
 
   const handleUpdateEvent = async () => {
-    if (!eventName) {
-      return showToast('Campo Requerido', 'Debes mantener el nombre del evento.', 'error');
+    
+    // VALIDACIONES OBLIGATORIAS
+    const plainName = eventName.replace(/(<([^>]+)>)/gi, "").trim();
+    if (!plainName) {
+      return showToast('Campo Requerido', 'El nombre del evento es obligatorio.', 'error');
     }
+    if (!eventSlug) {
+      return showToast('Campo Requerido', 'El Alias para la URL (Slug) es obligatorio.', 'error');
+    }
+    if (!maxCapacity && !closeDate) {
+      return showToast('Campo Requerido', 'Debes establecer un Aforo Máximo o una Fecha de Cierre Automático.', 'error');
+    }
+    if (sendNotifications) {
+      if (!creatorEmail) return showToast('Campo Requerido', 'El Correo para Alertas (Coordinador) es obligatorio.', 'error');
+      if (!emailSubject) return showToast('Campo Requerido', 'El Asunto Personalizado del Correo es obligatorio.', 'error');
+      if (!emailBody) return showToast('Campo Requerido', 'El Cuerpo Personalizado del Correo es obligatorio.', 'error');
+    }
+
     setIsSaving(true);
 
     try {
@@ -571,13 +586,19 @@ export default function EditarEventoPage() {
       let finalLogoUrl = logoPreview;
       let finalBannerUrl = bannerPreview;
 
-      if (logoFile) {
+      // ELIMINAR LÓGICA: Si se limpió la imagen en la UI y es una URL pública, podemos opcionalmente borrarla de storage. 
+      // Por seguridad y simplicidad, solo actualizamos la URL en la DB a nulo.
+      if (!logoPreview && !logoFile) {
+         finalLogoUrl = null;
+      } else if (logoFile) {
         const fileName = `logo-${Date.now()}.${logoFile.name.split('.').pop()}`;
         const { error } = await supabase.storage.from('logos').upload(fileName, logoFile);
         if (!error) finalLogoUrl = supabase.storage.from('logos').getPublicUrl(fileName).data.publicUrl;
       }
 
-      if (bannerFile) {
+      if (!bannerPreview && !bannerFile) {
+         finalBannerUrl = null;
+      } else if (bannerFile) {
         const fileName = `banner-${Date.now()}.${bannerFile.name.split('.').pop()}`;
         const { error } = await supabase.storage.from('logos').upload(fileName, bannerFile);
         if (!error) finalBannerUrl = supabase.storage.from('logos').getPublicUrl(fileName).data.publicUrl;
@@ -690,7 +711,7 @@ export default function EditarEventoPage() {
                 <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+              <button type="button" onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -765,18 +786,23 @@ export default function EditarEventoPage() {
           
           <AccordionSection id="detalles" icon={Settings} title="Detalles y Diseño Base" isOpen={openSection === 'detalles'} onToggle={toggleSection}>
             <div className="space-y-1.5">
-              <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">Nombre del Evento</label>
-              <input 
-                type="text" 
-                value={eventName} 
-                onChange={(e) => setEventName(e.target.value)} 
-                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
-              />
+              <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">
+                Nombre del Evento <span className="text-red-500">*</span>
+              </label>
+              <div className="bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 dark:[&_.ql-toolbar]:border-gray-700 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-20 [&_.ql-editor]:text-gray-900 dark:[&_.ql-editor]:text-white">
+                <ReactQuill 
+                  theme="snow"
+                  value={eventName}
+                  onChange={setEventName}
+                  modules={quillModules}
+                  placeholder="Ej. Congreso Nacional de Ingeniería 2026"
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <Link2 className="h-4 w-4"/> Alias para la URL (Slug)
+                <Link2 className="h-4 w-4"/> Alias para la URL (Slug) <span className="text-red-500">*</span>
               </label>
               <div className="flex bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden group">
                   <span className="bg-gray-100 dark:bg-white/5 px-3 py-3 text-gray-500 text-sm border-r border-gray-300 dark:border-gray-700 flex items-center select-none">
@@ -810,11 +836,29 @@ export default function EditarEventoPage() {
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-700 dark:text-gray-400 font-bold cursor-pointer">Logo Oficial</label>
                 <div 
-                  onClick={() => fileInputRef.current?.click()} 
-                  className="w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden group"
+                  onClick={() => !logoPreview && fileInputRef.current?.click()} 
+                  className={`w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center transition-colors relative overflow-hidden group ${
+                    !logoPreview ? 'cursor-pointer' : ''
+                  }`}
                 >
                   {logoPreview ? (
-                    <img src={logoPreview} alt="Preview" className="h-full w-full object-contain p-2" />
+                    <div className="relative w-full h-full flex items-center justify-center group/btn">
+                      <img src={logoPreview} alt="Preview" className="max-w-full max-h-full object-contain p-2" />
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLogoPreview(null);
+                          setLogoFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }} 
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/btn:opacity-100 transition-opacity cursor-pointer"
+                        title="Eliminar logo"
+                      >
+                        <Trash2 className="h-6 w-6 text-white mb-1" />
+                        <span className="text-white text-[10px] font-bold uppercase tracking-widest">Eliminar</span>
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <ImageIcon className="h-6 w-6 text-gray-400 mb-1 group-hover:text-primary transition-colors" />
@@ -828,11 +872,29 @@ export default function EditarEventoPage() {
               <div className="space-y-1.5">
                 <label className="text-sm text-gray-700 dark:text-gray-400 font-bold cursor-pointer">Banner Portada</label>
                 <div 
-                  onClick={() => bannerInputRef.current?.click()} 
-                  className="w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden group"
+                  onClick={() => !bannerPreview && bannerInputRef.current?.click()} 
+                  className={`w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary bg-gray-50 dark:bg-black/30 rounded-xl flex flex-col items-center justify-center transition-colors relative overflow-hidden group ${
+                    !bannerPreview ? 'cursor-pointer' : ''
+                  }`}
                 >
                   {bannerPreview ? (
-                    <img src={bannerPreview} alt="Preview" className="h-full w-full object-cover" />
+                    <div className="relative w-full h-full flex items-center justify-center group/btn">
+                      <img src={bannerPreview} alt="Preview" className="w-full h-full object-cover" />
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBannerPreview(null);
+                          setBannerFile(null);
+                          if (bannerInputRef.current) bannerInputRef.current.value = '';
+                        }} 
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover/btn:opacity-100 transition-opacity cursor-pointer"
+                        title="Eliminar portada"
+                      >
+                        <Trash2 className="h-6 w-6 text-white mb-1" />
+                        <span className="text-white text-[10px] font-bold uppercase tracking-widest">Eliminar</span>
+                      </button>
+                    </div>
                   ) : (
                     <>
                       <ImagePlus className="h-6 w-6 text-gray-400 mb-1 group-hover:text-primary transition-colors" />
@@ -964,7 +1026,7 @@ export default function EditarEventoPage() {
 
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <Users className="h-4 w-4"/> Aforo Máximo (Capacidad)
+                <Users className="h-4 w-4"/> Aforo Máximo (Capacidad) <span className="text-red-500">*</span>
               </label>
               <input 
                 type="number" 
@@ -977,7 +1039,7 @@ export default function EditarEventoPage() {
             
             <div className="space-y-1.5">
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                <Clock className="h-4 w-4"/> Fecha y Hora de Cierre Automático
+                <Clock className="h-4 w-4"/> Fecha y Hora de Cierre Automático <span className="text-red-500">*</span>
               </label>
               <input 
                 type="datetime-local" 
@@ -1019,7 +1081,7 @@ export default function EditarEventoPage() {
                 >
                   <div className="space-y-1.5">
                     <label className="text-sm text-gray-700 dark:text-gray-400 font-bold flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador)
+                      <Mail className="h-4 w-4 text-primary"/> Correo para Alertas (Coordinador) <span className="text-red-500">*</span>
                     </label>
                     <input 
                       type="email" 
@@ -1042,7 +1104,9 @@ export default function EditarEventoPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Asunto Personalizado del Correo</label>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      Asunto Personalizado del Correo <span className="text-red-500">*</span>
+                    </label>
                     <input 
                       type="text"
                       value={emailSubject}
@@ -1053,7 +1117,9 @@ export default function EditarEventoPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Cuerpo Personalizado del Correo</label>
+                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                      Cuerpo Personalizado del Correo <span className="text-red-500">*</span>
+                    </label>
                     <textarea 
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
@@ -1221,7 +1287,7 @@ export default function EditarEventoPage() {
                       className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-300 dark:hover:border-gray-600 transition-all relative`}
                     >
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                          
+                        
                         <div className="md:col-span-4 flex flex-col gap-1">
                           <input 
                             type="text" 
@@ -1236,6 +1302,7 @@ export default function EditarEventoPage() {
                             </span>
                           )}
                           
+                          {/* CAMPO DE DESCRIPCIÓN (Plegable) */}
                           <AnimatePresence>
                             {field._ui_showDescription && (
                               <motion.div 
