@@ -15,9 +15,10 @@ import { useRouter, useParams } from 'next/navigation';
 import { useLanguage } from '../../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../../components/FeedbackAdminPanel';
 
+// IMPORTACIÓN DINÁMICA DEL EDITOR DE TEXTO ENRIQUECIDO (NUEVA VERSIÓN PARA REACT 19)
 import dynamic from 'next/dynamic';
-import 'react-quill/dist/quill.snow.css';
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false }) as any;
+import 'react-quill-new/dist/quill.snow.css';
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
 
 const quillModules = {
   toolbar: [
@@ -200,7 +201,7 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
       options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] 
     },
     direccion: { label: 'Dirección' },
-    institucion: { label: 'Institución' },
+    institucion: { label: 'Institución', options: defaultInstitutions },
     cargo: { label: 'Cargo' },
     pais: { label: 'País' },
     ciudad: { label: 'Ciudad' }
@@ -221,7 +222,7 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
       options: ['Male', 'Female', 'Other', 'Prefer not to say'] 
     },
     direccion: { label: 'Address' },
-    institucion: { label: 'Institution / Company' },
+    institucion: { label: 'Institution / Company', options: defaultInstitutions },
     cargo: { label: 'Job Title / Role' },
     pais: { label: 'Country' },
     ciudad: { label: 'City' }
@@ -1220,7 +1221,7 @@ export default function EditarEventoPage() {
                       className={`group bg-gray-50 dark:bg-black/30 border ${field.logic ? 'border-primary/50 shadow-[0_0_15px_rgba(79,70,229,0.1)]' : 'border-gray-200 dark:border-gray-800'} rounded-xl p-5 hover:border-gray-300 dark:hover:border-gray-600 transition-all relative`}
                     >
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                        
+                          
                         <div className="md:col-span-4 flex flex-col gap-1">
                           <input 
                             type="text" 
