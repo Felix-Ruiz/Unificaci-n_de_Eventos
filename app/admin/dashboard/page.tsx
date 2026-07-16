@@ -321,7 +321,9 @@ export default function DashboardPage() {
               <div className="divide-y divide-gray-100 dark:divide-white/5 flex-1">
                 {currentEvents.map((evento) => (
                   <div key={evento.id} className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-4">
+                    
+                    {/* CONTENEDOR IZQUIERDO: Título, Logo y Fecha (Corregido con flex-1 min-w-0) */}
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                       {evento.logo_url ? (
                         <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-black/30 p-1 flex items-center justify-center border border-gray-200 dark:border-white/10 shrink-0">
                           <img src={evento.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
@@ -331,24 +333,25 @@ export default function DashboardPage() {
                           <Calendar className="h-6 w-6" />
                         </div>
                       )}
-                      <div>
-                        <div className="flex items-center gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <Link href={`/admin/eventos/${evento.id}`}>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer wrap-break-word">
                               {evento.name}
                             </h3>
                           </Link>
                           {!evento.is_active && (
-                            <span className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1">
+                            <span className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 flex items-center gap-1 shrink-0">
                               <PauseCircle className="h-3 w-3" /> {t.paused}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t.createdAt} {new Date(evento.created_at).toLocaleDateString()}</p>
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* CONTENEDOR DERECHO: Botones de Acción (Corregido con shrink-0 y xl:flex-nowrap) */}
+                    <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 shrink-0">
                       <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
                         <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-white/10 cursor-pointer">
                           <ExternalLink className="h-4 w-4" /> {t.btnPublic}
