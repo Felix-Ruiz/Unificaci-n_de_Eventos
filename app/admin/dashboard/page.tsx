@@ -226,7 +226,6 @@ export default function DashboardPage() {
         </AnimatePresence>
       </div>
 
-      {/* MODAL 4D DE CONFIRMACIÓN */}
       <AnimatePresence>
         {confirmModal && (
           <motion.div 
@@ -262,7 +261,6 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* MODAL DE DESGLOSE DE NUEVOS REGISTROS */}
       <AnimatePresence>
         {showNewRegsModal && (
           <motion.div 
@@ -296,12 +294,21 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   newRegsBreakdown.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-black/30 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors rounded-xl border border-gray-200 dark:border-white/5">
-                      <span className="font-bold text-sm text-gray-900 dark:text-white line-clamp-1 pr-4" title={item.name}>{item.name}</span>
-                      <span className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 font-black px-3 py-1 rounded-lg text-sm shrink-0">
-                        +{item.count}
-                      </span>
-                    </div>
+                    <Link 
+                      href={`/admin/eventos/${item.id}`} 
+                      key={item.id} 
+                      className="block outline-none"
+                      onClick={() => setShowNewRegsModal(false)}
+                    >
+                      <div className="group flex justify-between items-center p-4 bg-gray-50 dark:bg-black/30 hover:bg-gray-100 dark:hover:bg-white/5 hover:border-primary/30 transition-colors rounded-xl border border-gray-200 dark:border-white/5 cursor-pointer">
+                        <span className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-primary transition-colors line-clamp-1 pr-4" title={item.name}>
+                          {item.name}
+                        </span>
+                        <span className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 font-black px-3 py-1 rounded-lg text-sm shrink-0 group-hover:bg-green-500/20 transition-colors">
+                          +{item.count}
+                        </span>
+                      </div>
+                    </Link>
                   ))
                 )}
               </div>
@@ -344,7 +351,6 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* TARJETAS DE ESTADÍSTICAS AHORA SON INTERACTIVAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
