@@ -47,73 +47,100 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 /* ========================================================
-   EL TRADUCTOR MAESTRO v3 - CORRECCIÓN TOTAL DE LEGIBILIDAD
+   EL TRADUCTOR MAESTRO v4 - BLINDAJE TOTAL CLARO PREMIUM
    (Detecta dinámicamente cualquier clase oscura y la invierte)
    ======================================================== */
 
-/* 1. TEXTOS UNIVERSALES */
+/* 1. TEXTOS UNIVERSALES (Cazando textos invisibles) */
 body[data-theme="light"] { color: #0f172a !important; }
-body[data-theme="light"] .text-white { color: #0f172a !important; }
 
-/* Excepción vital: Los textos dentro de botones de color deben seguir siendo blancos */
-body[data-theme="light"] button .text-white,
-body[data-theme="light"] .bg-primary .text-white,
-body[data-theme="light"] .bg-accent .text-white { color: #ffffff !important; }
+body[data-theme="light"] .text-white,
+body[data-theme="light"] [class*="dark:text-white"] { 
+    color: #0f172a !important; 
+}
+
+/* Excepción vital: Los botones de color deben mantener su texto blanco intacto */
+body[data-theme="light"] button[class*="bg-primary"],
+body[data-theme="light"] button[class*="bg-accent"],
+body[data-theme="light"] button[class*="bg-red-"],
+body[data-theme="light"] button[class*="bg-green-"],
+body[data-theme="light"] button[class*="bg-yellow-"],
+body[data-theme="light"] .bg-primary,
+body[data-theme="light"] .bg-accent { 
+    color: #ffffff !important; 
+}
+
+/* Proteger los íconos/texto DENTRO de esos botones */
+body[data-theme="light"] button[class*="bg-primary"] *,
+body[data-theme="light"] button[class*="bg-accent"] *,
+body[data-theme="light"] .bg-primary *,
+body[data-theme="light"] .bg-accent * {
+    color: #ffffff !important;
+}
 
 /* Conversión de grises oscuros a grises legibles sobre blanco */
-body[data-theme="light"] [class*="text-gray-300"] { color: #334155 !important; }
-body[data-theme="light"] [class*="text-gray-400"] { color: #475569 !important; }
-body[data-theme="light"] [class*="text-gray-500"] { color: #64748b !important; }
+body[data-theme="light"] [class*="text-gray-300"],
+body[data-theme="light"] [class*="dark:text-gray-300"],
+body[data-theme="light"] [class*="text-gray-400"],
+body[data-theme="light"] [class*="dark:text-gray-400"] { color: #475569 !important; }
 
-/* Hovers e interacciones de texto en menú y formularios */
-body[data-theme="light"] [class*="hover:text-white"]:hover { color: var(--primary) !important; }
+body[data-theme="light"] [class*="text-gray-500"],
+body[data-theme="light"] [class*="dark:text-gray-500"] { color: #64748b !important; }
+
+/* Hovers e interacciones en el menú */
+body[data-theme="light"] [class*="hover:text-white"]:hover,
+body[data-theme="light"] [class*="dark:hover:text-white"]:hover { color: var(--primary) !important; }
 body[data-theme="light"] .group:focus-within [class*="text-gray-"] { color: var(--primary) !important; }
 
-/* 2. SUPERFICIES Y TARJETAS (Efecto Glassmorphism Premium) */
-body[data-theme="light"] .bg-surface {
+/* 2. SUPERFICIES Y TARJETAS GLOBALES (Adiós a las tarjetas negras) */
+body[data-theme="light"] .bg-surface,
+body[data-theme="light"] [class*="dark:bg-surface"],
+body[data-theme="light"] [class*="dark:bg-[#111111]"],
+body[data-theme="light"] [class*="dark:bg-[#0a0a0a]"] {
   background-color: #ffffff !important;
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0,0,0,0.05) !important;
+  border: 1px solid #e2e8f0 !important;
 }
+
 body[data-theme="light"] [class*="bg-surface/"] {
   background-color: rgba(255, 255, 255, 0.8) !important;
   backdrop-filter: blur(16px) !important;
 }
 
-/* 3. ATRAPAR FONDOS OSCUROS ANÓMALOS (bg-black/40, hover:bg-black/60, etc) */
-body[data-theme="light"] [class*="bg-black/"] {
-  background-color: #f1f5f9 !important; /* Gris muy suave */
+/* 3. ATRAPAR FONDOS OSCUROS ANÓMALOS */
+body[data-theme="light"] [class*="bg-black/"],
+body[data-theme="light"] [class*="dark:bg-black/"] {
+  background-color: #f1f5f9 !important; 
   color: #0f172a !important;
 }
-body[data-theme="light"] [class*="hover:bg-black/"]:hover {
-  background-color: #e2e8f0 !important; /* Gris interactivo al pasar el mouse */
+
+body[data-theme="light"] [class*="hover:bg-black/"]:hover,
+body[data-theme="light"] [class*="dark:hover:bg-black/"]:hover {
+  background-color: #e2e8f0 !important; 
 }
 
 /* 4. ATRAPAR FONDOS BLANCOS TRANSLÚCIDOS (Invisibles en modo claro) */
-body[data-theme="light"] [class*="bg-white/"] {
+body[data-theme="light"] [class*="bg-white/"],
+body[data-theme="light"] [class*="dark:bg-white/"] {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
-body[data-theme="light"] [class*="hover:bg-white/"]:hover {
+
+body[data-theme="light"] [class*="hover:bg-white/"]:hover,
+body[data-theme="light"] [class*="dark:hover:bg-white/"]:hover {
   background-color: #e2e8f0 !important;
   color: var(--primary) !important;
 }
-/* Proteger los botones de advertencia, éxito o primarios para que no se vuelvan grises */
-body[data-theme="light"] button[class*="bg-primary"],
-body[data-theme="light"] button[class*="bg-accent"],
-body[data-theme="light"] button[class*="bg-red-"],
-body[data-theme="light"] button[class*="bg-green-"],
-body[data-theme="light"] button[class*="bg-yellow-"] {
-  color: inherit !important;
-}
 
-/* 5. FORMULARIOS IMPENETRABLES (Forzar Inputs perfectos) */
+/* 5. FORMULARIOS IMPENETRABLES (Para evitar inputs invisibles) */
 body[data-theme="light"] input,
 body[data-theme="light"] select,
 body[data-theme="light"] textarea {
-  background-color: #f8fafc !important;
+  background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
+
 body[data-theme="light"] input:focus,
 body[data-theme="light"] select:focus,
 body[data-theme="light"] textarea:focus {
@@ -121,32 +148,54 @@ body[data-theme="light"] textarea:focus {
   border-color: var(--primary) !important;
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2) !important;
 }
-body[data-theme="light"] input::placeholder { color: #94a3b8 !important; }
+
+body[data-theme="light"] input::placeholder,
+body[data-theme="light"] textarea::placeholder { color: #94a3b8 !important; }
 body[data-theme="light"] option { background-color: #ffffff !important; color: #0f172a !important; }
 
 /* 6. BORDES Y LÍNEAS DIVISORIAS */
 body[data-theme="light"] [class*="border-white/"],
-body[data-theme="light"] [class*="border-gray-"] {
-  border-color: #e2e8f0 !important;
-}
-body[data-theme="light"] [class*="divide-white/"] > :not([hidden]) ~ :not([hidden]) {
+body[data-theme="light"] [class*="dark:border-white/"],
+body[data-theme="light"] [class*="border-gray-700"],
+body[data-theme="light"] [class*="dark:border-gray-800"] {
   border-color: #e2e8f0 !important;
 }
 
-/* 7. TABLAS DE DATOS */
+body[data-theme="light"] [class*="divide-white/"] > :not([hidden]) ~ :not([hidden]),
+body[data-theme="light"] [class*="dark:divide-white/"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+/* 7. TABLAS DE DATOS (Hace visible la Base Histórica y los Usuarios) */
+body[data-theme="light"] table,
+body[data-theme="light"] thead,
+body[data-theme="light"] tbody,
+body[data-theme="light"] tr,
+body[data-theme="light"] th,
+body[data-theme="light"] td {
+   border-color: #e2e8f0 !important;
+}
+
+body[data-theme="light"] thead,
 body[data-theme="light"] thead[class*="bg-black/"] {
-  background-color: #f8fafc !important; /* Cabecera muy limpia */
+  background-color: #f8fafc !important; 
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+body[data-theme="light"] th { 
+  color: #334155 !important; 
+  font-weight: 700 !important; 
+}
+
+body[data-theme="light"] tbody tr {
   border-bottom: 1px solid #e2e8f0 !important;
 }
-body[data-theme="light"] th { 
-  color: #475569 !important; 
-  font-weight: 600 !important; 
-}
+
 body[data-theme="light"] tbody tr:hover { 
   background-color: #f1f5f9 !important; 
 }
 
-/* 8. DESTELLOS MEJORADOS (Efecto Glass/Blur Premium) */
+/* 8. DESTELLOS MEJORADOS (Efecto Blur de los fondos) */
 body[data-theme="light"] .blur-\[120px\],
 body[data-theme="light"] .blur-xl,
 body[data-theme="light"] .blur-\[150px\],
@@ -155,11 +204,16 @@ body[data-theme="light"] .blur-\[80px\] {
   mix-blend-mode: multiply !important;
 }
 
-/* 9. Proteger las tarjetas de previsualización en la configuración */
-body[data-theme="light"] [class*="bg-[#050505]"],
-body[data-theme="light"] [class*="bg-[#050505]"] * {
+/* 9. PROTEGER LA TARJETA PREVIEW OSCURA EN CONFIGURACIÓN */
+/* Evitamos que la tarjeta que muestra cómo se ve el modo oscuro se vuelva blanca */
+body[data-theme="light"] .bg-\[\#050505\] {
+  background-color: #050505 !important;
   color: #ffffff !important;
-  border-color: rgba(255,255,255,0.1) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+}
+body[data-theme="light"] .bg-\[\#050505\] * {
+  color: inherit;
+  border-color: inherit;
 }
 
 /* ========================================================
@@ -172,11 +226,5 @@ body[data-theme="light"] [class*="bg-[#050505]"] * {
 html[data-theme="light"],
 body[data-theme="light"],
 body[data-theme="light"] .admin-wrapper {
-  background-color: #f8fafc !important;
-}
-
-/* Si tienes alguna etiqueta main o body con clase oscura directa en Next.js, esto lo aniquila */
-body[data-theme="light"] .bg-\[\#050505\],
-body[data-theme="light"] .bg-black {
   background-color: #f8fafc !important;
 }
