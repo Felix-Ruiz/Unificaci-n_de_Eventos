@@ -28,6 +28,8 @@ const systemTranslations: Record<string, Record<string, string>> = {
     modalDuplicateTitle: "Duplicar Evento",
     modalDuplicateDesc1: "¿Deseas crear una copia idéntica de",
     modalDuplicateDesc2: "incluyendo todas sus preguntas y configuraciones?",
+    modalNewRegsTitle: "Desglose de Nuevos Registros",
+    modalNewRegsDesc: "Cantidad de inscripciones en los últimos 7 días por evento.",
     btnCancel: "Cancelar",
     btnConfirm: "Confirmar Acción",
     langSystem: "Idioma de Sistema",
@@ -55,6 +57,8 @@ const systemTranslations: Record<string, Record<string, string>> = {
     modalDuplicateTitle: "Duplicate Event",
     modalDuplicateDesc1: "Do you want to create an exact copy of",
     modalDuplicateDesc2: "including all questions and settings?",
+    modalNewRegsTitle: "New Registrations Breakdown",
+    modalNewRegsDesc: "Number of registrations in the last 7 days per event.",
     btnCancel: "Cancel",
     btnConfirm: "Confirm Action",
     langSystem: "System Language",
@@ -64,7 +68,6 @@ const systemTranslations: Record<string, Record<string, string>> = {
   }
 };
 
-// HELPER PARA LIMPIAR EL CÓDIGO HTML DEL TÍTULO Y EVITAR QUE SE ROMPA LA INTERFAZ
 const cleanHTML = (html: string) => {
   if (!html) return "";
   return html.replace(/(<([^>]+)>)/gi, "").replace(/&nbsp;/gi, " ").trim();
@@ -76,14 +79,17 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState({ events: 0, users: 0, newUsers: 0 });
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
+  
+  // ESTADO PARA EL DESGLOSE DE NUEVOS REGISTROS
+  const [newRegsBreakdown, setNewRegsBreakdown] = useState<{ id: string, name: string, count: number }[]>([]);
+  const [showNewRegsModal, setShowNewRegsModal] = useState(false);
+
   const [loading, setLoading] = useState(true);
 
-  // NUEVOS ESTADOS PARA BÚSQUEDA Y PAGINACIÓN
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const eventsPerPage = 5;
 
-  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'success' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'archive' | 'duplicate'; event: any } | null>(null);
   
@@ -106,10 +112,35 @@ export default function DashboardPage() {
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const { count: newRegistrationsCount } = await supabase.from('registrations').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo.toISOString());
+    
+    // Obtenemos los registros nuevos para hacer el conteo y el desglose al mismo tiempo
+    const { data: newRegsData, count: newRegistrationsCount } = await supabase
+      .from('registrations')
+      .select('event_id', { count: 'exact' })
+      .gte('created_at', sevenDaysAgo.toISOString());
       
     const { data: eventsData } = await supabase.from('events').select('*').eq('is_deleted', false).order('created_at', { ascending: false });
 
+    // PROCESAMIENTO DEL DESGLOSE DE REGISTROS
+    const breakdownMap: Record<string, number> = {};
+    if (newRegsData) {
+      newRegsData.forEach(reg => {
+        if (reg.event_id) {
+          breakdownMap[reg.event_id] = (breakdownMap[reg.event_id] || 0) + 1;
+        }
+      });
+    }
+    
+    const breakdownArray = Object.keys(breakdownMap).map(eventId => {
+      const eventInfo = eventsData?.find(e => e.id === eventId);
+      return {
+        id: eventId,
+        name: eventInfo ? cleanHTML(eventInfo.name) : 'Evento Desconocido',
+        count: breakdownMap[eventId]
+      };
+    }).sort((a, b) => b.count - a.count); // Ordenar de mayor a menor
+
+    setNewRegsBreakdown(breakdownArray);
     setStats({ events: eventsCount || 0, users: usersCount || 0, newUsers: newRegistrationsCount || 0 });
     setRecentEvents(eventsData || []);
     setLoading(false);
@@ -161,13 +192,16 @@ export default function DashboardPage() {
     }
   };
 
-  // BÚSQUEDA APLICANDO EL LIMPIADOR DE HTML
   const filteredEvents = recentEvents.filter(evento => 
     cleanHTML(evento.name).toLowerCase().includes(searchTerm.toLowerCase())
   );
   
   const totalPages = Math.ceil(filteredEvents.length / eventsPerPage) || 1;
   const currentEvents = filteredEvents.slice((currentPage - 1) * eventsPerPage, currentPage * eventsPerPage);
+
+  const scrollToEvents = () => {
+    document.getElementById('seccion-eventos')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <div className="space-y-8 relative">
@@ -192,6 +226,7 @@ export default function DashboardPage() {
         </AnimatePresence>
       </div>
 
+      {/* MODAL 4D DE CONFIRMACIÓN */}
       <AnimatePresence>
         {confirmModal && (
           <motion.div 
@@ -221,6 +256,54 @@ export default function DashboardPage() {
                 >
                   {t.btnConfirm}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE DESGLOSE DE NUEVOS REGISTROS */}
+      <AnimatePresence>
+        {showNewRegsModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 dark:bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-2xl w-full max-w-lg p-6 md:p-8 shadow-2xl relative overflow-hidden max-h-[80vh] flex flex-col"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-green-500"></div>
+              
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                  <div className="p-2 bg-green-500/10 rounded-lg text-green-500">
+                    <TrendingUp className="h-6 w-6" />
+                  </div>
+                  {t.modalNewRegsTitle}
+                </h2>
+                <button onClick={() => setShowNewRegsModal(false)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer p-1">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">{t.modalNewRegsDesc}</p>
+
+              <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-3">
+                {newRegsBreakdown.length === 0 ? (
+                  <div className="text-center p-8 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+                    <p className="text-gray-500 dark:text-gray-400 italic text-sm">No se han registrado usuarios en los últimos 7 días.</p>
+                  </div>
+                ) : (
+                  newRegsBreakdown.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-black/30 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors rounded-xl border border-gray-200 dark:border-white/5">
+                      <span className="font-bold text-sm text-gray-900 dark:text-white line-clamp-1 pr-4" title={item.name}>{item.name}</span>
+                      <span className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 font-black px-3 py-1 rounded-lg text-sm shrink-0">
+                        +{item.count}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </motion.div>
           </motion.div>
@@ -261,40 +344,59 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* TARJETAS DE ESTADÍSTICAS AHORA SON INTERACTIVAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          onClick={scrollToEvents}
+          className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none hover:border-primary/50 dark:hover:border-primary/50 cursor-pointer transition-colors group"
+        >
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-primary/10 dark:bg-primary/20 rounded-lg text-primary"><Calendar className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.activeEvents}</h3>
+            <div className="p-3 bg-primary/10 dark:bg-primary/20 rounded-lg text-primary group-hover:scale-110 transition-transform"><Calendar className="h-6 w-6" /></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-primary transition-colors">{t.activeEvents}</h3>
           </div>
           <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : stats.events}
           </p>
         </motion.div>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-accent/10 dark:bg-accent/20 rounded-lg text-accent"><Users className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.historicBase}</h3>
-          </div>
-          <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-accent" /> : stats.users}
-          </p>
-        </motion.div>
+        <Link href="/admin/historico" className="block outline-none">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.1 }} 
+            className="h-full bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none hover:border-accent/50 dark:hover:border-accent/50 cursor-pointer transition-colors group"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-accent/10 dark:bg-accent/20 rounded-lg text-accent group-hover:scale-110 transition-transform"><Users className="h-6 w-6" /></div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-accent transition-colors">{t.historicBase}</h3>
+            </div>
+            <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-accent" /> : stats.users}
+            </p>
+          </motion.div>
+        </Link>
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.2 }} 
+          onClick={() => setShowNewRegsModal(true)}
+          className="bg-white dark:bg-surface border border-gray-200 dark:border-white/10 p-6 rounded-xl relative overflow-hidden shadow-sm dark:shadow-none hover:border-green-500/50 dark:hover:border-green-500/50 cursor-pointer transition-colors group"
+        >
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-green-500/10 dark:bg-green-500/20 rounded-lg text-green-600 dark:text-green-400"><TrendingUp className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t.newRegs}</h3>
+            <div className="p-3 bg-green-500/10 dark:bg-green-500/20 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform"><TrendingUp className="h-6 w-6" /></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-green-500 transition-colors">{t.newRegs}</h3>
           </div>
           <p className="text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             {loading && !confirmModal ? <Loader2 className="h-6 w-6 animate-spin text-green-600 dark:text-green-400" /> : stats.newUsers}
-            {!loading && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">{t.thisWeek}</span>}
+            {!loading && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2 group-hover:text-green-500/80 transition-colors">{t.thisWeek}</span>}
           </p>
         </motion.div>
       </div>
 
-      <div>
+      <div id="seccion-eventos" className="scroll-mt-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t.yourActiveEvents}</h2>
           
@@ -337,7 +439,6 @@ export default function DashboardPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
                           <Link href={`/admin/eventos/${evento.id}`}>
-                            {/* APLICANDO EL LIMPIADOR PARA QUE SE VEA EL TEXTO REAL Y NO EL CÓDIGO HTML */}
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer wrap-break-word">
                               {cleanHTML(evento.name)}
                             </h3>
@@ -382,27 +483,29 @@ export default function DashboardPage() {
                 ))}
               </div>
               
-              <div className="p-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between bg-gray-50 dark:bg-black/20">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {t.page} {currentPage} {t.of} {totalPages}
-                </span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                    disabled={currentPage === 1} 
-                    className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                    disabled={currentPage === totalPages} 
-                    className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between bg-gray-50 dark:bg-black/20">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {t.page} {currentPage} {t.of} {totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                      disabled={currentPage === 1} 
+                      className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                      disabled={currentPage === totalPages} 
+                      className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
