@@ -144,7 +144,8 @@ export default function AsistenciaListaPage() {
                 key={evento.id} 
                 className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
               >
-                <div className="flex items-center gap-4">
+                {/* CONTENEDOR IZQUIERDO: Se aplicó flex-1 min-w-0 para evitar que empuje al botón */}
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                   {evento.logo_url ? (
                     <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-black/30 p-1 flex items-center justify-center border border-gray-200 dark:border-white/10 shrink-0">
                       <img src={evento.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
@@ -154,20 +155,24 @@ export default function AsistenciaListaPage() {
                       <Calendar className="h-6 w-6" />
                     </div>
                   )}
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{evento.name}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {/* min-w-0 y break-words en el texto para que pueda bajar de línea si es muy largo */}
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white wrap-break-word">{evento.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                       {t.createdAt} {new Date(evento.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 
-                <Link href={`/admin/asistencia/${evento.id}`}>
-                  <button className="flex items-center justify-center w-full md:w-auto gap-2 px-5 py-2.5 bg-accent text-gray-900 dark:text-black hover:bg-accent/90 rounded-lg transition-transform font-bold shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer">
-                    <QrCode className="h-5 w-5" /> 
-                    {t.btnStart}
-                  </button>
-                </Link>
+                {/* CONTENEDOR DERECHO: Se aplicó shrink-0 y whitespace-nowrap para mantener la simetría */}
+                <div className="shrink-0">
+                  <Link href={`/admin/asistencia/${evento.id}`}>
+                    <button className="flex items-center justify-center w-full md:w-auto gap-2 px-5 py-2.5 bg-accent text-gray-900 dark:text-black hover:bg-accent/90 rounded-lg transition-transform font-bold shadow-4d-static active:translate-y-1 active:shadow-none cursor-pointer whitespace-nowrap">
+                      <QrCode className="h-5 w-5 shrink-0" /> 
+                      {t.btnStart}
+                    </button>
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
