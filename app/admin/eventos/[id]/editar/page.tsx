@@ -15,7 +15,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useLanguage } from '../../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../../components/FeedbackAdminPanel';
 
-// IMPORTACIÓN DINÁMICA DEL EDITOR DE TEXTO ENRIQUECIDO (NUEVA VERSIÓN PARA REACT 19)
+// IMPORTACIÓN DINÁMICA DEL EDITOR DE TEXTO ENRIQUECIDO PARA LA DESCRIPCIÓN
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
@@ -345,7 +345,10 @@ export default function EditarEventoPage() {
           
         if (error) throw error;
 
-        setEventName(eventData.name || '');
+        // Limpiamos etiquetas HTML por si el evento se guardó corrupto anteriormente
+        const cleanName = eventData.name ? eventData.name.replace(/(<([^>]+)>)/gi, "").replace(/&nbsp;/gi, " ").trim() : '';
+        setEventName(cleanName);
+        
         setEventSlug(eventData.slug || '');
         setEventDescription(eventData.description || '');
         
@@ -551,7 +554,7 @@ export default function EditarEventoPage() {
   const handleUpdateEvent = async () => {
     
     // VALIDACIONES OBLIGATORIAS
-    const plainName = eventName.replace(/(<([^>]+)>)/gi, "").trim();
+    const plainName = eventName.trim();
     if (!plainName) {
       return showToast('Campo Requerido', 'El nombre del evento es obligatorio.', 'error');
     }
@@ -586,8 +589,7 @@ export default function EditarEventoPage() {
       let finalLogoUrl = logoPreview;
       let finalBannerUrl = bannerPreview;
 
-      // ELIMINAR LÓGICA: Si se limpió la imagen en la UI y es una URL pública, podemos opcionalmente borrarla de storage. 
-      // Por seguridad y simplicidad, solo actualizamos la URL en la DB a nulo.
+      // ELIMINAR LÓGICA: Si se limpió la imagen en la UI, guardamos null
       if (!logoPreview && !logoFile) {
          finalLogoUrl = null;
       } else if (logoFile) {
@@ -605,7 +607,7 @@ export default function EditarEventoPage() {
       }
 
       const { error: eventError } = await supabase.from('events').update({
-        name: eventName, 
+        name: plainName, 
         slug: eventSlug || null, 
         description: eventDescription,
         logo_url: finalLogoUrl, 
@@ -695,7 +697,7 @@ export default function EditarEventoPage() {
             <motion.div 
               initial={{ opacity: 0, x: 50, scale: 0.9 }} 
               animate={{ opacity: 1, x: 0, scale: 1 }} 
-              exit={{ opacity: 0, x: 20, scale: 0.9 }} 
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
               className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
                 toast.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-900 dark:text-red-200' : 
                 toast.type === 'success' ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-900 dark:text-green-200' : 
@@ -711,7 +713,7 @@ export default function EditarEventoPage() {
                 <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{toast.desc}</p>
               </div>
               
-              <button type="button" onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+              <button type="button" onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </motion.div>
@@ -789,15 +791,13 @@ export default function EditarEventoPage() {
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">
                 Nombre del Evento <span className="text-red-500">*</span>
               </label>
-              <div className="bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 dark:[&_.ql-toolbar]:border-gray-700 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-20 [&_.ql-editor]:text-gray-900 dark:[&_.ql-editor]:text-white">
-                <ReactQuill 
-                  theme="snow"
-                  value={eventName}
-                  onChange={setEventName}
-                  modules={quillModules}
-                  placeholder="Ej. Congreso Nacional de Ingeniería 2026"
-                />
-              </div>
+              <input 
+                type="text" 
+                value={eventName} 
+                onChange={(e) => setEventName(e.target.value)} 
+                placeholder="Ej. Congreso Nacional de Ingeniería 2026" 
+                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
+              />
             </div>
 
             <div className="space-y-1.5">

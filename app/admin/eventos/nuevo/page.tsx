@@ -7,7 +7,7 @@ import {
   CheckCircle2, GitBranch, X, ShieldAlert, Clock, Users, 
   Palette, ImagePlus, AlignLeft, Link2, ShieldCheck, Loader2, 
   AlertCircle, Info, Mail, ChevronDown, Lock, Smartphone, 
-  ThumbsUp, Save, Bot, Globe, MessageSquare, Code, Eye, EyeOff
+  ThumbsUp, Bot, Globe, MessageSquare, Code, Eye, EyeOff
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../../../lib/supabase';
@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../../../context/LanguageContext';
 import FeedbackAdminPanel from '../../../../components/FeedbackAdminPanel';
 
+// IMPORTACIÓN DINÁMICA DEL EDITOR DE TEXTO ENRIQUECIDO PARA LA DESCRIPCIÓN
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
@@ -36,11 +37,7 @@ interface FormField {
   isRequired: boolean;
   options: string[];
   isDefault: boolean;
-  logic?: { 
-    dependsOnId: string; 
-    dependsOnValue: string; 
-    action: 'show' | 'hide' | 'require'; 
-  } | null;
+  logic?: { dependsOnId: string; dependsOnValue: string; action: 'show' | 'hide' | 'require'; } | null;
   _ui_showLogic?: boolean;
   allowOther?: boolean;
   system_key?: string;
@@ -185,20 +182,14 @@ const defaultInstitutions = [
 
 const defaultTranslations: Record<string, Record<string, { label: string, options?: string[] }>> = {
   es: {
-    tipo_doc: { 
-      label: 'Tipo de Documento', 
-      options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] 
-    },
+    tipo_doc: { label: 'Tipo de Documento', options: ['Cédula de Ciudadanía', 'Tarjeta de Identidad', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
     documento_identidad: { label: 'Número de Documento' },
     nombre: { label: 'Nombre(s)' },
     apellido: { label: 'Apellido(s)' },
     email: { label: 'Correo Electrónico' },
     email_conf: { label: 'Confirmar Correo' },
     telefono: { label: 'Número de Teléfono' },
-    genero: { 
-      label: 'Género', 
-      options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] 
-    },
+    genero: { label: 'Género', options: ['Masculino', 'Femenino', 'Otro', 'Prefiero no decirlo'] },
     direccion: { label: 'Dirección' },
     institucion: { label: 'Institución', options: defaultInstitutions },
     cargo: { label: 'Cargo' },
@@ -206,20 +197,14 @@ const defaultTranslations: Record<string, Record<string, { label: string, option
     ciudad: { label: 'Ciudad' }
   },
   en: {
-    tipo_doc: { 
-      label: 'Document Type', 
-      options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] 
-    },
+    tipo_doc: { label: 'Document Type', options: ['National ID', 'Identity Card', 'Foreigner ID', 'Passport', 'Tax ID / NIT'] },
     documento_identidad: { label: 'Document Number / ID' },
     nombre: { label: 'First Name(s)' },
     apellido: { label: 'Last Name(s)' },
     email: { label: 'Email Address' },
     email_conf: { label: 'Confirm Email' },
     telefono: { label: 'Phone Number' },
-    genero: { 
-      label: 'Gender', 
-      options: ['Male', 'Female', 'Other', 'Prefer not to say'] 
-    },
+    genero: { label: 'Gender', options: ['Male', 'Female', 'Other', 'Prefer not to say'] },
     direccion: { label: 'Address' },
     institucion: { label: 'Institution / Company', options: defaultInstitutions },
     cargo: { label: 'Job Title / Role' },
@@ -470,7 +455,8 @@ export default function NuevoEventoPage() {
 
   const handleSaveEvent = async () => {
     
-    const plainName = eventName.replace(/(<([^>]+)>)/gi, "").trim();
+    // REVERTIMOS EL NOMBRE A INPUT NORMAL, POR LO QUE TRIM ES SUFICIENTE
+    const plainName = eventName.trim();
     if (!plainName) return showToast('Campo Requerido', 'El nombre del evento es obligatorio.', 'error');
     if (!eventSlug) return showToast('Campo Requerido', 'El Alias para la URL (Slug) es obligatorio.', 'error');
     
@@ -529,7 +515,7 @@ export default function NuevoEventoPage() {
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .insert([{ 
-          name: eventName, 
+          name: plainName, 
           slug: eventSlug || null, 
           description: eventDescription,
           logo_url: logoUrl, 
@@ -680,15 +666,13 @@ export default function NuevoEventoPage() {
               <label className="text-sm text-gray-700 dark:text-gray-400 font-bold">
                 Nombre del Evento <span className="text-red-500">*</span>
               </label>
-              <div className="bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 dark:[&_.ql-toolbar]:border-gray-700 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-20 [&_.ql-editor]:text-gray-900 dark:[&_.ql-editor]:text-white">
-                <ReactQuill 
-                  theme="snow"
-                  value={eventName}
-                  onChange={setEventName}
-                  modules={quillModules}
-                  placeholder="Ej. Congreso Nacional de Ingeniería 2026"
-                />
-              </div>
+              <input 
+                type="text" 
+                value={eventName} 
+                onChange={(e) => setEventName(e.target.value)} 
+                placeholder="Ej. Congreso Nacional de Ingeniería 2026" 
+                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 text-gray-900 dark:text-white focus:border-accent outline-none" 
+              />
             </div>
 
             <div className="space-y-1.5">

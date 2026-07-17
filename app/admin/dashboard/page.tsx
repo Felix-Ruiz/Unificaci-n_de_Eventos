@@ -64,6 +64,12 @@ const systemTranslations: Record<string, Record<string, string>> = {
   }
 };
 
+// HELPER PARA LIMPIAR EL CÓDIGO HTML DEL TÍTULO Y EVITAR QUE SE ROMPA LA INTERFAZ
+const cleanHTML = (html: string) => {
+  if (!html) return "";
+  return html.replace(/(<([^>]+)>)/gi, "").replace(/&nbsp;/gi, " ").trim();
+};
+
 export default function DashboardPage() {
   const { language, setLanguage } = useLanguage();
   const t = systemTranslations[language];
@@ -75,7 +81,7 @@ export default function DashboardPage() {
   // NUEVOS ESTADOS PARA BÚSQUEDA Y PAGINACIÓN
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const eventsPerPage = 5; // Muestra 5 por página para no romper el diseño, pero permite verlos todos
+  const eventsPerPage = 5;
 
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'success' } | null>(null);
@@ -102,7 +108,6 @@ export default function DashboardPage() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const { count: newRegistrationsCount } = await supabase.from('registrations').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo.toISOString());
       
-    // MODIFICACIÓN CRÍTICA: Se eliminó el .limit(5) para traer todos los eventos
     const { data: eventsData } = await supabase.from('events').select('*').eq('is_deleted', false).order('created_at', { ascending: false });
 
     setStats({ events: eventsCount || 0, users: usersCount || 0, newUsers: newRegistrationsCount || 0 });
@@ -118,12 +123,12 @@ export default function DashboardPage() {
       if (confirmModal.type === 'archive') {
         const { error } = await supabase.from('events').update({ is_deleted: true }).eq('id', confirmModal.event.id);
         if (error) throw error;
-        showToast('Evento Archivado', `El evento "${confirmModal.event.name}" se movió a la papelera.`, 'success');
+        showToast('Evento Archivado', `El evento "${cleanHTML(confirmModal.event.name)}" se movió a la papelera.`, 'success');
       } 
       
       else if (confirmModal.type === 'duplicate') {
         const { data: newEvent, error: eventError } = await supabase.from('events').insert([{
-          name: `${confirmModal.event.name} (Copia)`,
+          name: `${cleanHTML(confirmModal.event.name)} (Copia)`,
           logo_url: confirmModal.event.logo_url,
           send_notifications: confirmModal.event.send_notifications,
           max_capacity: confirmModal.event.max_capacity,
@@ -147,7 +152,7 @@ export default function DashboardPage() {
       }
       
       await fetchData();
-      setCurrentPage(1); // Resetear a la página 1 tras una acción
+      setCurrentPage(1);
     } catch (error: any) {
       showToast('Error', error.message || 'Ha ocurrido un problema ejecutando la acción.', 'error');
       setLoading(false);
@@ -156,9 +161,9 @@ export default function DashboardPage() {
     }
   };
 
-  // LÓGICA DE BÚSQUEDA Y PAGINACIÓN
+  // BÚSQUEDA APLICANDO EL LIMPIADOR DE HTML
   const filteredEvents = recentEvents.filter(evento => 
-    evento.name.toLowerCase().includes(searchTerm.toLowerCase())
+    cleanHTML(evento.name).toLowerCase().includes(searchTerm.toLowerCase())
   );
   
   const totalPages = Math.ceil(filteredEvents.length / eventsPerPage) || 1;
@@ -167,7 +172,6 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 relative">
       
-      {/* NOTIFICACIONES TOAST */}
       <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toast && (
@@ -188,7 +192,6 @@ export default function DashboardPage() {
         </AnimatePresence>
       </div>
 
-      {/* MODAL 4D DE CONFIRMACIÓN */}
       <AnimatePresence>
         {confirmModal && (
           <motion.div 
@@ -205,8 +208,8 @@ export default function DashboardPage() {
               </h2>
               <p className="text-gray-600 dark:text-gray-300 mb-8">
                 {confirmModal.type === 'archive' 
-                  ? `${t.modalArchiveDesc1} "${confirmModal.event.name}" ${t.modalArchiveDesc2}`
-                  : `${t.modalDuplicateDesc1} "${confirmModal.event.name}" ${t.modalDuplicateDesc2}`}
+                  ? `${t.modalArchiveDesc1} "${cleanHTML(confirmModal.event.name)}" ${t.modalArchiveDesc2}`
+                  : `${t.modalDuplicateDesc1} "${cleanHTML(confirmModal.event.name)}" ${t.modalDuplicateDesc2}`}
               </p>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors font-medium cursor-pointer">{t.btnCancel}</button>
@@ -295,7 +298,6 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t.yourActiveEvents}</h2>
           
-          {/* BUSCADOR DE EVENTOS */}
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
             <input 
@@ -304,7 +306,7 @@ export default function DashboardPage() {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1); // Volver a página 1 al buscar
+                setCurrentPage(1); 
               }}
               className="w-full bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-primary transition-colors shadow-sm dark:shadow-none"
             />
@@ -322,7 +324,6 @@ export default function DashboardPage() {
                 {currentEvents.map((evento) => (
                   <div key={evento.id} className="p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                     
-                    {/* CONTENEDOR IZQUIERDO: Título, Logo y Fecha (Corregido con flex-1 min-w-0) */}
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       {evento.logo_url ? (
                         <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-black/30 p-1 flex items-center justify-center border border-gray-200 dark:border-white/10 shrink-0">
@@ -336,8 +337,9 @@ export default function DashboardPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
                           <Link href={`/admin/eventos/${evento.id}`}>
+                            {/* APLICANDO EL LIMPIADOR PARA QUE SE VEA EL TEXTO REAL Y NO EL CÓDIGO HTML */}
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white hover:text-primary transition-colors cursor-pointer wrap-break-word">
-                              {evento.name}
+                              {cleanHTML(evento.name)}
                             </h3>
                           </Link>
                           {!evento.is_active && (
@@ -350,7 +352,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     
-                    {/* CONTENEDOR DERECHO: Botones de Acción (Corregido con shrink-0 y xl:flex-nowrap) */}
                     <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 shrink-0">
                       <Link href={`/e/${evento.slug || evento.id}`} target="_blank">
                         <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white rounded-lg transition-colors text-sm font-medium border border-gray-200 dark:border-white/10 cursor-pointer">
@@ -381,30 +382,27 @@ export default function DashboardPage() {
                 ))}
               </div>
               
-              {/* PAGINACIÓN */}
-              {totalPages > 1 && (
-                <div className="p-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between bg-gray-50 dark:bg-black/20">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {t.page} {currentPage} {t.of} {totalPages}
-                  </span>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                      disabled={currentPage === 1} 
-                      className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button 
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                      disabled={currentPage === totalPages} 
-                      className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
+              <div className="p-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between bg-gray-50 dark:bg-black/20">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {t.page} {currentPage} {t.of} {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                    disabled={currentPage === 1} 
+                    className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                    disabled={currentPage === totalPages} 
+                    className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer text-gray-700 dark:text-white transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
