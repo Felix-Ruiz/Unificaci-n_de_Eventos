@@ -186,13 +186,35 @@ export default function EventoDetalleAdmin() {
         
       if (fieldsData) setFields(fieldsData);
       
-      const { data: regsData } = await supabase
-        .from('registrations')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false });
-        
-      if (regsData) setRegistrations(regsData);
+      // === INICIO DE DESCARGA PAGINADA (Bypass límite de 1000) ===
+      let allRegistrations: any[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: regsBatch, error: regsError } = await supabase
+          .from('registrations')
+          .select('*')
+          .eq('event_id', eventId)
+          .order('created_at', { ascending: false })
+          .range(from, from + step - 1);
+
+        if (regsError) throw regsError;
+
+        if (regsBatch && regsBatch.length > 0) {
+          allRegistrations = [...allRegistrations, ...regsBatch];
+          from += step;
+          if (regsBatch.length < step) {
+            hasMore = false; // Ya no hay más datos, rompemos el ciclo
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      setRegistrations(allRegistrations);
+      // === FIN DE DESCARGA PAGINADA ===
       
     } catch (error) {
       console.error("Error:", error);
@@ -553,6 +575,7 @@ export default function EventoDetalleAdmin() {
       .sort((a: any, b: any) => b[1] - a[1])
       .slice(0, 5);
   };
+  
   if (loading && !confirmModal) {
     return (
       <div className="p-10 flex justify-center">
