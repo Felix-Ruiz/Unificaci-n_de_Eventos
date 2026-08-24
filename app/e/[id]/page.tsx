@@ -41,7 +41,8 @@ const publicTranslations: Record<string, Record<string, string>> = {
     fileErrorSize: "El archivo supera el peso máximo de 1MB.",
     fileErrorUpload: "Hubo un problema al subir el archivo a nuestro servidor.",
     placeholderText: "Escribe tu respuesta aquí...",
-    placeholderNum: "Ingresa tu número..."
+    placeholderNum: "Ingresa tu número...",
+    soldOut: "(Agotado)"
   },
   en: {
     btnSubmit: "Confirm Registration",
@@ -70,7 +71,8 @@ const publicTranslations: Record<string, Record<string, string>> = {
     fileErrorSize: "The file exceeds the maximum limit of 1MB.",
     fileErrorUpload: "There was a problem uploading the file to our server.",
     placeholderText: "Type your answer here...",
-    placeholderNum: "Enter your number..."
+    placeholderNum: "Enter your number...",
+    soldOut: "(Sold Out)"
   }
 };
 
@@ -93,6 +95,9 @@ export default function FormularioPublico() {
 
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
+
+  // ESTADO NUEVO: Contabilizador de usos por opción para validar cupos
+  const [optionUsage, setOptionUsage] = useState<Record<string, Record<string, number>>>({});
 
   const [honeypot, setHoneypot] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -224,6 +229,57 @@ export default function FormularioPublico() {
         });
 
         setFields(preParsedFields);
+
+        // ==========================================
+        // CÁLCULO DE CUPOS (LÍMITES POR PREGUNTA)
+        // ==========================================
+        const hasLimits = preParsedFields.some(f => {
+          const po = f.preParsedOptions;
+          return (po?.fieldLimit?.limit) || (po?.limits && Object.keys(po.limits).length > 0);
+        });
+
+        if (hasLimits) {
+          let allFormData: any[] = [];
+          let from = 0;
+          const step = 1000;
+          let hasMore = true;
+
+          while (hasMore) {
+            const { data: rBatch } = await supabase
+              .from('registrations')
+              .select('form_data')
+              .eq('event_id', eventData.id)
+              .range(from, from + step - 1);
+
+            if (rBatch && rBatch.length > 0) {
+              allFormData = [...allFormData, ...rBatch];
+              from += step;
+              if (rBatch.length < step) hasMore = false;
+            } else {
+              hasMore = false;
+            }
+          }
+
+          const counts: Record<string, Record<string, number>> = {};
+          preParsedFields.forEach(f => counts[f.id] = {});
+
+          allFormData.forEach(reg => {
+            const fd = reg.form_data || {};
+            preParsedFields.forEach(f => {
+              const val = fd[f.id];
+              if (!val) return;
+              
+              if (f.field_type === 'checkbox-group') {
+                val.split(', ').forEach((v: string) => {
+                  counts[f.id][v] = (counts[f.id][v] || 0) + 1;
+                });
+              } else {
+                counts[f.id][val] = (counts[f.id][val] || 0) + 1;
+              }
+            });
+          });
+          setOptionUsage(counts);
+        }
         
       } catch (error) {
         setEvent(null);
@@ -780,7 +836,6 @@ export default function FormularioPublico() {
               <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">{event.name}</h1>
             </div>
 
-            {/* INTEGRACIÓN DEL TEXTO ENRIQUECIDO EN EL LADO PÚBLICO */}
             {event.description && (
               <div className="mb-12 bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/10">
                 <div 
@@ -835,19 +890,55 @@ export default function FormularioPublico() {
                   const fieldName = field.field_name || '';
                   const isRequiredNow = isFieldRequired(field);
 
-                  let allowOther = true;
-                  let systemKey = null;
-                  let description = '';
-                  let optionsList: string[] = [];
-                  
                   const parsedOpts = field.preParsedOptions || {};
-                  description = parsedOpts.description || '';
-                  systemKey = parsedOpts.system_key || null;
+                  let description = parsedOpts.description || '';
+                  let systemKey = parsedOpts.system_key || null;
+
+                  // ==========================================
+                  // LÓGICA DE BLOQUEO: CASILLA DE VERIFICACIÓN
+                  // ==========================================
+                  let isFieldFull = false;
+                  if (field.field_type === 'checkbox') {
+                    const fieldLimitObj = parsedOpts.fieldLimit;
+                    if (fieldLimitObj && fieldLimitObj.limit) {
+                        const currentCount = optionUsage[field.id]?.['true'] || 0;
+                        if (currentCount >= parseInt(fieldLimitObj.limit)) {
+                            if (fieldLimitObj.action === 'hide') return null;
+                            isFieldFull = true;
+                        }
+                    }
+                  }
+
+                  // ==========================================
+                  // LÓGICA DE BLOQUEO: OPCIONES (Select, Radio, Checkbox-Group)
+                  // ==========================================
+                  let processedOptions: any[] = [];
+                  let allowOther = true;
 
                   if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
-                    optionsList = [...(parsedOpts.choices || [])];
-                    allowOther = parsedOpts.allowOther ?? true;
-                    if (allowOther && !optionsList.includes('Otra')) optionsList.push('Otra');
+                      const baseOptionsList = [...(parsedOpts.choices || [])];
+                      allowOther = parsedOpts.allowOther ?? true;
+                      if (allowOther && !baseOptionsList.includes('Otra')) baseOptionsList.push('Otra');
+
+                      processedOptions = baseOptionsList.map(opt => {
+                          const limitObj = parsedOpts.limits?.[opt];
+                          let isFull = false;
+                          let action = 'disable';
+                          
+                          if (limitObj && limitObj.limit && opt !== 'Otra') {
+                              const currentCount = optionUsage[field.id]?.[opt] || 0;
+                              if (currentCount >= parseInt(limitObj.limit)) {
+                                  isFull = true;
+                                  action = limitObj.action || 'disable';
+                              }
+                          }
+                          return {
+                              value: opt,
+                              label: isFull ? `${opt} ${t.soldOut}` : opt,
+                              isFull,
+                              action
+                          };
+                      }).filter(opt => !(opt.isFull && opt.action === 'hide'));
                   }
 
                   const isDocField = systemKey === 'documento_identidad' || (fieldName.toLowerCase().includes('documento') && !fieldName.toLowerCase().includes('tipo'));
@@ -886,12 +977,12 @@ export default function FormularioPublico() {
                               className={`${inputBaseClasses} appearance-none cursor-pointer`}
                             >
                               <option value="" disabled className="text-gray-500">{t.optSelect}</option>
-                              {optionsList.map((opt: string) => (
-                                <option key={opt} value={opt} className="text-gray-900 dark:text-white bg-white dark:bg-surface">
-                                  {opt}
+                              {processedOptions.map((opt: any) => (
+                                <option key={opt.value} value={opt.value} disabled={opt.isFull} className="text-gray-900 dark:text-white bg-white dark:bg-surface">
+                                  {opt.label}
                                 </option>
                               ))}
-                              {currentValue && currentValue !== 'Otra' && !optionsList.includes(currentValue) && (
+                              {currentValue && currentValue !== 'Otra' && !processedOptions.find(o => o.value === currentValue) && (
                                 <option value={currentValue} className="text-gray-900 dark:text-white bg-white dark:bg-surface">
                                   {currentValue}
                                 </option>
@@ -923,18 +1014,19 @@ export default function FormularioPublico() {
                         
                         <div className="space-y-3 bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-200 dark:border-white/5">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {optionsList.map((opt: string) => (
-                              <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${currentValue === opt ? 'bg-primary/10 border-primary/50' : 'bg-white dark:bg-black/40 border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-gray-500'}`}>
+                            {processedOptions.map((opt: any) => (
+                              <label key={opt.value} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${opt.isFull ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${currentValue === opt.value ? 'bg-primary/10 border-primary/50' : 'bg-white dark:bg-black/40 border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-gray-500'}`}>
                                 <input 
                                   type="radio" 
                                   name={field.id}
-                                  value={opt}
+                                  value={opt.value}
                                   required={isRequiredNow && !currentValue}
-                                  checked={currentValue === opt}
+                                  checked={currentValue === opt.value}
+                                  disabled={opt.isFull}
                                   onChange={(e) => handleFieldChange(field.id, e.target.value)}
                                   className="w-5 h-5 accent-primary cursor-pointer"
                                 />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">{opt}</span>
+                                <span className="text-sm text-gray-700 dark:text-gray-300">{opt.label}</span>
                               </label>
                             ))}
                           </div>
@@ -960,19 +1052,20 @@ export default function FormularioPublico() {
                         
                         <div className="space-y-3 bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-200 dark:border-white/5">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {optionsList.map((opt: string) => {
-                              const isChecked = currentValue.split(', ').includes(opt);
+                            {processedOptions.map((opt: any) => {
+                              const isChecked = currentValue.split(', ').includes(opt.value);
                               return (
-                                <label key={opt} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isChecked ? 'bg-accent/10 border-accent/50' : 'bg-white dark:bg-black/40 border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-gray-500'}`}>
+                                <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${opt.isFull && !isChecked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${isChecked ? 'bg-accent/10 border-accent/50' : 'bg-white dark:bg-black/40 border-gray-200 dark:border-white/10 hover:border-gray-400 dark:hover:border-gray-500'}`}>
                                   <div className="flex items-center h-5 mt-0.5">
                                     <input 
                                       type="checkbox" 
                                       checked={isChecked}
-                                      onChange={(e) => handleCheckboxGroupChange(field.id, opt, e.target.checked)}
+                                      disabled={opt.isFull && !isChecked}
+                                      onChange={(e) => handleCheckboxGroupChange(field.id, opt.value, e.target.checked)}
                                       className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white dark:after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
                                     />
                                   </div>
-                                  <span className="text-sm text-gray-700 dark:text-gray-300 leading-tight">{opt}</span>
+                                  <span className="text-sm text-gray-700 dark:text-gray-300 leading-tight">{opt.label}</span>
                                 </label>
                               );
                             })}
@@ -1011,22 +1104,24 @@ export default function FormularioPublico() {
                         
                       ) : field.field_type === 'checkbox' ? (
                         
-                        <div className="flex items-start gap-3 mt-4 bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10">
+                        <div className={`flex items-start gap-3 mt-4 bg-gray-50 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/10 ${isFieldFull ? 'opacity-50' : ''}`}>
                           <div className="flex items-center h-5">
                             <input 
                               type="checkbox" 
-                              required={isRequiredNow} 
+                              required={isRequiredNow && !isFieldFull} 
                               checked={currentValue === 'true'} 
+                              disabled={isFieldFull}
                               onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')} 
-                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs"
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-400 dark:border-gray-500 checked:bg-primary flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-white after:opacity-0 checked:after:opacity-100 after:text-xs disabled:cursor-not-allowed"
                             />
                           </div>
                           <div className="flex flex-col">
                             <label 
-                              className="text-sm text-gray-700 dark:text-gray-300 leading-tight cursor-pointer" 
-                              onClick={() => handleFieldChange(field.id, currentValue === 'true' ? 'false' : 'true')}
+                              className={`text-sm text-gray-700 dark:text-gray-300 leading-tight ${isFieldFull ? 'cursor-not-allowed' : 'cursor-pointer'}`} 
+                              onClick={() => { if(!isFieldFull) handleFieldChange(field.id, currentValue === 'true' ? 'false' : 'true') }}
                             >
-                              {fieldName} {isRequiredNow && <span className="text-accent">*</span>}
+                              {fieldName} {isRequiredNow && !isFieldFull && <span className="text-accent">*</span>}
+                              {isFieldFull && <span className="text-red-500 font-bold ml-2">{t.soldOut}</span>}
                             </label>
                             {description && (
                               <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 leading-tight">

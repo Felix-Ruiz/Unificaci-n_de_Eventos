@@ -48,6 +48,10 @@ interface FormField {
   description?: string;
   _ui_showDescription?: boolean;
   _ui_expandedOptions?: boolean;
+  // NUEVOS CAMPOS PARA EL CONTROL DE CUPOS
+  limits?: Record<string, { limit: string, action: 'hide' | 'disable' }>; 
+  fieldLimit?: { limit: string, action: 'hide' | 'disable' } | null;
+  _ui_showLimits?: boolean;
 }
 
 const defaultInstitutions = [
@@ -406,7 +410,10 @@ export default function EditarEventoPage() {
               system_key: opts.system_key || null,
               description: opts.description || '',
               _ui_showDescription: !!opts.description,
-              _ui_expandedOptions: false
+              _ui_expandedOptions: false,
+              limits: opts.limits || null,
+              fieldLimit: opts.fieldLimit || null,
+              _ui_showLimits: false
             };
           }));
         }
@@ -485,7 +492,10 @@ export default function EditarEventoPage() {
       allowOther: true,
       description: '',
       _ui_showDescription: false,
-      _ui_expandedOptions: false
+      _ui_expandedOptions: false,
+      limits: {},
+      fieldLimit: null,
+      _ui_showLimits: false
     };
     setFields([...fields, newField]);
   };
@@ -508,6 +518,33 @@ export default function EditarEventoPage() {
   
   const clearFieldLogic = (id: string) => {
     setFields(fields.map(f => f.id === id ? { ...f, logic: null, _ui_showLogic: false } : f));
+  };
+
+  // FUNCIONES PARA CONTROL DE CUPOS
+  const updateFieldOptionLimit = (id: string, option: string, key: 'limit' | 'action', value: string) => {
+    setFields(fields.map(f => {
+      if (f.id !== id) return f;
+      const currentLimits = f.limits || {};
+      const currentOptLimit = currentLimits[option] || { limit: '', action: 'disable' };
+      return {
+        ...f,
+        limits: {
+          ...currentLimits,
+          [option]: { ...currentOptLimit, [key]: value }
+        }
+      };
+    }));
+  };
+
+  const updateSingleFieldLimit = (id: string, key: 'limit' | 'action', value: string) => {
+    setFields(fields.map(f => {
+      if (f.id !== id) return f;
+      const current = f.fieldLimit || { limit: '', action: 'disable' };
+      return {
+        ...f,
+        fieldLimit: { ...current, [key]: value }
+      };
+    }));
   };
 
   const handleExcelForOptions = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -654,7 +691,9 @@ export default function EditarEventoPage() {
             logic: f.logic || null, 
             allowOther: f.allowOther ?? true, 
             system_key: f.system_key || null,
-            description: f.description || '' 
+            description: f.description || '',
+            limits: f.limits || null,
+            fieldLimit: f.fieldLimit || null
           }),
           order_index: index
         };
@@ -680,6 +719,7 @@ export default function EditarEventoPage() {
       setIsSaving(false);
     }
   };
+  
   if (isLoadingInit) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -1355,6 +1395,21 @@ export default function EditarEventoPage() {
                         </div>
 
                         <div className="md:col-span-3 flex justify-end gap-1 mt-1">
+                          {['select', 'radio', 'checkbox-group', 'checkbox'].includes(field.type) && (
+                            <button 
+                              type="button" 
+                              onClick={() => updateField(field.id, '_ui_showLimits', !field._ui_showLimits)} 
+                              className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                                (field.limits && Object.keys(field.limits).some(k => field.limits![k].limit)) || field.fieldLimit?.limit 
+                                  ? 'bg-primary text-white' 
+                                  : 'text-gray-500 hover:text-accent hover:bg-accent/10'
+                              }`}
+                              title="Límites de Cupos"
+                            >
+                              <Users className="h-4 w-4" />
+                            </button>
+                          )}
+                          
                           <button 
                             type="button" 
                             onClick={() => updateField(field.id, '_ui_showDescription', !field._ui_showDescription)} 
@@ -1444,6 +1499,81 @@ export default function EditarEventoPage() {
                               </div>
                             </div>
                           )}
+                        </motion.div>
+                      )}
+
+                      {/* PANEL DE LÍMITES POR OPCIÓN */}
+                      {field._ui_showLimits && ['select', 'radio', 'checkbox-group'].includes(field.type) && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 bg-accent/5 -mx-5 px-5 pb-4 rounded-b-xl overflow-hidden">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Users className="h-4 w-4 text-accent" />
+                            <h4 className="text-sm font-bold text-accent">Límites de Cupos por Opción</h4>
+                          </div>
+                          {field.options.length === 0 ? (
+                            <p className="text-xs text-gray-500 italic">Agrega opciones primero para establecer límites.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {field.options.filter(o => o !== 'Otra').map(opt => (
+                                <div key={opt} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-white dark:bg-black/30 p-2 rounded-lg border border-gray-200 dark:border-white/5">
+                                  <span className="md:col-span-5 text-xs font-bold text-gray-700 dark:text-gray-300 truncate px-2" title={opt}>{opt}</span>
+                                  <div className="md:col-span-3">
+                                    <input 
+                                      type="number" 
+                                      min="1"
+                                      placeholder="Cupos (ilimitado)" 
+                                      value={field.limits?.[opt]?.limit || ''} 
+                                      onChange={(e) => updateFieldOptionLimit(field.id, opt, 'limit', e.target.value)}
+                                      className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-xs text-gray-900 dark:text-white rounded-md p-2 focus:border-accent outline-none"
+                                    />
+                                  </div>
+                                  <div className="md:col-span-4">
+                                    <select 
+                                      value={field.limits?.[opt]?.action || 'disable'} 
+                                      onChange={(e) => updateFieldOptionLimit(field.id, opt, 'action', e.target.value)}
+                                      className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-xs text-gray-900 dark:text-white rounded-md p-2 focus:border-accent outline-none cursor-pointer"
+                                    >
+                                      <option value="disable">Mostrar como Agotado</option>
+                                      <option value="hide">Ocultar opción</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+
+                      {/* PANEL DE LÍMITE PARA CASILLA DE VERIFICACIÓN (CHECKBOX) */}
+                      {field._ui_showLimits && field.type === 'checkbox' && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 bg-accent/5 -mx-5 px-5 pb-4 rounded-b-xl overflow-hidden">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Users className="h-4 w-4 text-accent" />
+                            <h4 className="text-sm font-bold text-accent">Límite de Cupos (Casilla)</h4>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs text-gray-500 font-bold">Máximo de check-ins:</label>
+                              <input 
+                                type="number" 
+                                min="1"
+                                placeholder="Ej. 50 (Vacío = ilimitado)" 
+                                value={field.fieldLimit?.limit || ''} 
+                                onChange={(e) => updateSingleFieldLimit(field.id, 'limit', e.target.value)}
+                                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-900 dark:text-white rounded-lg p-2 focus:border-accent outline-none mt-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 font-bold">Si se llena, entonces:</label>
+                              <select 
+                                value={field.fieldLimit?.action || 'disable'} 
+                                onChange={(e) => updateSingleFieldLimit(field.id, 'action', e.target.value)}
+                                className="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-700 text-sm text-gray-900 dark:text-white rounded-lg p-2 focus:border-accent outline-none cursor-pointer mt-1"
+                              >
+                                <option value="disable">Bloquear y mostrar (Agotado)</option>
+                                <option value="hide">Ocultar toda la pregunta</option>
+                              </select>
+                            </div>
+                          </div>
                         </motion.div>
                       )}
 
