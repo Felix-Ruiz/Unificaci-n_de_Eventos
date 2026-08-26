@@ -195,22 +195,55 @@ export default function CheckInEventPage() {
       if (lastNameF) setLastNameFieldId(lastNameF.id);
     }
 
-    const { data: regsData } = await supabase
-      .from('registrations')
-      .select('*')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: true });
-      
-    setRegistrations(regsData || []);
+    // ==========================================
+    // PAGINACIÓN AUTOMÁTICA PARA MÁS DE 1000 REGISTROS
+    // ==========================================
+    let allRegistrations: any[] = [];
+    let fromReg = 0;
+    const step = 1000;
+    let hasMoreRegs = true;
 
-    const { data: logsData } = await supabase
-      .from('attendance_logs')
-      .select('*')
-      .eq('event_id', eventId);
-      
-    if (logsData) {
-      setAttendanceLogs(logsData);
+    while (hasMoreRegs) {
+      const { data: rBatch } = await supabase
+        .from('registrations')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: true })
+        .range(fromReg, fromReg + step - 1);
+
+      if (rBatch && rBatch.length > 0) {
+        allRegistrations = [...allRegistrations, ...rBatch];
+        fromReg += step;
+        if (rBatch.length < step) hasMoreRegs = false;
+      } else {
+        hasMoreRegs = false;
+      }
     }
+    setRegistrations(allRegistrations);
+
+    // ==========================================
+    // PAGINACIÓN AUTOMÁTICA PARA LOGS (AUDITORÍA)
+    // ==========================================
+    let allLogs: any[] = [];
+    let fromLog = 0;
+    let hasMoreLogs = true;
+
+    while (hasMoreLogs) {
+      const { data: lBatch } = await supabase
+        .from('attendance_logs')
+        .select('*')
+        .eq('event_id', eventId)
+        .range(fromLog, fromLog + step - 1);
+
+      if (lBatch && lBatch.length > 0) {
+        allLogs = [...allLogs, ...lBatch];
+        fromLog += step;
+        if (lBatch.length < step) hasMoreLogs = false;
+      } else {
+        hasMoreLogs = false;
+      }
+    }
+    setAttendanceLogs(allLogs);
 
     setLoading(false);
   }
