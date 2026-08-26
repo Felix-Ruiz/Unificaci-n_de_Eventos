@@ -28,7 +28,8 @@ import {
   Save,
   Globe,
   SlidersHorizontal,
-  ExternalLink
+  ExternalLink,
+  Mail
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -150,6 +151,9 @@ export default function EventoDetalleAdmin() {
   // ==========================================
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deletingParticipant, setDeletingParticipant] = useState<any | null>(null);
+  
+  // ESTADO PARA REENVÍO DE CORREO
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
   // ==========================================
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
@@ -285,6 +289,64 @@ export default function EventoDetalleAdmin() {
       showToast('Error', 'No se pudo eliminar al participante.', 'error');
     } finally {
       setIsActionLoading(false);
+    }
+  };
+
+  // ==========================================
+  // FUNCIÓN PARA REENVIAR CORREO INDIVIDUAL
+  // ==========================================
+  const handleResendEmail = async (reg: any) => {
+    if (!event.send_notifications) {
+      return showToast('Alertas Desactivadas', 'Debes activar los correos automáticos en la configuración del evento primero.', 'info');
+    }
+
+    setSendingEmailId(reg.id);
+
+    try {
+      let nombre = '', apellido = '', email = '', institucion = '';
+
+      fields.forEach((f: any) => {
+        const val = reg.form_data[f.id] || '';
+        if (!val) return;
+        
+        let sk = '';
+        try { sk = JSON.parse(f.options || '{}').system_key || ''; } catch(e) {}
+        const fn = (f.field_name || '').toLowerCase();
+
+        if (sk === 'nombre' || fn.includes('nombre') || fn.includes('first name')) nombre = String(val);
+        if (sk === 'apellido' || fn.includes('apellido') || fn.includes('last name')) apellido = String(val);
+        if (sk === 'email' || fn.includes('correo') || fn.includes('email')) email = String(val);
+        if (sk === 'institucion' || fn.includes('institución') || fn.includes('institucion') || fn.includes('company')) institucion = String(val);
+      });
+
+      if (!email) {
+        throw new Error("El participante no tiene un correo electrónico registrado.");
+      }
+
+      const response = await fetch('/api/send-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          nombre: `${nombre} ${apellido}`.trim() || 'Participante',
+          eventName: event.name,
+          documento: reg.historic_user_doc,
+          institucion: institucion || 'No especificada',
+          creatorEmail: event.creator_email,
+          emailSubject: event.email_subject,
+          emailBody: event.email_body,
+          lang: systemLang
+        })
+      });
+
+      if (!response.ok) throw new Error("Fallo en la comunicación con Brevo.");
+
+      showToast('Correo Enviado', `Se reenvió el código QR a ${email} exitosamente.`, 'success');
+      
+    } catch (error: any) {
+      showToast('Error', error.message || 'No se pudo reenviar el correo. Verifica tu límite en Brevo.', 'error');
+    } finally {
+      setSendingEmailId(null);
     }
   };
 
@@ -1241,6 +1303,14 @@ export default function EventoDetalleAdmin() {
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => handleResendEmail(reg)}
+                                disabled={sendingEmailId === reg.id}
+                                className="p-1.5 bg-accent/10 text-accent hover:bg-accent/20 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                                title="Reenviar Correo"
+                              >
+                                {sendingEmailId === reg.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                              </button>
                               <button 
                                 onClick={() => setEditingParticipant(reg)}
                                 className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors cursor-pointer"
