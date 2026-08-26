@@ -48,7 +48,6 @@ interface FormField {
   description?: string;
   _ui_showDescription?: boolean;
   _ui_expandedOptions?: boolean;
-  // NUEVOS CAMPOS PARA EL CONTROL DE CUPOS
   limits?: Record<string, { limit: string, action: 'hide' | 'disable' }>; 
   fieldLimit?: { limit: string, action: 'hide' | 'disable' } | null;
   _ui_showLimits?: boolean;
@@ -349,7 +348,6 @@ export default function EditarEventoPage() {
           
         if (error) throw error;
 
-        // Limpiamos etiquetas HTML por si el evento se guardó corrupto anteriormente
         const cleanName = eventData.name ? eventData.name.replace(/(<([^>]+)>)/gi, "").replace(/&nbsp;/gi, " ").trim() : '';
         setEventName(cleanName);
         
@@ -383,7 +381,6 @@ export default function EditarEventoPage() {
         
         setCreatorEmail(eventData.creator_email || '');
         
-        // CARGAMOS ASUNTO Y CUERPO DE CORREO
         setEmailSubject(eventData.email_subject || '');
         setEmailBody(eventData.email_body || '');
 
@@ -435,12 +432,16 @@ export default function EditarEventoPage() {
     setFormLanguage(lang);
     setFields(prev => prev.map(f => {
       if (f.isDefault && f.system_key && defaultTranslations[lang][f.system_key]) {
+         // PROTECCIÓN: Solo reemplazamos la lista si NO han subido un excel personalizado
+         let newOptions = f.options;
+         if (f.system_key === 'pais') newOptions = defaultCountries[lang];
+         else if (f.system_key === 'genero' || f.system_key === 'tipo_doc') {
+           newOptions = defaultTranslations[lang][f.system_key].options || f.options;
+         }
          return {
            ...f,
            label: defaultTranslations[lang][f.system_key].label || f.label,
-           options: f.system_key === 'pais' 
-            ? defaultCountries[lang] 
-            : (defaultTranslations[lang][f.system_key].options || f.options)
+           options: newOptions
          };
       }
       return f;
@@ -560,7 +561,8 @@ export default function EditarEventoPage() {
         const ws = workbook.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-        const rawOptions = data.slice(1).map(row => row[0]).filter(val => val && String(val).trim() !== '');
+        // CORRECCIÓN: Evitamos borrar la primera línea si no hay título en el Excel
+        const rawOptions = data.map(row => row[0]).filter(val => val && String(val).trim() !== '');
         const uniqueOptions = Array.from(new Set(rawOptions.map(String)));
 
         setFields(prev => prev.map(f => f.id === id ? { ...f, options: uniqueOptions, _ui_expandedOptions: false } : f));
@@ -590,7 +592,6 @@ export default function EditarEventoPage() {
 
   const handleUpdateEvent = async () => {
     
-    // VALIDACIONES OBLIGATORIAS
     const plainName = eventName.trim();
     if (!plainName) {
       return showToast('Campo Requerido', 'El nombre del evento es obligatorio.', 'error');
@@ -626,7 +627,6 @@ export default function EditarEventoPage() {
       let finalLogoUrl = logoPreview;
       let finalBannerUrl = bannerPreview;
 
-      // ELIMINAR LÓGICA: Si se limpió la imagen en la UI, guardamos null
       if (!logoPreview && !logoFile) {
          finalLogoUrl = null;
       } else if (logoFile) {
@@ -698,19 +698,19 @@ export default function EditarEventoPage() {
           order_index: index
         };
         
-        if (!isNew) {
-           payload.id = f.id;
-        } else {
-           payload.id = f.id; // Se respeta el ID único que se le asignó al crearlo en el estado del cliente.
-        }
-        
+        // CORRECCIÓN: Garantizamos que Supabase encuentre el ID para hacer el Upsert correcto
+        payload.id = f.id; 
         return payload;
       });
 
-      const { error: fieldsError } = await supabase.from('event_fields').upsert(fieldsToUpsert);
+      // CORRECCIÓN: Agregamos el onConflict explícito
+      const { error: fieldsError } = await supabase.from('event_fields').upsert(fieldsToUpsert, { onConflict: 'id' });
       if (fieldsError) throw fieldsError;
 
       showToast('Actualización Exitosa', 'El evento ha sido modificado y publicado.', 'success');
+      
+      // CORRECCIÓN: Limpiamos el caché local de Next.js antes de redirigir
+      router.refresh(); 
       setTimeout(() => router.push(`/admin/eventos/${eventId}`), 1500);
 
     } catch (error: any) {

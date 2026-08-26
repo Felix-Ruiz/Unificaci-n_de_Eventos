@@ -255,12 +255,54 @@ export default function AutoCheckInPage() {
       });
       setFields(preParsedFields);
 
-      const { data: regsData } = await supabase.from('registrations').select('*').eq('event_id', eventId);
-      const { data: logsData } = await supabase.from('attendance_logs').select('*').eq('event_id', eventId);
+      // ==========================================
+      // PAGINACIÓN AUTOMÁTICA PARA MÁS DE 1000 REGISTROS
+      // ==========================================
+      let allRegistrations: any[] = [];
+      let fromReg = 0;
+      const step = 1000;
+      let hasMoreRegs = true;
+
+      while (hasMoreRegs) {
+        const { data: rBatch } = await supabase
+          .from('registrations')
+          .select('*')
+          .eq('event_id', eventId)
+          .range(fromReg, fromReg + step - 1);
+
+        if (rBatch && rBatch.length > 0) {
+          allRegistrations = [...allRegistrations, ...rBatch];
+          fromReg += step;
+          if (rBatch.length < step) hasMoreRegs = false;
+        } else {
+          hasMoreRegs = false;
+        }
+      }
+
+      // PAGINACIÓN AUTOMÁTICA PARA LOGS DE ASISTENCIA
+      let allLogs: any[] = [];
+      let fromLog = 0;
+      let hasMoreLogs = true;
+
+      while (hasMoreLogs) {
+        const { data: lBatch } = await supabase
+          .from('attendance_logs')
+          .select('*')
+          .eq('event_id', eventId)
+          .range(fromLog, fromLog + step - 1);
+
+        if (lBatch && lBatch.length > 0) {
+          allLogs = [...allLogs, ...lBatch];
+          fromLog += step;
+          if (lBatch.length < step) hasMoreLogs = false;
+        } else {
+          hasMoreLogs = false;
+        }
+      }
       
       localCacheRef.current = {
-        registrations: regsData || [],
-        logs: logsData || []
+        registrations: allRegistrations,
+        logs: allLogs
       };
 
     } catch (error) {
