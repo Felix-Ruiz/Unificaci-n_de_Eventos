@@ -230,6 +230,19 @@ export default function FormularioPublico() {
 
         setFields(preParsedFields);
 
+        // AUTO-DETECCIÓN DE IDIOMA PARA LA INTERFAZ
+        const isEnglishEvent = preParsedFields.some(f => 
+          f.field_name === 'Email Address' || 
+          f.field_name === 'First Name(s)' ||
+          f.field_name === 'Document Type'
+        );
+        
+        if (isEnglishEvent) {
+          setLanguage('en');
+        } else {
+          setLanguage('es');
+        }
+
         // ==========================================
         // CÁLCULO DE CUPOS (LÍMITES POR PREGUNTA)
         // ==========================================
