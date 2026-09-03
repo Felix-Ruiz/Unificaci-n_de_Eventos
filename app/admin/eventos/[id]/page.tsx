@@ -1189,11 +1189,11 @@ export default function EventoDetalleAdmin() {
           {activeTab === 'lista' ? (
             <>
               {isFullScreen && (
-                <div className="fixed inset-0 z-9998 bg-black/90 backdrop-blur-sm" onClick={() => setIsFullScreen(false)}></div>
+                <div className="fixed inset-0 z-999998 bg-black/90 backdrop-blur-sm" onClick={() => setIsFullScreen(false)}></div>
               )}
               <div className={
                 isFullScreen 
-                  ? "fixed inset-4 md:inset-8 z-9999 bg-[#0a0a0a] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl flex flex-col overflow-hidden" 
+                  ? "fixed inset-4 md:inset-8 z-999999 bg-[#0a0a0a] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl flex flex-col overflow-hidden" 
                   : "bg-surface border border-white/5 rounded-2xl flex flex-col h-full min-h-125 relative"
               }>
                 <div className="p-6 border-b border-white/5 space-y-4">
@@ -1201,7 +1201,7 @@ export default function EventoDetalleAdmin() {
                     
                     <div className="flex items-center gap-3">
                       <h2 className="text-xl font-bold text-white">{t.tabList}</h2>
-                      <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-bold">
+                      <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap">
                         {filteredRegistrations.length} {event.max_capacity && `/ ${event.max_capacity}`}
                       </span>
                       <button 
@@ -1213,7 +1213,7 @@ export default function EventoDetalleAdmin() {
                       </button>
                     </div>
                     
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
                       <input 
                         type="file" 
                         accept=".xlsx, .xls" 
@@ -1224,30 +1224,30 @@ export default function EventoDetalleAdmin() {
                       <button 
                         onClick={() => excelUploadRef.current?.click()} 
                         disabled={isImporting} 
-                        className="bg-gray-800 text-white hover:bg-gray-700 font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-transform active:translate-y-1 text-sm border border-transparent disabled:opacity-50 cursor-pointer"
+                        className="bg-gray-800 text-white hover:bg-gray-700 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-transform active:translate-y-1 text-xs border border-transparent disabled:opacity-50 cursor-pointer"
                       >
-                        {isImporting ? <Loader2 className="h-4 w-4 animate-spin"/> : <UploadCloud className="h-4 w-4" />} 
+                        {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <UploadCloud className="h-3.5 w-3.5" />} 
                         {t.btnImport}
                       </button>
 
                       <Link href={`/admin/eventos/${event.id}/gafetes`}>
-                        <button className="bg-white text-black hover:bg-gray-200 font-bold py-2.5 px-4 rounded-lg flex items-center gap-2 transition-transform active:translate-y-1 text-sm border border-transparent cursor-pointer">
-                          <Printer className="h-4 w-4" /> 
+                        <button className="bg-white text-black hover:bg-gray-200 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-transform active:translate-y-1 text-xs border border-transparent cursor-pointer">
+                          <Printer className="h-3.5 w-3.5" /> 
                           {t.btnGafetes}
                         </button>
                       </Link>
 
                       <Link href={`/admin/eventos/${eventId}/editar`}>
-                          <button className="bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer">
-                              <Settings className="h-4 w-4 text-gray-400" /> {t.btnEditEvent}
+                          <button className="bg-surface border border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer text-xs">
+                              <Settings className="h-3.5 w-3.5 text-gray-400" /> {t.btnEditEvent}
                           </button>
                       </Link>
                       
                       <button 
                         onClick={openExportModal} 
-                        className="bg-accent hover:bg-accent/90 text-black font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-sm cursor-pointer"
+                        className="bg-accent hover:bg-accent/90 text-black font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 shadow-4d-static transition-transform active:translate-y-1 active:shadow-none text-xs cursor-pointer"
                       >
-                        <Download className="h-4 w-4" /> 
+                        <Download className="h-3.5 w-3.5" /> 
                         {t.btnExport}
                       </button>
                     </div>
@@ -1347,7 +1347,7 @@ export default function EventoDetalleAdmin() {
                                 </button>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-xs text-gray-500">
+                            <td className="px-6 py-4 text-xs text-gray-500 whitespace-nowrap">
                               {new Date(reg.created_at).toLocaleDateString()}
                             </td>
                             {/* DIBUJADO DE LAS RESPUESTAS (INCLUYE ARCHIVOS) */}
@@ -1358,7 +1358,7 @@ export default function EventoDetalleAdmin() {
                               return (
                                 <td 
                                   key={f.id} 
-                                  className="px-6 py-4 max-w-50 truncate" 
+                                  className="px-6 py-4 whitespace-nowrap" 
                                   title={!isFileUrl ? val : 'Archivo adjunto'}
                                 >
                                   {isFileUrl ? (
