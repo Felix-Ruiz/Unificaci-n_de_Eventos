@@ -115,7 +115,6 @@ export default function EventoDetalleAdmin() {
   
   const [activeTab, setActiveTab] = useState<'lista' | 'analitica'>('lista');
   
-  // ESTADO NUEVO: PANTALLA COMPLETA PARA TABLA
   const [isFullScreen, setIsFullScreen] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -128,9 +127,7 @@ export default function EventoDetalleAdmin() {
   
   const excelUploadRef = useRef<HTMLInputElement>(null);
 
-  // ==========================================
   // ESTADOS NUEVOS Y SELECCIÓN MASIVA
-  // ==========================================
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [selectedRegIds, setSelectedRegIds] = useState<string[]>([]);
   
@@ -139,32 +136,24 @@ export default function EventoDetalleAdmin() {
   const [bulkEditValue, setBulkEditValue] = useState('');
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
-  // ==========================================
   // ESTADOS PARA MAPEADOR DE EXCEL
-  // ==========================================
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
   const [excelRawRows, setExcelRawRows] = useState<any[]>([]);
   const [columnMapping, setMappingSelection] = useState<Record<string, string>>({});
 
-  // ==========================================
   // ESTADOS PARA EXPORTACIÓN INTELIGENTE
-  // ==========================================
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
-  // ==========================================
   // ESTADOS PARA EDICIÓN Y ELIMINACIÓN INDIVIDUAL
-  // ==========================================
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deletingParticipant, setDeletingParticipant] = useState<any | null>(null);
   
   // ESTADO PARA REENVÍO DE CORREO
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
-  // ==========================================
   // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
-  // ==========================================
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'archive' } | null>(null);
 
@@ -226,7 +215,6 @@ export default function EventoDetalleAdmin() {
       }
       
       setRegistrations(allRegistrations);
-      // === FIN DE DESCARGA PAGINADA ===
       
     } catch (error) {
       console.error("Error:", error);
@@ -300,9 +288,6 @@ export default function EventoDetalleAdmin() {
     }
   };
 
-  // ==========================================
-  // FUNCIÓN PARA REENVIAR CORREO INDIVIDUAL
-  // ==========================================
   const handleResendEmail = async (reg: any) => {
     if (!event.send_notifications) {
       return showToast('Alertas Desactivadas', 'Debes activar los correos automáticos en la configuración del evento primero.', 'info');
@@ -678,7 +663,7 @@ export default function EventoDetalleAdmin() {
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
           
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-white">{t.tabList}</h2>
+            <h2 className="text-xl font-bold text-white whitespace-nowrap">{t.tabList}</h2>
             <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap">
               {filteredRegistrations.length} {event.max_capacity && `/ ${event.max_capacity}`}
             </span>
@@ -916,378 +901,383 @@ export default function EventoDetalleAdmin() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
 
-      {/* TOASTS CONTENEDOR */}
-      <div className="fixed top-6 right-6 z-9999 flex flex-col gap-3 pointer-events-none">
-        <AnimatePresence>
-          {toast && (
-            <motion.div 
-              initial={{ opacity: 0, x: 50, scale: 0.9 }} 
-              animate={{ opacity: 1, x: 0, scale: 1 }} 
-              exit={{ opacity: 0, x: 20, scale: 0.9 }}
-              className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
-                toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
-                'bg-blue-500/10 border-blue-500/30'
-              }`}
-            >
-              {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
-              {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
-              
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
-                <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
-              </div>
-              
-              <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
-                <X className="h-4 w-4" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* RENDERIZADO GLOBAL PARA TODOS LOS MODALES Y TOASTS EN LA CAPA MÁS ALTA */}
+      {isMounted && createPortal(
+        <>
+          {/* TOASTS CONTENEDOR */}
+          <div className="fixed top-6 right-6 z-99999999 flex flex-col gap-3 pointer-events-none">
+            <AnimatePresence>
+              {toast && (
+                <motion.div 
+                  initial={{ opacity: 0, x: 50, scale: 0.9 }} 
+                  animate={{ opacity: 1, x: 0, scale: 1 }} 
+                  exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                  className={`pointer-events-auto flex items-start gap-3 w-80 p-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                    toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 
+                    toast.type === 'success' ? 'bg-green-500/10 border-green-500/30' : 
+                    'bg-blue-500/10 border-blue-500/30'
+                  }`}
+                >
+                  {toast.type === 'error' && <AlertCircle className="h-6 w-6 text-red-400 shrink-0" />}
+                  {toast.type === 'success' && <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />}
+                  {toast.type === 'info' && <Info className="h-6 w-6 text-blue-400 shrink-0" />}
+                  
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-white mb-1">{toast.title}</h4>
+                    <p className="text-xs text-gray-300 leading-snug">{toast.desc}</p>
+                  </div>
+                  
+                  <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white transition-colors cursor-pointer">
+                    <X className="h-4 w-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-      {/* POP-UP MAPEA EXCEL EXPLICITO */}
-      <AnimatePresence>
-        {showMappingModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
-              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2"><SlidersHorizontal className="h-5 w-5 text-accent"/> Relacionar Columnas del Excel</h2>
-                <button onClick={() => { setShowMappingModal(false); setIsImporting(false); }} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-6 w-6"/></button>
-              </div>
-              <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
-                <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex gap-3 text-yellow-500 text-xs leading-relaxed">
-                  <AlertCircle className="h-5 w-5 shrink-0" />
-                  <p>Detectamos discrepancias entre las columnas de tu archivo Excel y las preguntas activas del formulario. Por favor, asocia cada campo de la base de datos con la columna correcta de tu archivo.</p>
-                </div>
-                <div className="space-y-3.5">
-                  {fields.map(f => (
-                    <div key={f.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center p-3 bg-black/20 border border-white/5 rounded-xl">
-                      <span className="text-sm text-gray-200 font-bold truncate">{f.field_name} {f.is_required && <span className="text-accent">*</span>}</span>
+          {/* POP-UP MAPEA EXCEL EXPLICITO */}
+          <AnimatePresence>
+            {showMappingModal && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+                  <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2"><SlidersHorizontal className="h-5 w-5 text-accent"/> Relacionar Columnas del Excel</h2>
+                    <button onClick={() => { setShowMappingModal(false); setIsImporting(false); }} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-6 w-6"/></button>
+                  </div>
+                  <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
+                    <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex gap-3 text-yellow-500 text-xs leading-relaxed">
+                      <AlertCircle className="h-5 w-5 shrink-0" />
+                      <p>Detectamos discrepancias entre las columnas de tu archivo Excel y las preguntas activas del formulario. Por favor, asocia cada campo de la base de datos con la columna correcta de tu archivo.</p>
+                    </div>
+                    <div className="space-y-3.5">
+                      {fields.map(f => (
+                        <div key={f.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center p-3 bg-black/20 border border-white/5 rounded-xl">
+                          <span className="text-sm text-gray-200 font-bold truncate">{f.field_name} {f.is_required && <span className="text-accent">*</span>}</span>
+                          <select 
+                            value={columnMapping[f.id] || ''} 
+                            onChange={(e) => setMappingSelection(prev => ({ ...prev, [f.id]: e.target.value }))}
+                            className="w-full bg-black/40 border border-white/10 text-xs text-white rounded-lg p-2.5 focus:border-accent cursor-pointer"
+                          >
+                            <option value="">-- No importar este campo --</option>
+                            {excelHeaders.map(h => (<option key={h} value={h}>{h}</option>))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-white/5 bg-surface">
+                    <button onClick={() => proceedWithMappedImport(columnMapping, excelRawRows)} className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static flex justify-center items-center gap-2 cursor-pointer">Procesar Importación</button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* POP-UP: BULK EDIT DE SELECCIONADOS */}
+          <AnimatePresence>
+            {showBulkEditModal && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-2xl p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2"><Pencil className="h-5 w-5 text-primary"/> Modificación Masiva</h3>
+                    <button onClick={() => setShowBulkEditModal(false)} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-5 w-5"/></button>
+                  </div>
+                  <form onSubmit={executeBulkEdit} className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Selecciona el Campo a Modificar</label>
                       <select 
-                        value={columnMapping[f.id] || ''} 
-                        onChange={(e) => setMappingSelection(prev => ({ ...prev, [f.id]: e.target.value }))}
-                        className="w-full bg-black/40 border border-white/10 text-xs text-white rounded-lg p-2.5 focus:border-accent cursor-pointer"
+                        required 
+                        value={bulkEditTargetField} 
+                        onChange={e => setBulkEditTargetField(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-primary cursor-pointer"
                       >
-                        <option value="">-- No importar este campo --</option>
-                        {excelHeaders.map(h => (<option key={h} value={h}>{h}</option>))}
+                        <option value="">Selecciona...</option>
+                        {fields.filter(f => {
+                          const fn = f.field_name.toLowerCase();
+                          return !fn.includes('documento') && !fn.includes('tipo');
+                        }).map(f => (<option key={f.id} value={f.id}>{f.field_name}</option>))}
                       </select>
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-6 border-t border-white/5 bg-surface">
-                <button onClick={() => proceedWithMappedImport(columnMapping, excelRawRows)} className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static flex justify-center items-center gap-2 cursor-pointer">Procesar Importación</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* POP-UP: BULK EDIT DE SELECCIONADOS */}
-      <AnimatePresence>
-        {showBulkEditModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-2xl p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2"><Pencil className="h-5 w-5 text-primary"/> Modificación Masiva</h3>
-                <button onClick={() => setShowBulkEditModal(false)} className="text-gray-500 hover:text-white cursor-pointer"><X className="h-5 w-5"/></button>
-              </div>
-              <form onSubmit={executeBulkEdit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Selecciona el Campo a Modificar</label>
-                  <select 
-                    required 
-                    value={bulkEditTargetField} 
-                    onChange={e => setBulkEditTargetField(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-primary cursor-pointer"
-                  >
-                    <option value="">Selecciona...</option>
-                    {fields.filter(f => {
-                      const fn = f.field_name.toLowerCase();
-                      return !fn.includes('documento') && !fn.includes('tipo');
-                    }).map(f => (<option key={f.id} value={f.id}>{f.field_name}</option>))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Nuevo Valor Común</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="Completa el valor que tendrán todos..." 
-                    value={bulkEditValue} 
-                    onChange={e => setBulkEditValue(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-primary"
-                  />
-                </div>
-                <div className="pt-4 flex justify-end gap-2">
-                  <button type="button" onClick={() => setShowBulkEditModal(false)} className="px-5 py-2.5 text-gray-300 hover:bg-white/5 rounded-lg text-sm font-medium cursor-pointer">Cancelar</button>
-                  <button type="submit" className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg text-sm shadow-4d-static flex items-center gap-2 cursor-pointer"><Save className="h-4 w-4"/> Aplicar a {selectedRegIds.length}</button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* POP-UP: BULK DELETE MODAL */}
-      <AnimatePresence>
-        {showBulkDeleteModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-              <h2 className="text-2xl font-bold text-white mb-3">Eliminación Masiva</h2>
-              <p className="text-gray-300 mb-8 text-sm">¿Estás completamente seguro de eliminar los {selectedRegIds.length} participantes seleccionados del evento al mismo tiempo? Esta acción destruirá los registros de forma definitiva.</p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowBulkDeleteModal(false)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 font-medium text-sm cursor-pointer">Cancelar</button>
-                <button onClick={executeBulkDelete} className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 shadow-4d-static text-sm flex items-center gap-2 cursor-pointer"><Trash2 className="h-4 w-4"/> Confirmar Destrucción</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL EDITAR PARTICIPANTE INDIVIDUAL */}
-      <AnimatePresence>
-        {editingParticipant && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-surface border border-white/10 rounded-3xl w-full max-w-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Pencil className="h-5 w-5 text-primary"/> Editar Participante
-                </h2>
-                <button 
-                  onClick={() => setEditingParticipant(null)} 
-                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
-                >
-                  <X className="h-6 w-6"/>
-                </button>
-              </div>
-              
-              <form onSubmit={saveParticipantEdit} className="flex flex-col flex-1 overflow-hidden">
-                <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
-                  {fields.map((f: any) => (
-                    <div key={f.id} className="space-y-1">
-                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{f.field_name}</label>
-                      {['select', 'radio'].includes(f.field_type) ? (
-                        <select 
-                          value={editingParticipant.form_data[f.id] || ''} 
-                          onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary cursor-pointer"
-                        >
-                          <option value="">Seleccionar...</option>
-                          {f.options && JSON.parse(f.options).choices?.map((opt: string) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                          <option value="Otra">Otra</option>
-                        </select>
-                      ) : f.field_type === 'textarea' ? (
-                        <textarea 
-                          value={editingParticipant.form_data[f.id] || ''} 
-                          onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
-                          rows={3}
-                          className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary resize-none"
-                        />
-                      ) : (
-                        <div>
-                          <input 
-                            type="text" 
-                            value={editingParticipant.form_data[f.id] || ''} 
-                            onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
-                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
-                          />
-                          {/* DETECCIÓN VISUAL DE URL (ARCHIVOS) EN MODO EDICIÓN */}
-                          {editingParticipant.form_data[f.id]?.startsWith('http') && (
-                            <a 
-                              href={editingParticipant.form_data[f.id]} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="text-xs text-blue-400 hover:underline mt-1.5 flex items-center gap-1 w-max"
-                            >
-                              <ExternalLink className="h-3 w-3" /> Ver archivo actual adjunto
-                            </a>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="p-6 border-t border-white/5 bg-surface flex justify-end gap-3">
-                  <button 
-                    type="button"
-                    onClick={() => setEditingParticipant(null)} 
-                    disabled={isActionLoading}
-                    className="px-6 py-3 rounded-xl text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50 cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    type="submit"
-                    disabled={isActionLoading}
-                    className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 disabled:opacity-50 cursor-pointer"
-                  >
-                    {isActionLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : <Save className="h-5 w-5"/>} 
-                    Guardar Cambios
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL ELIMINAR PARTICIPANTE INDIVIDUAL */}
-      <AnimatePresence>
-        {deletingParticipant && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-              <h2 className="text-2xl font-bold text-white mb-3">Eliminar Participante</h2>
-              <p className="text-gray-300 mb-8 text-sm">
-                ¿Estás seguro de eliminar este registro? Esta acción borrará al participante del evento de forma permanente.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setDeletingParticipant(null)} disabled={isActionLoading} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50 cursor-pointer">Cancelar</button>
-                <button 
-                  onClick={confirmDeleteParticipant} 
-                  disabled={isActionLoading}
-                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static flex items-center gap-2 disabled:opacity-50 cursor-pointer"
-                >
-                  {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>} 
-                  Confirmar
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL 4D DE CONFIRMACIÓN DE ARCHIVO */}
-      <AnimatePresence>
-        {confirmModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-              className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
-              <h2 className="text-2xl font-bold text-white mb-3">Archivar Evento</h2>
-              <p className="text-gray-300 mb-8">
-                ¿Estás seguro de enviar "{event.name}" a la papelera? Esta acción desactivará los registros públicos.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
-                <button 
-                  onClick={confirmArchiveEvent} 
-                  className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
-                >
-                  Confirmar Acción
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      {/* MODAL EXPORTAR EXCEL INTELIGENTE */}
-      <AnimatePresence>
-        {showExportModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-10000 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} 
-              className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Download className="h-5 w-5 text-accent"/> Configurar Reporte
-                </h2>
-                <button 
-                  onClick={() => setShowExportModal(false)} 
-                  className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
-                >
-                  <X className="h-6 w-6"/>
-                </button>
-              </div>
-              
-              <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
-                <p className="text-sm text-gray-400 mb-2">Selecciona las columnas que deseas incluir en el archivo Excel:</p>
-                
-                <div className="flex gap-2 mb-4">
-                  <button 
-                    onClick={selectAllColumns} 
-                    className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30 cursor-pointer"
-                  >
-                    Seleccionar Todas
-                  </button>
-                  <button 
-                    onClick={deselectAllColumns} 
-                    className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10 cursor-pointer"
-                  >
-                    Desmarcar Todas
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
-                    <div className="flex items-center h-5">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 uppercase">Nuevo Valor Común</label>
                       <input 
-                        type="checkbox" 
-                        checked={selectedColumns.includes('fecha')} 
-                        onChange={() => toggleColumn('fecha')} 
-                        className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                        type="text" 
+                        required 
+                        placeholder="Completa el valor que tendrán todos..." 
+                        value={bulkEditValue} 
+                        onChange={e => setBulkEditValue(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-primary"
                       />
                     </div>
-                    <span className="text-sm font-medium text-gray-200">Fecha de Registro</span>
-                  </label>
+                    <div className="pt-4 flex justify-end gap-2">
+                      <button type="button" onClick={() => setShowBulkEditModal(false)} className="px-5 py-2.5 text-gray-300 hover:bg-white/5 rounded-lg text-sm font-medium cursor-pointer">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-primary text-white font-bold rounded-lg text-sm shadow-4d-static flex items-center gap-2 cursor-pointer"><Save className="h-4 w-4"/> Aplicar a {selectedRegIds.length}</button>
+                    </div>
+                  </form>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-                  {fields.map(f => (
-                    <label key={f.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
-                      <div className="flex items-center h-5">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedColumns.includes(f.id)} 
-                          onChange={() => toggleColumn(f.id)} 
-                          className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
-                        />
-                      </div>
-                      <span className="text-sm font-medium text-gray-200">{f.field_name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+          {/* POP-UP: BULK DELETE MODAL */}
+          <AnimatePresence>
+            {showBulkDeleteModal && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+                  <h2 className="text-2xl font-bold text-white mb-3">Eliminación Masiva</h2>
+                  <p className="text-gray-300 mb-8 text-sm">¿Estás completamente seguro de eliminar los {selectedRegIds.length} participantes seleccionados del evento al mismo tiempo? Esta acción destruirá los registros de forma definitiva.</p>
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setShowBulkDeleteModal(false)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 font-medium text-sm cursor-pointer">Cancelar</button>
+                    <button onClick={executeBulkDelete} className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 shadow-4d-static text-sm flex items-center gap-2 cursor-pointer"><Trash2 className="h-4 w-4"/> Confirmar Destrucción</button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              <div className="p-6 border-t border-white/5 bg-surface">
-                <button 
-                  onClick={confirmExport} 
-                  className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 cursor-pointer"
+          {/* MODAL EDITAR PARTICIPANTE INDIVIDUAL */}
+          <AnimatePresence>
+            {editingParticipant && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              >
+                <motion.div 
+                  initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                  className="bg-surface border border-white/10 rounded-3xl w-full max-w-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
                 >
-                  <Download className="h-5 w-5"/> Generar y Descargar
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Pencil className="h-5 w-5 text-primary"/> Editar Participante
+                    </h2>
+                    <button 
+                      onClick={() => setEditingParticipant(null)} 
+                      className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
+                    >
+                      <X className="h-6 w-6"/>
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={saveParticipantEdit} className="flex flex-col flex-1 overflow-hidden">
+                    <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
+                      {fields.map((f: any) => (
+                        <div key={f.id} className="space-y-1">
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{f.field_name}</label>
+                          {['select', 'radio'].includes(f.field_type) ? (
+                            <select 
+                              value={editingParticipant.form_data[f.id] || ''} 
+                              onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                              className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary cursor-pointer"
+                            >
+                              <option value="">Seleccionar...</option>
+                              {f.options && JSON.parse(f.options).choices?.map((opt: string) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                              <option value="Otra">Otra</option>
+                            </select>
+                          ) : f.field_type === 'textarea' ? (
+                            <textarea 
+                              value={editingParticipant.form_data[f.id] || ''} 
+                              onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                              rows={3}
+                              className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary resize-none"
+                            />
+                          ) : (
+                            <div>
+                              <input 
+                                type="text" 
+                                value={editingParticipant.form_data[f.id] || ''} 
+                                onChange={(e) => handleEditFieldChange(f.id, e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary"
+                              />
+                              {editingParticipant.form_data[f.id]?.startsWith('http') && (
+                                <a 
+                                  href={editingParticipant.form_data[f.id]} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-xs text-blue-400 hover:underline mt-1.5 flex items-center gap-1 w-max"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> Ver archivo actual adjunto
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-6 border-t border-white/5 bg-surface flex justify-end gap-3">
+                      <button 
+                        type="button"
+                        onClick={() => setEditingParticipant(null)} 
+                        disabled={isActionLoading}
+                        className="px-6 py-3 rounded-xl text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button 
+                        type="submit"
+                        disabled={isActionLoading}
+                        className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {isActionLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : <Save className="h-5 w-5"/>} 
+                        Guardar Cambios
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* MODAL ELIMINAR PARTICIPANTE INDIVIDUAL */}
+          <AnimatePresence>
+            {deletingParticipant && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              >
+                <motion.div 
+                  initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                  className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+                  <h2 className="text-2xl font-bold text-white mb-3">Eliminar Participante</h2>
+                  <p className="text-gray-300 mb-8 text-sm">
+                    ¿Estás seguro de eliminar este registro? Esta acción borrará al participante del evento de forma permanente.
+                  </p>
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setDeletingParticipant(null)} disabled={isActionLoading} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium disabled:opacity-50 cursor-pointer">Cancelar</button>
+                    <button 
+                      onClick={confirmDeleteParticipant} 
+                      disabled={isActionLoading}
+                      className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>} 
+                      Confirmar
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* MODAL 4D DE CONFIRMACIÓN DE ARCHIVO */}
+          <AnimatePresence>
+            {confirmModal && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              >
+                <motion.div 
+                  initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                  className="bg-surface border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+                  <h2 className="text-2xl font-bold text-white mb-3">Archivar Evento</h2>
+                  <p className="text-gray-300 mb-8">
+                    ¿Estás seguro de enviar "{event.name}" a la papelera? Esta acción desactivará los registros públicos.
+                  </p>
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => setConfirmModal(null)} className="px-5 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 transition-colors font-medium cursor-pointer">Cancelar</button>
+                    <button 
+                      onClick={confirmArchiveEvent} 
+                      className="px-5 py-2.5 rounded-lg text-white font-bold bg-red-500 hover:bg-red-600 transition-transform active:scale-95 shadow-4d-static cursor-pointer"
+                    >
+                      Confirmar Acción
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* MODAL EXPORTAR EXCEL INTELIGENTE */}
+          <AnimatePresence>
+            {showExportModal && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+                className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              >
+                <motion.div 
+                  initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} 
+                  className="bg-surface border border-white/10 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]"
+                >
+                  <div className="p-6 border-b border-white/5 flex justify-between items-center bg-surface sticky top-0 z-10">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Download className="h-5 w-5 text-accent"/> Configurar Reporte
+                    </h2>
+                    <button 
+                      onClick={() => setShowExportModal(false)} 
+                      className="text-gray-500 hover:text-white p-1 transition-colors rounded-full hover:bg-white/5 cursor-pointer"
+                    >
+                      <X className="h-6 w-6"/>
+                    </button>
+                  </div>
+                  
+                  <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
+                    <p className="text-sm text-gray-400 mb-2">Selecciona las columnas que deseas incluir en el archivo Excel:</p>
+                    
+                    <div className="flex gap-2 mb-4">
+                      <button 
+                        onClick={selectAllColumns} 
+                        className="flex-1 text-xs bg-primary/20 text-primary py-2 rounded-lg hover:bg-primary hover:text-white font-bold transition-colors border border-primary/30 cursor-pointer"
+                      >
+                        Seleccionar Todas
+                      </button>
+                      <button 
+                        onClick={deselectAllColumns} 
+                        className="flex-1 text-xs bg-white/5 text-gray-400 py-2 rounded-lg hover:bg-white/10 hover:text-white font-bold transition-colors border border-white/10 cursor-pointer"
+                      >
+                        Desmarcar Todas
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                        <div className="flex items-center h-5">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedColumns.includes('fecha')} 
+                            onChange={() => toggleColumn('fecha')} 
+                            className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                          />
+                        </div>
+                        <span className="text-sm font-medium text-gray-200">Fecha de Registro</span>
+                      </label>
+
+                      {fields.map(f => (
+                        <label key={f.id} className="flex items-center gap-3 p-3 bg-black/30 border border-white/5 rounded-xl cursor-pointer hover:border-accent/50 transition-colors">
+                          <div className="flex items-center h-5">
+                            <input 
+                              type="checkbox" 
+                              checked={selectedColumns.includes(f.id)} 
+                              onChange={() => toggleColumn(f.id)} 
+                              className="w-5 h-5 appearance-none rounded border-2 border-gray-500 checked:bg-accent checked:border-accent flex items-center justify-center transition-colors cursor-pointer after:content-['✓'] after:text-black after:font-bold after:opacity-0 checked:after:opacity-100 after:text-xs"
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-gray-200">{f.field_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-6 border-t border-white/5 bg-surface">
+                    <button 
+                      onClick={confirmExport} 
+                      className="w-full bg-accent hover:bg-accent/90 text-black font-bold py-3.5 rounded-xl shadow-4d-static active:translate-y-1 active:shadow-none transition-transform flex justify-center items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="h-5 w-5"/> Generar y Descargar
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>,
+        document.body
+      )}
 
       <header className="mb-6 flex flex-col md:flex-row justify-between md:items-end gap-4">
         <div>
