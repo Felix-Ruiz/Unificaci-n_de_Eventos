@@ -711,7 +711,9 @@ export default function EventoDetalleAdmin() {
   const publicUrl = `${baseUrl}/e/${event.slug || event.id}`;
   const iframeCode = `<iframe src="${publicUrl}" width="100%" height="800" frameborder="0" style="border-radius: 12px; overflow: hidden; max-width: 800px; margin: auto; display: block;"></iframe>`;
 
-  // COMPONENTE DE LA TABLA
+  // ==========================================
+  // COMPONENTE: PANEL DE TABLA (LISTA)
+  // ==========================================
   const renderTablePanel = () => (
     <div className="flex flex-col h-full w-full relative">
       <div className="p-6 border-b border-white/5 space-y-4 shrink-0">
@@ -946,6 +948,142 @@ export default function EventoDetalleAdmin() {
           </div>
         </div>
       )}
+    </div>
+  );
+
+  // ==========================================
+  // COMPONENTE: PANEL DE ANALÍTICAS (GRÁFICAS)
+  // ==========================================
+  const renderAnalyticsPanel = () => (
+    <div className="flex flex-col h-full w-full relative">
+      <div className="p-6 border-b border-white/5 flex justify-between items-center shrink-0">
+        <h2 className="text-xl font-bold text-white whitespace-nowrap">{t.tabAnalytics}</h2>
+        <button 
+          onClick={() => setIsFullScreen(!isFullScreen)}
+          className="ml-2 p-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer border border-white/5 hover:border-white/10"
+          title={isFullScreen ? "Contraer vista" : "Expandir a pantalla completa"}
+        >
+          {isFullScreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </button>
+      </div>
+      
+      <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+        
+        {/* KPI GLOBAL */}
+        <div className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest">{t.totalCapacity}</h3>
+            <p className="text-4xl font-black text-white mt-1 flex items-baseline gap-2">
+              {registrations.length} 
+              <span className="text-sm text-gray-400 font-medium">participantes registrados</span>
+            </p>
+          </div>
+          {event.max_capacity && (
+            <div className="w-full sm:w-64 text-left sm:text-right">
+              <p className="text-xs text-accent font-bold mb-1.5 flex items-center justify-between sm:justify-end gap-2">
+                <span>{Math.round((registrations.length / event.max_capacity) * 100)}% {t.fullLabel}</span>
+                <span className="text-gray-500 text-[11px] font-normal">Capacidad: {event.max_capacity}</span>
+              </p>
+              <div className="w-full bg-black/50 rounded-full h-2.5 overflow-hidden border border-white/10">
+                <div 
+                  className="bg-accent h-full rounded-full transition-all duration-1000" 
+                  style={{ width: `${Math.min((registrations.length / event.max_capacity) * 100, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {dynamicAnalytics.length === 0 ? (
+          <div className="bg-surface border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+            <PieIcon className="h-12 w-12 text-gray-600 mb-3 opacity-30" />
+            <h4 className="text-white font-bold text-lg mb-1">Aún no hay suficientes datos</h4>
+            <p className="text-gray-400 text-xs max-w-md leading-relaxed">
+              A medida que los asistentes completen los campos de selección en el formulario, aquí se generarán automáticamente gráficas interactivas y porcentajes en tiempo real.
+            </p>
+          </div>
+        ) : (
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${isFullScreen ? 'lg:grid-cols-3 xl:grid-cols-4' : ''} gap-6`}>
+            {dynamicAnalytics.map((item) => {
+              let accumulatedPercent = 0;
+
+              return (
+                <div key={item.fieldId} className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2 truncate" title={item.fieldName}>
+                        <TrendingUp className="h-4 w-4 text-primary shrink-0" />
+                        <span className="truncate">{item.fieldName}</span>
+                      </h3>
+                      <span className="text-[10px] text-gray-500 font-mono uppercase bg-white/5 px-2 py-0.5 rounded border border-white/5 shrink-0">
+                        {item.totalAnswers} respuestas
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col xl:flex-row items-center gap-6 my-2">
+                      <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                          <circle 
+                            cx="18" cy="18" r="15.915" 
+                            fill="transparent" 
+                            stroke="rgba(255, 255, 255, 0.05)" 
+                            strokeWidth="3.8" 
+                          />
+                          {item.data.map((slice) => {
+                            const strokeDasharray = `${slice.percentage} ${100 - slice.percentage}`;
+                            const strokeDashoffset = -accumulatedPercent;
+                            accumulatedPercent += slice.percentage;
+
+                            return (
+                              <circle
+                                key={slice.label}
+                                cx="18" cy="18" r="15.915"
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth="3.8"
+                                strokeDasharray={strokeDasharray}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="round"
+                                className="transition-all duration-1000"
+                              />
+                            );
+                          })}
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+                          <span className="text-xs font-black text-white">{item.data[0]?.percentage || 0}%</span>
+                          <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">TOP</span>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 min-w-0 w-full space-y-3">
+                        {item.data.map((slice) => (
+                          <div key={slice.label} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs gap-3">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: slice.color }}></span>
+                                <span className="text-gray-300 font-medium truncate" title={slice.label}>{slice.label}</span>
+                              </div>
+                              <span className="text-white font-bold text-[11px] shrink-0 whitespace-nowrap">
+                                {slice.count} ({slice.percentage}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-black/50 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="h-full rounded-full transition-all duration-1000"
+                                style={{ width: `${slice.percentage}%`, backgroundColor: slice.color }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -1448,7 +1586,7 @@ export default function EventoDetalleAdmin() {
           
           <div className="flex items-center gap-4 mb-6 border-b border-white/5 pb-2">
             <button 
-              onClick={() => setActiveTab('lista')} 
+              onClick={() => { setActiveTab('lista'); setIsFullScreen(false); }} 
               className={`flex items-center gap-2 pb-2 font-bold transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'lista' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-300'
               }`}
@@ -1456,7 +1594,7 @@ export default function EventoDetalleAdmin() {
               <List className="h-4 w-4" /> {t.tabList}
             </button>
             <button 
-              onClick={() => setActiveTab('analitica')} 
+              onClick={() => { setActiveTab('analitica'); setIsFullScreen(false); }} 
               className={`flex items-center gap-2 pb-2 font-bold transition-colors border-b-2 cursor-pointer ${
                 activeTab === 'analitica' ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-300'
               }`}
@@ -1484,133 +1622,23 @@ export default function EventoDetalleAdmin() {
               )}
             </>
           ) : (
-            // ==========================================
-            // PESTAÑA: ESTADÍSTICAS (ANALYTICS) VISUALES
-            // ==========================================
-            <div className="space-y-6">
-              
-              {/* TARJETA 1: KPI DE AFORO Y CONTEO GLOBAL */}
-              <div className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest">{t.totalCapacity}</h3>
-                  <p className="text-4xl font-black text-white mt-1 flex items-baseline gap-2">
-                    {registrations.length} 
-                    <span className="text-sm text-gray-400 font-medium">participantes registrados</span>
-                  </p>
-                </div>
-                {event.max_capacity && (
-                  <div className="w-full sm:w-64 text-left sm:text-right">
-                    <p className="text-xs text-accent font-bold mb-1.5 flex items-center justify-between sm:justify-end gap-2">
-                      <span>{Math.round((registrations.length / event.max_capacity) * 100)}% {t.fullLabel}</span>
-                      <span className="text-gray-500 text-[11px] font-normal">Capacidad: {event.max_capacity}</span>
-                    </p>
-                    <div className="w-full bg-black/50 rounded-full h-2.5 overflow-hidden border border-white/10">
-                      <div 
-                        className="bg-accent h-full rounded-full transition-all duration-1000" 
-                        style={{ width: `${Math.min((registrations.length / event.max_capacity) * 100, 100)}%` }}
-                      ></div>
-                    </div>
+            <>
+              {isFullScreen && isMounted ? createPortal(
+                <div className="fixed inset-0 z-999999 bg-black/95 backdrop-blur-md p-4 md:p-8 flex flex-col" onClick={() => setIsFullScreen(false)}>
+                  <div 
+                    className="bg-[#0a0a0a] border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl flex flex-col flex-1 overflow-hidden relative overflow-y-auto custom-scrollbar p-6 md:p-8"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {renderAnalyticsPanel()}
                   </div>
-                )}
-              </div>
-
-              {/* TARJETAS DINÁMICAS CON GRÁFICAS DE DONA Y BARRAS */}
-              {dynamicAnalytics.length === 0 ? (
-                <div className="bg-surface border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
-                  <PieIcon className="h-12 w-12 text-gray-600 mb-3 opacity-30" />
-                  <h4 className="text-white font-bold text-lg mb-1">Aún no hay suficientes datos</h4>
-                  <p className="text-gray-400 text-xs max-w-md leading-relaxed">
-                    A medida que los asistentes completen los campos de selección en el formulario, aquí se generarán automáticamente gráficas interactivas y porcentajes en tiempo real.
-                  </p>
-                </div>
+                </div>,
+                document.body
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {dynamicAnalytics.map((item) => {
-                    // CÁLCULO DE GRÁFICA CIRCULAR TIPO DONA EN SVG
-                    let accumulatedPercent = 0;
-
-                    return (
-                      <div key={item.fieldId} className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
-                            <h3 className="text-sm font-bold text-white flex items-center gap-2 truncate" title={item.fieldName}>
-                              <TrendingUp className="h-4 w-4 text-primary shrink-0" />
-                              <span className="truncate">{item.fieldName}</span>
-                            </h3>
-                            <span className="text-[10px] text-gray-500 font-mono uppercase bg-white/5 px-2 py-0.5 rounded border border-white/5 shrink-0">
-                              {item.totalAnswers} respuestas
-                            </span>
-                          </div>
-
-                          {/* GRÁFICA CIRCULAR DE DONA (SVG) + LEYENDA */}
-                          <div className="flex flex-col sm:flex-row items-center gap-6 my-2">
-                            <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
-                              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                                {/* Círculo base gris */}
-                                <circle 
-                                  cx="18" cy="18" r="15.915" 
-                                  fill="transparent" 
-                                  stroke="rgba(255, 255, 255, 0.05)" 
-                                  strokeWidth="3.8" 
-                                />
-                                {/* Segmentos de colores de la dona */}
-                                {item.data.map((slice) => {
-                                  const strokeDasharray = `${slice.percentage} ${100 - slice.percentage}`;
-                                  const strokeDashoffset = -accumulatedPercent;
-                                  accumulatedPercent += slice.percentage;
-
-                                  return (
-                                    <circle
-                                      key={slice.label}
-                                      cx="18" cy="18" r="15.915"
-                                      fill="transparent"
-                                      stroke={slice.color}
-                                      strokeWidth="3.8"
-                                      strokeDasharray={strokeDasharray}
-                                      strokeDashoffset={strokeDashoffset}
-                                      strokeLinecap="round"
-                                      className="transition-all duration-1000"
-                                    />
-                                  );
-                                })}
-                              </svg>
-                              <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
-                                <span className="text-xs font-black text-white">{item.data[0]?.percentage || 0}%</span>
-                                <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">TOP</span>
-                              </div>
-                            </div>
-
-                            {/* BARRAS DE PROGRESO Y PORCENTAJES */}
-                            <div className="flex-1 w-full space-y-3">
-                              {item.data.map((slice) => (
-                                <div key={slice.label} className="space-y-1">
-                                  <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-300 font-medium truncate max-w-[70%] flex items-center gap-1.5" title={slice.label}>
-                                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: slice.color }}></span>
-                                      <span className="truncate">{slice.label}</span>
-                                    </span>
-                                    <span className="text-white font-bold text-[11px] shrink-0">
-                                      {slice.count} ({slice.percentage}%)
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-black/50 rounded-full h-1.5 overflow-hidden">
-                                    <div 
-                                      className="h-full rounded-full transition-all duration-1000"
-                                      style={{ width: `${slice.percentage}%`, backgroundColor: slice.color }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex flex-col h-full relative">
+                  {renderAnalyticsPanel()}
                 </div>
               )}
-
-            </div>
+            </>
           )}
         </div>
       </div>
