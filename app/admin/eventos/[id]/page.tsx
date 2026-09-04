@@ -32,7 +32,9 @@ import {
   ExternalLink,
   Mail,
   Maximize,
-  Minimize
+  Minimize,
+  PieChart as PieIcon,
+  TrendingUp
 } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import * as XLSX from 'xlsx';
@@ -97,6 +99,17 @@ const systemTranslations: Record<string, Record<string, string>> = {
   }
 };
 
+const CHART_COLORS = [
+  '#6366f1', // Indigo / Primary
+  '#0ea5e9', // Cyan / Accent
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#ec4899', // Pink
+  '#8b5cf6', // Violet
+  '#14b8a6', // Teal
+  '#f97316'  // Orange
+];
+
 export default function EventoDetalleAdmin() {
   const params = useParams();
   const router = useRouter();
@@ -114,7 +127,6 @@ export default function EventoDetalleAdmin() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'lista' | 'analitica'>('lista');
-  
   const [isFullScreen, setIsFullScreen] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -127,7 +139,7 @@ export default function EventoDetalleAdmin() {
   
   const excelUploadRef = useRef<HTMLInputElement>(null);
 
-  // ESTADOS NUEVOS Y SELECCIÓN MASIVA
+  // ESTADOS SELECCIÓN MASIVA
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [selectedRegIds, setSelectedRegIds] = useState<string[]>([]);
   
@@ -136,24 +148,22 @@ export default function EventoDetalleAdmin() {
   const [bulkEditValue, setBulkEditValue] = useState('');
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
-  // ESTADOS PARA MAPEADOR DE EXCEL
+  // MAPEADOR DE EXCEL
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
   const [excelRawRows, setExcelRawRows] = useState<any[]>([]);
   const [columnMapping, setMappingSelection] = useState<Record<string, string>>({});
 
-  // ESTADOS PARA EXPORTACIÓN INTELIGENTE
+  // EXPORTACIÓN
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
-  // ESTADOS PARA EDICIÓN Y ELIMINACIÓN INDIVIDUAL
+  // EDICIÓN Y ELIMINACIÓN INDIVIDUAL
   const [editingParticipant, setEditingParticipant] = useState<any | null>(null);
   const [deletingParticipant, setDeletingParticipant] = useState<any | null>(null);
-  
-  // ESTADO PARA REENVÍO DE CORREO
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
-  // SISTEMA NATIVO DE NOTIFICACIONES Y MODALES
+  // NOTIFICACIONES Y MODALES
   const [toast, setToast] = useState<{ title: string; desc: string; type: 'error' | 'info' | 'success' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'archive' } | null>(null);
 
@@ -187,7 +197,6 @@ export default function EventoDetalleAdmin() {
         
       if (fieldsData) setFields(fieldsData);
       
-      // === INICIO DE DESCARGA PAGINADA (Bypass límite de 1000) ===
       let allRegistrations: any[] = [];
       let from = 0;
       const step = 1000;
@@ -215,7 +224,6 @@ export default function EventoDetalleAdmin() {
       }
       
       setRegistrations(allRegistrations);
-      
     } catch (error) {
       console.error("Error:", error);
     } finally {
@@ -255,7 +263,6 @@ export default function EventoDetalleAdmin() {
       if (error) throw error;
 
       setRegistrations(prev => prev.map(r => r.id === editingParticipant.id ? { ...r, ...updatePayload } : r));
-      
       showToast('Actualizado', 'Los datos del participante fueron modificados correctamente.', 'success');
       setEditingParticipant(null);
     } catch (error: any) {
@@ -335,7 +342,6 @@ export default function EventoDetalleAdmin() {
       if (!response.ok) throw new Error("Fallo en la comunicación con Brevo.");
 
       showToast('Correo Enviado', `Se reenvió el código QR a ${email} exitosamente.`, 'success');
-      
     } catch (error: any) {
       showToast('Error', error.message || 'No se pudo reenviar el correo. Verifica tu límite en Brevo.', 'error');
     } finally {
@@ -394,7 +400,6 @@ export default function EventoDetalleAdmin() {
   const handleImportMasivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     setIsImporting(true);
     
     const reader = new FileReader();
@@ -536,17 +541,14 @@ export default function EventoDetalleAdmin() {
 
     const excelData = registrations.map((reg: any) => {
       const row: any = {};
-      
       fields.forEach((f: any) => { 
         if (selectedColumns.includes(f.id)) {
           row[f.field_name] = reg.form_data[f.id] || '-'; 
         }
       });
-
       if (selectedColumns.includes('fecha')) {
         row['Fecha de Registro'] = new Date(reg.created_at).toLocaleString();
       }
-
       return row;
     });
     
@@ -568,7 +570,6 @@ export default function EventoDetalleAdmin() {
     });
   }, [registrations, searchTerm]);
 
-  // CÁLCULO DE PÁGINAS DINÁMICO
   const totalPages = Math.ceil(filteredRegistrations.length / (isFullScreen ? 25 : itemsPerPage));
   const currentItems = filteredRegistrations.slice(
     (currentPage - 1) * (isFullScreen ? 25 : itemsPerPage), 
@@ -614,22 +615,82 @@ export default function EventoDetalleAdmin() {
     }
   };
 
-  const getTopStats = (keyword: string) => {
-    const field = fields.find((f: any) => f.field_name?.toLowerCase().includes(keyword));
-    if (!field || registrations.length === 0) return [];
-    
-    const counts: Record<string, number> = {};
-    registrations.forEach((r: any) => {
-      const val = r.form_data[field.id];
-      if (val && val !== 'Otra' && !val.startsWith('http')) {
-        counts[val] = (counts[val] || 0) + 1;
-      }
+  // =========================================================================
+  // MOTOR DINÁMICO DE ANALÍTICAS: CALCULA CUALQUIER CAMPO CATEGÓRICO O DE TEXTO
+  // =========================================================================
+  const dynamicAnalytics = useMemo(() => {
+    if (registrations.length === 0 || fields.length === 0) return [];
+
+    const results: Array<{
+      fieldId: string;
+      fieldName: string;
+      fieldType: string;
+      totalAnswers: number;
+      data: Array<{ label: string; count: number; percentage: number; color: string }>;
+    }> = [];
+
+    // Priorizamos preguntas categóricas o que suelen tener agrupaciones
+    fields.forEach((field: any) => {
+      const fn = (field.field_name || '').toLowerCase();
+      let sk = '';
+      try { sk = JSON.parse(field.options || '{}').system_key || ''; } catch(e){}
+
+      const isSelectOrRadio = ['select', 'radio', 'checkbox-group'].includes(field.field_type);
+      const isKnownCategory = ['tipo_doc', 'genero', 'institucion', 'cargo', 'ciudad', 'pais'].includes(sk) ||
+        fn.includes('tipo') || fn.includes('cargo') || fn.includes('role') || fn.includes('instituci') || 
+        fn.includes('company') || fn.includes('ciudad') || fn.includes('city') || fn.includes('pais') || fn.includes('country');
+
+      if (!isSelectOrRadio && !isKnownCategory) return;
+
+      const counts: Record<string, number> = {};
+      let totalFieldAnswers = 0;
+
+      registrations.forEach((r: any) => {
+        const rawVal = r.form_data?.[field.id];
+        if (!rawVal || rawVal === 'Otra' || String(rawVal).startsWith('http')) return;
+
+        if (field.field_type === 'checkbox-group') {
+          const items = String(rawVal).split(', ');
+          items.forEach(it => {
+            const trimmed = it.trim();
+            if (trimmed) {
+              counts[trimmed] = (counts[trimmed] || 0) + 1;
+              totalFieldAnswers++;
+            }
+          });
+        } else {
+          const trimmed = String(rawVal).trim();
+          if (trimmed) {
+            counts[trimmed] = (counts[trimmed] || 0) + 1;
+            totalFieldAnswers++;
+          }
+        }
+      });
+
+      if (totalFieldAnswers === 0) return;
+
+      const sortedEntries = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6); // Top 6 opciones
+
+      const formattedData = sortedEntries.map(([label, count], index) => ({
+        label,
+        count,
+        percentage: Math.round((count / totalFieldAnswers) * 100),
+        color: CHART_COLORS[index % CHART_COLORS.length]
+      }));
+
+      results.push({
+        fieldId: field.id,
+        fieldName: field.field_name,
+        fieldType: field.field_type,
+        totalAnswers: totalFieldAnswers,
+        data: formattedData
+      });
     });
-    
-    return Object.entries(counts)
-      .sort((a: any, b: any) => b[1] - a[1])
-      .slice(0, 5);
-  };
+
+    return results;
+  }, [fields, registrations]);
   
   if (loading && !confirmModal) {
     return (
@@ -649,14 +710,8 @@ export default function EventoDetalleAdmin() {
 
   const publicUrl = `${baseUrl}/e/${event.slug || event.id}`;
   const iframeCode = `<iframe src="${publicUrl}" width="100%" height="800" frameborder="0" style="border-radius: 12px; overflow: hidden; max-width: 800px; margin: auto; display: block;"></iframe>`;
-  
-  const topRoles = getTopStats('cargo');
-  const topInstitutions = getTopStats('instituci');
-  const topCities = getTopStats('ciudad');
 
-  // ==========================================
-  // COMPONENTE DE LA TABLA REUTILIZABLE
-  // ==========================================
+  // COMPONENTE DE LA TABLA
   const renderTablePanel = () => (
     <div className="flex flex-col h-full w-full relative">
       <div className="p-6 border-b border-white/5 space-y-4 shrink-0">
@@ -741,7 +796,6 @@ export default function EventoDetalleAdmin() {
           <table className="w-full text-left text-sm text-gray-300">
             <thead className="bg-black/30 text-xs uppercase text-gray-500 sticky top-0 z-10 backdrop-blur-md">
               <tr>
-                {/* SELECCIÓN MASIVA EN ENCABEZADO */}
                 <th className="px-4 py-4 w-12 text-center">
                   <input 
                     type="checkbox" 
@@ -769,7 +823,6 @@ export default function EventoDetalleAdmin() {
             <tbody className="divide-y divide-white/5">
               {currentItems.map((reg: any) => (
                 <tr key={reg.id} className="hover:bg-white/5 transition-colors group">
-                  {/* SELECCIÓN INDIVIDUAL (CHECKBOX) */}
                   <td className="px-4 py-4 text-center">
                     <input 
                       type="checkbox" 
@@ -813,7 +866,6 @@ export default function EventoDetalleAdmin() {
                   <td className="px-6 py-4 text-xs text-gray-500 whitespace-nowrap">
                     {new Date(reg.created_at).toLocaleDateString()}
                   </td>
-                  {/* DIBUJADO DE LAS RESPUESTAS (INCLUYE ARCHIVOS) */}
                   {fields.map((f: any) => {
                     const val = reg.form_data[f.id];
                     const isFileUrl = typeof val === 'string' && val.startsWith('http');
@@ -847,7 +899,6 @@ export default function EventoDetalleAdmin() {
         )}
       </div>
 
-      {/* FLOATING ACTION BAR PARA EDICIÓN MASIVA */}
       <AnimatePresence>
         {selectedRegIds.length > 0 && (
           <motion.div 
@@ -901,10 +952,9 @@ export default function EventoDetalleAdmin() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20 relative">
 
-      {/* RENDERIZADO GLOBAL PARA TODOS LOS MODALES Y TOASTS EN LA CAPA MÁS ALTA */}
+      {/* RENDERIZADO GLOBAL DE MODALES */}
       {isMounted && createPortal(
         <>
-          {/* TOASTS CONTENEDOR */}
           <div className="fixed top-6 right-6 z-99999999 flex flex-col gap-3 pointer-events-none">
             <AnimatePresence>
               {toast && (
@@ -935,7 +985,6 @@ export default function EventoDetalleAdmin() {
             </AnimatePresence>
           </div>
 
-          {/* POP-UP MAPEA EXCEL EXPLICITO */}
           <AnimatePresence>
             {showMappingModal && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -973,7 +1022,6 @@ export default function EventoDetalleAdmin() {
             )}
           </AnimatePresence>
 
-          {/* POP-UP: BULK EDIT DE SELECCIONADOS */}
           <AnimatePresence>
             {showBulkEditModal && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -1019,7 +1067,6 @@ export default function EventoDetalleAdmin() {
             )}
           </AnimatePresence>
 
-          {/* POP-UP: BULK DELETE MODAL */}
           <AnimatePresence>
             {showBulkDeleteModal && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-9999999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -1036,7 +1083,6 @@ export default function EventoDetalleAdmin() {
             )}
           </AnimatePresence>
 
-          {/* MODAL EDITAR PARTICIPANTE INDIVIDUAL */}
           <AnimatePresence>
             {editingParticipant && (
               <motion.div 
@@ -1131,7 +1177,6 @@ export default function EventoDetalleAdmin() {
             )}
           </AnimatePresence>
 
-          {/* MODAL ELIMINAR PARTICIPANTE INDIVIDUAL */}
           <AnimatePresence>
             {deletingParticipant && (
               <motion.div 
@@ -1163,7 +1208,6 @@ export default function EventoDetalleAdmin() {
             )}
           </AnimatePresence>
 
-          {/* MODAL 4D DE CONFIRMACIÓN DE ARCHIVO */}
           <AnimatePresence>
             {confirmModal && (
               <motion.div 
@@ -1193,7 +1237,6 @@ export default function EventoDetalleAdmin() {
             )}
           </AnimatePresence>
           
-          {/* MODAL EXPORTAR EXCEL INTELIGENTE */}
           <AnimatePresence>
             {showExportModal && (
               <motion.div 
@@ -1293,7 +1336,6 @@ export default function EventoDetalleAdmin() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2.5 relative">
-          {/* SWITCH DE IDIOMA DEL PANEL DE CONTROL */}
           <button 
             onClick={() => setShowSettingsPanel(!showSettingsPanel)} 
             className="p-2.5 bg-surface border border-white/10 hover:border-white/20 text-gray-400 hover:text-white rounded-xl transition-all cursor-pointer"
@@ -1442,22 +1484,27 @@ export default function EventoDetalleAdmin() {
               )}
             </>
           ) : (
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            // ==========================================
+            // PESTAÑA: ESTADÍSTICAS (ANALYTICS) VISUALES
+            // ==========================================
+            <div className="space-y-6">
               
-              <div className="bg-surface border border-white/5 p-6 rounded-2xl md:col-span-2 flex items-center justify-between">
+              {/* TARJETA 1: KPI DE AFORO Y CONTEO GLOBAL */}
+              <div className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-gray-400 text-sm font-bold uppercase tracking-widest">{t.totalCapacity}</h3>
-                  <p className="text-4xl font-black text-white mt-1">
-                    {registrations.length} <span className="text-lg text-gray-500 font-medium">inscritos</span>
+                  <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest">{t.totalCapacity}</h3>
+                  <p className="text-4xl font-black text-white mt-1 flex items-baseline gap-2">
+                    {registrations.length} 
+                    <span className="text-sm text-gray-400 font-medium">participantes registrados</span>
                   </p>
                 </div>
                 {event.max_capacity && (
-                  <div className="text-right">
-                    <p className="text-sm text-accent font-bold mb-2">
-                      {Math.round((registrations.length / event.max_capacity) * 100)}% {t.fullLabel}
+                  <div className="w-full sm:w-64 text-left sm:text-right">
+                    <p className="text-xs text-accent font-bold mb-1.5 flex items-center justify-between sm:justify-end gap-2">
+                      <span>{Math.round((registrations.length / event.max_capacity) * 100)}% {t.fullLabel}</span>
+                      <span className="text-gray-500 text-[11px] font-normal">Capacidad: {event.max_capacity}</span>
                     </p>
-                    <div className="w-48 bg-black/50 rounded-full h-3 overflow-hidden border border-white/10">
+                    <div className="w-full bg-black/50 rounded-full h-2.5 overflow-hidden border border-white/10">
                       <div 
                         className="bg-accent h-full rounded-full transition-all duration-1000" 
                         style={{ width: `${Math.min((registrations.length / event.max_capacity) * 100, 100)}%` }}
@@ -1467,75 +1514,99 @@ export default function EventoDetalleAdmin() {
                 )}
               </div>
 
-              {topInstitutions.length > 0 && (
-                <div className="bg-surface border border-white/5 p-6 rounded-2xl">
-                  <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-primary"/> {t.topInst}
-                  </h3>
-                  <div className="space-y-4">
-                    {topInstitutions.map(([name, count]: any) => (
-                      <div key={name}>
-                        <div className="flex justify-between text-xs text-gray-300 mb-1">
-                          <span className="truncate max-w-[80%] font-medium">{name}</span>
-                          <span className="font-bold">{count}</span>
-                        </div>
-                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
-                          <div 
-                            className="bg-primary h-2 rounded-full" 
-                            style={{ width: `${(count / registrations.length) * 100}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {/* TARJETAS DINÁMICAS CON GRÁFICAS DE DONA Y BARRAS */}
+              {dynamicAnalytics.length === 0 ? (
+                <div className="bg-surface border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
+                  <PieIcon className="h-12 w-12 text-gray-600 mb-3 opacity-30" />
+                  <h4 className="text-white font-bold text-lg mb-1">Aún no hay suficientes datos</h4>
+                  <p className="text-gray-400 text-xs max-w-md leading-relaxed">
+                    A medida que los asistentes completen los campos de selección en el formulario, aquí se generarán automáticamente gráficas interactivas y porcentajes en tiempo real.
+                  </p>
                 </div>
-              )}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {dynamicAnalytics.map((item) => {
+                    // CÁLCULO DE GRÁFICA CIRCULAR TIPO DONA EN SVG
+                    let accumulatedPercent = 0;
 
-              {topRoles.length > 0 && (
-                <div className="bg-surface border border-white/5 p-6 rounded-2xl">
-                  <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-green-400"/> {t.topRoles}
-                  </h3>
-                  <div className="space-y-4">
-                    {topRoles.map(([name, count]: any) => (
-                      <div key={name}>
-                        <div className="flex justify-between text-xs text-gray-300 mb-1">
-                          <span className="truncate max-w-[80%] font-medium">{name}</span>
-                          <span className="font-bold">{count}</span>
-                        </div>
-                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
-                          <div 
-                            className="bg-green-500 h-2 rounded-full" 
-                            style={{ width: `${(count / registrations.length) * 100}%` }}
-                          ></div>
+                    return (
+                      <div key={item.fieldId} className="bg-surface border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+                            <h3 className="text-sm font-bold text-white flex items-center gap-2 truncate" title={item.fieldName}>
+                              <TrendingUp className="h-4 w-4 text-primary shrink-0" />
+                              <span className="truncate">{item.fieldName}</span>
+                            </h3>
+                            <span className="text-[10px] text-gray-500 font-mono uppercase bg-white/5 px-2 py-0.5 rounded border border-white/5 shrink-0">
+                              {item.totalAnswers} respuestas
+                            </span>
+                          </div>
+
+                          {/* GRÁFICA CIRCULAR DE DONA (SVG) + LEYENDA */}
+                          <div className="flex flex-col sm:flex-row items-center gap-6 my-2">
+                            <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
+                              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                {/* Círculo base gris */}
+                                <circle 
+                                  cx="18" cy="18" r="15.915" 
+                                  fill="transparent" 
+                                  stroke="rgba(255, 255, 255, 0.05)" 
+                                  strokeWidth="3.8" 
+                                />
+                                {/* Segmentos de colores de la dona */}
+                                {item.data.map((slice) => {
+                                  const strokeDasharray = `${slice.percentage} ${100 - slice.percentage}`;
+                                  const strokeDashoffset = -accumulatedPercent;
+                                  accumulatedPercent += slice.percentage;
+
+                                  return (
+                                    <circle
+                                      key={slice.label}
+                                      cx="18" cy="18" r="15.915"
+                                      fill="transparent"
+                                      stroke={slice.color}
+                                      strokeWidth="3.8"
+                                      strokeDasharray={strokeDasharray}
+                                      strokeDashoffset={strokeDashoffset}
+                                      strokeLinecap="round"
+                                      className="transition-all duration-1000"
+                                    />
+                                  );
+                                })}
+                              </svg>
+                              <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+                                <span className="text-xs font-black text-white">{item.data[0]?.percentage || 0}%</span>
+                                <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">TOP</span>
+                              </div>
+                            </div>
+
+                            {/* BARRAS DE PROGRESO Y PORCENTAJES */}
+                            <div className="flex-1 w-full space-y-3">
+                              {item.data.map((slice) => (
+                                <div key={slice.label} className="space-y-1">
+                                  <div className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-300 font-medium truncate max-w-[70%] flex items-center gap-1.5" title={slice.label}>
+                                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: slice.color }}></span>
+                                      <span className="truncate">{slice.label}</span>
+                                    </span>
+                                    <span className="text-white font-bold text-[11px] shrink-0">
+                                      {slice.count} ({slice.percentage}%)
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-black/50 rounded-full h-1.5 overflow-hidden">
+                                    <div 
+                                      className="h-full rounded-full transition-all duration-1000"
+                                      style={{ width: `${slice.percentage}%`, backgroundColor: slice.color }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {topCities.length > 0 && (
-                <div className="bg-surface border border-white/5 p-6 rounded-2xl md:col-span-2">
-                  <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-accent"/> {t.topCities}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                    {topCities.map(([name, count]: any) => (
-                      <div key={name}>
-                        <div className="flex justify-between text-xs text-gray-300 mb-1">
-                          <span className="truncate max-w-[80%] font-medium">{name}</span>
-                          <span className="font-bold">{count}</span>
-                        </div>
-                        <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
-                          <div 
-                            className="bg-accent h-2 rounded-full" 
-                            style={{ width: `${(count / registrations.length) * 100}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
 
