@@ -787,13 +787,16 @@ export default function FormularioPublico() {
       #acofi-form-wrapper .checked\\:bg-accent:checked { background-color: ${accentCode} !important; border-color: ${accentCode} !important; }
       #acofi-form-wrapper .checked\\:bg-primary:checked { background-color: ${primaryCode} !important; border-color: ${primaryCode} !important; }
       
-      /* Estilos para el texto enriquecido de la descripción */
-      .event-description-html a { color: ${accentCode}; text-decoration: underline; font-weight: bold; }
+      /* Estilos para el texto enriquecido de la descripción (CON FIX DE SOBREESCRITURA) */
+      .event-description-html { overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; width: 100%; max-width: 100%; }
+      .event-description-html * { max-width: 100%; word-wrap: break-word; }
+      .event-description-html a { color: ${accentCode}; text-decoration: underline; font-weight: bold; word-break: break-all; }
       .event-description-html a:hover { color: ${primaryCode}; }
       .event-description-html h1 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
       .event-description-html h2 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem; }
       .event-description-html h3 { font-size: 1.125rem; font-weight: bold; margin-bottom: 0.5rem; }
-      .event-description-html p { margin-bottom: 0.5rem; }
+      .event-description-html p { margin-bottom: 0.5rem; max-width: 100%; }
+      .event-description-html img { max-width: 100%; height: auto; }
     `}} />
   );
 
@@ -859,7 +862,7 @@ export default function FormularioPublico() {
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">{t.successTitle}</h2>
             
             {event.thank_you_enabled && event.thank_you_text && (
-                <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed">
+                <p className="text-gray-700 dark:text-gray-300 mb-8 text-md font-bold bg-gray-100 dark:bg-black/30 p-4 rounded-xl border border-gray-200 dark:border-gray-800 leading-relaxed wrap-break-word">
                   {event.thank_you_text}
                 </p>
             )}
@@ -1025,9 +1028,9 @@ export default function FormularioPublico() {
             </div>
 
             {event.description && (
-              <div className="mb-12 bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/10">
+              <div className="mb-12 bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/10 w-full overflow-hidden">
                 <div 
-                  className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed event-description-html"
+                  className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed event-description-html wrap-break-word"
                   dangerouslySetInnerHTML={{ __html: event.description }}
                 />
               </div>
@@ -1081,7 +1084,6 @@ export default function FormularioPublico() {
                   let description = parsedOpts.description || '';
                   let systemKey = parsedOpts.system_key || null;
 
-                  // TRADUCCIÓN EN TIEMPO REAL PARA CAMPOS DEL SISTEMA
                   let fieldName = field.field_name || '';
                   if (field.is_default && systemKey && defaultTranslations[language]?.[systemKey]) {
                     fieldName = defaultTranslations[language][systemKey].label;
@@ -1105,7 +1107,6 @@ export default function FormularioPublico() {
                   if (['select', 'radio', 'checkbox-group'].includes(field.field_type)) {
                       let baseOptionsList = [...(parsedOpts.choices || [])];
                       
-                      // TRADUCCIÓN DE OPCIONES EN TIEMPO REAL
                       if (field.is_default && systemKey && defaultTranslations[language]?.[systemKey]) {
                           if (systemKey === 'pais') {
                               baseOptionsList = defaultCountries[language];
@@ -1118,7 +1119,6 @@ export default function FormularioPublico() {
                       if (allowOther && !baseOptionsList.includes('Otra')) baseOptionsList.push('Otra');
 
                       processedOptions = baseOptionsList.map((opt, optIndex) => {
-                          // Buscar el límite mapeando con el array original para no perder la referencia
                           const originalOption = parsedOpts.choices?.[optIndex] || opt;
                           const limitObj = parsedOpts.limits?.[originalOption] || parsedOpts.limits?.[opt];
                           
