@@ -153,24 +153,46 @@ export default function HistoricoPage() {
   };
 
   // ==========================================
-  // DESCARGAR EXCEL DE TODOS LOS HISTÓRICOS
+  // DESCARGAR EXCEL DE TODOS LOS HISTÓRICOS (PAGINADO > 1000)
   // ==========================================
   const handleDownloadAll = async () => {
-    showToast('Preparando Archivo', 'Recopilando la base de datos completa. Por favor espera...', 'info');
+    showToast('Preparando Archivo', 'Recopilando la base de datos completa. Esto puede tardar unos segundos. Por favor espera...', 'info');
     try {
-      const { data, error } = await supabase.from('historic_users').select('*');
-      if (error) throw error;
+      let allData: any[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: batch, error } = await supabase
+          .from('historic_users')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, from + step - 1);
+
+        if (error) throw error;
+
+        if (batch && batch.length > 0) {
+          allData = [...allData, ...batch];
+          from += step;
+          if (batch.length < step) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
       
-      if (!data || data.length === 0) {
+      if (allData.length === 0) {
         return showToast('Base Vacía', 'No hay registros en el histórico para descargar.', 'error');
       }
 
-      const ws = XLSX.utils.json_to_sheet(data);
+      const ws = XLSX.utils.json_to_sheet(allData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Histórico Completo");
       XLSX.writeFile(wb, `ACOFI_Historico_${new Date().toISOString().split('T')[0]}.xlsx`);
       
-      showToast('Éxito', 'El archivo Excel ha sido descargado.', 'success');
+      showToast('Éxito', `El archivo Excel con ${allData.length} registros ha sido descargado.`, 'success');
     } catch (error: any) {
       showToast('Error de Descarga', 'No se pudo generar el archivo Excel.', 'error');
     }
