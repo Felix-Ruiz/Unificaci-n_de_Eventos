@@ -12,7 +12,7 @@ import { useLanguage } from '../../../context/LanguageContext';
 const systemTranslations: Record<string, Record<string, string>> = {
   es: {
     pageTitle: "Control de Personal",
-    pageSubtitle: "Administra los roles y permisos de acceso para tu equipo.",
+    pageSubtitle: "Administra los roles y permisos de acceso.",
     btnNewUser: "Nuevo Usuario",
     tableColName: "Nombre del Staff",
     tableColEmail: "Correo (Usuario)",
